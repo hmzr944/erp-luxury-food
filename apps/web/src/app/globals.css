@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/* ============================================================
+   DESIGN TOKENS — ERP Luxury Food
+   Philosophie : Linear/Notion — dark, premium, précis
+   Typographie : Instrument Serif (display) + Geist (body) + Geist Mono (data)
+   ============================================================ */
+
+@theme {
+  /* Backgrounds */
+  --color-bg-base:     #0A0A0A;
+  --color-bg-surface:  #111111;
+  --color-bg-elevated: #1A1A1A;
+  --color-bg-hover:    #222222;
+
+  /* Text */
+  --color-text-primary:   #F5F5F0;
+  --color-text-secondary: #9A9A90;
+  --color-text-muted:     #555550;
+
+  /* Accent — or chaud artisanal */
+  --color-accent:       #E8C878;
+  --color-accent-hover: #F0D888;
+  --color-accent-muted: #2A2415;
+
+  /* Sémantique */
+  --color-success: #4ADE80;
+  --color-warning: #FCD34D;
+  --color-danger:  #F87171;
+  --color-info:    #60A5FA;
+
+  /* Bordures */
+  --color-border:       #1F1F1F;
+  --color-border-strong: #2A2A2A;
+
+  /* Typography */
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body:    'Geist', system-ui, sans-serif;
+  --font-data:    'Geist Mono', monospace;
+
+  /* Radius — scale unique, cohérent sur tout le produit */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-pill: 9999px;
+}
+
+/* Fonts via Google Fonts (remplacé par next/font en Sprint 2) */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..500&display=swap');
+
+/* ============================================================
+   BASE RESET
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+/* ============================================================
+   UTILITAIRES SÉMANTIQUES — toujours utiliser ces classes
+   ============================================================ */
+
+.font-display { font-family: var(--font-display); }
+.font-body    { font-family: var(--font-body); }
+.font-data    { font-family: var(--font-data); }
+
+/* Statut commandes */
+.status-pending   { @apply bg-yellow-500/10 text-yellow-400 border border-yellow-500/20; }
+.status-preparing { @apply bg-blue-500/10   text-blue-400   border border-blue-500/20; }
+.status-ready     { @apply bg-green-500/10  text-green-400  border border-green-500/20; }
+.status-completed { @apply bg-zinc-500/10   text-zinc-400   border border-zinc-500/20; }
+.status-cancelled { @apply bg-red-500/10    text-red-400    border border-red-500/20; }
+.status-refunded  { @apply bg-orange-500/10 text-orange-400 border border-orange-500/20; }
+
+/* Surface card */
+.card {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/* Scrollbar discrète */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }

@@ -1,0 +1,417 @@
+// Sprint 1 + Sprint 2 — schema complet
+// Règle : migrations additives uniquement, jamais de reset en prod
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// SPRINT 1 — Organisation & Multi-tenant
+// ============================================================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(STARTER)
+  sites     Site[]
+  users     User[]
+  settings  OrganizationSettings?
+  invoiceSequences InvoiceSequence[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// SPRINT 8 — Paramètres légaux + E-invoicing + Séquence factures
+// ============================================================
+
+// Informations légales de l'organisation (SIRET, TVA, PDP...)
+model OrganizationSettings {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // Identité légale
+  siret          String?      // 14 chiffres
+  vatNumber      String?      // FR + 11 chiffres
+  legalForm      String?      // SAS, SARL, SA...
+  capital        Decimal?     @db.Decimal(15, 2)
+  rcs            String?      // Tribunal de commerce
+  legalAddress   String?
+  legalCity      String?
+  legalZipCode   String?
+  // E-invoicing Plateforme Agréée (sept. 2026)
+  pdpName        String?      // ex. "Chorus Pro", "Yooz", "Pennylane"
+  pdpEndpoint    String?      // URL endpoint PDP
+  pdpApiKey      String?      // Clé API chiffrée (at-rest)
+  pdpEnabled     Boolean      @default(false)
+  updatedAt      DateTime     @updatedAt
+}
+
+// Séquence de numérotation factures — JAMAIS de gap (obligation légale FR)
+model InvoiceSequence {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  year           Int
+  lastNumber     Int          @default(0)
+  prefix         String       @default("FA") // ex. "FA" → FA-2026-0001
+
+  @@unique([organizationId, year])
+}
+
+model Site {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  address        String?
+  timezone       String         @default("Europe/Paris")
+  users          UserSite[]
+  receiptChains  ReceiptChain[]
+  categories     Category[]
+  products       Product[]
+  orders         Order[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organizationId])
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String       @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  role           Role         @default(SELLER)
+  sites          UserSite[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model UserSite {
+  userId String
+  siteId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@id([userId, siteId])
+}
+
+// ============================================================
+// SPRINT 1 — NF525 : chaîne de hachage des tickets
+// ⚠️ signReceipt() obligatoire avant toute création de Order
+// ⚠️ counter immuable par site, jamais de gap, jamais de reset
+// ============================================================
+
+model ReceiptChain {
+  id           String   @id @default(cuid())
+  siteId       String
+  site         Site     @relation(fields: [siteId], references: [id])
+  counter      Int
+  hash         String   // SHA-256(previousHash|total|signedAt|counter)
+  previousHash String   // "0"×64 pour le premier ticket
+  total        Decimal  @db.Decimal(10, 2) // calculé serveur uniquement
+  signedAt     DateTime @default(now())
+  // Lien vers la commande (FK sur Order — pas sur ReceiptChain)
+  order        Order?
+
+  @@unique([siteId, counter])
+  @@index([siteId])
+}
+
+// ============================================================
+// SPRINT 2 — Catalogue produits
+// ============================================================
+
+model Category {
+  id       String    @id @default(cuid())
+  siteId   String
+  site     Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name     String
+  color    String?   // hex — pour l'indicateur couleur dans la grille POS
+  position Int       @default(0)
+  products Product[]
+
+  @@index([siteId])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  siteId      String
+  site        Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name        String
+  subtitle    String?     // ex. "Origine Ghana 72%"
+  description String?
+  sku         String?
+  barcode     String?
+  price       Decimal     @db.Decimal(10, 2)
+  taxRate     Decimal     @default(5.5)  @db.Decimal(5, 2)
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id])
+  variants    Variant[]
+  orderItems  OrderItem[]
+  // Back-relations Sprint 4 — ajoutées via migration additive
+  stockItem   StockItem?
+  allergens   ProductAllergen[]
+  isActive    Boolean     @default(true)
+  imageUrl    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([siteId])
+  @@index([siteId, isActive])
+  @@index([barcode])
+}
+
+model Variant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String  // ex. "150g", "Coffret 6 pièces"
+  price     Decimal @db.Decimal(10, 2)
+  barcode   String?
+
+  @@index([productId])
+}
+
+// ============================================================
+// SPRINT 2 — Commandes & Encaissement
+// ============================================================
+
+model Order {
+  id             String        @id @default(cuid())
+  siteId         String
+  site           Site          @relation(fields: [siteId], references: [id])
+  channel        Channel       @default(IN_STORE)
+  status         OrderStatus   @default(COMPLETED)
+  items          OrderItem[]
+  subtotal       Decimal       @db.Decimal(10, 2)
+  taxAmount      Decimal       @db.Decimal(10, 2)
+  total          Decimal       @db.Decimal(10, 2) // calculé serveur
+  discount       Decimal       @default(0) @db.Decimal(10, 2)
+  paymentMode    PaymentMode   @default(CARD)
+  customerEmail  String?
+  customerName   String?   // click & collect — nom du client
+  note           String?
+  // Click & collect — Sprint 3
+  pickupCode     String?   @unique
+  scheduledAt    DateTime?
+  // B2B — Sprint 7
+  b2bClientId    String?
+  b2bClient      B2BClient? @relation(fields: [b2bClientId], references: [id])
+  paymentTerms   Int?        // jours de paiement B2B (30, 60, 90)
+  invoiceNumber  String?     @unique
+  invoicedAt     DateTime?
+  receiptChainId String?   @unique
+  receiptChain   ReceiptChain? @relation(fields: [receiptChainId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([siteId, createdAt])
+  @@index([siteId, status])
+  @@index([pickupCode])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  variantId String?
+  // Snapshot immuable au moment de la vente
+  name      String
+  price     Decimal @db.Decimal(10, 2)
+  taxRate   Decimal @db.Decimal(5, 2)
+  quantity  Int
+  discount  Decimal @default(0) @db.Decimal(10, 2)
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+// ============================================================
+// SPRINT 7 — B2B, API publique, Webhooks
+// ============================================================
+
+// Client professionnel (restaurant, hôtel, épicerie fine...)
+model B2BClient {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String   // Raison sociale
+  siret          String?
+  vatNumber      String?  // Numéro TVA intracommunautaire
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  zipCode        String?
+  country        String   @default("FR")
+  discount       Decimal? @db.Decimal(5, 2) // Remise habituelle en %
+  paymentTerms   Int      @default(30)       // Délai de paiement en jours
+  notes          String?
+  orders         Order[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+// Jeton d'accès API (Personal Access Token)
+model ApiToken {
+  id             String    @id @default(cuid())
+  userId         String
+  organizationId String
+  name           String
+  tokenHash      String    @unique  // SHA-256 du token en clair
+  prefix         String             // 8 premiers chars pour identification
+  scopes         String[]           // ["orders:read", "products:read", ...]
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isRevoked      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId])
+  @@index([tokenHash])
+}
+
+// Endpoint webhook
+model Webhook {
+  id             String    @id @default(cuid())
+  organizationId String
+  url            String
+  events         String[]  // ["order.created", "order.completed", ...]
+  secret         String    // HMAC-SHA256 signing secret
+  isActive       Boolean   @default(true)
+  failureCount   Int       @default(0)
+  lastTriggeredAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  SELLER
+}
+
+enum Plan {
+  STARTER
+  PRO
+  SCALE
+  ENTERPRISE
+}
+
+// ============================================================
+// SPRINT 4 — Stock, Allergènes, NF525 clôture journalière
+// ============================================================
+
+model StockItem {
+  id        String   @id @default(cuid())
+  productId String   @unique
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  siteId    String
+  quantity  Decimal  @db.Decimal(10, 3)
+  unit      String   @default("unité")
+  alertAt   Decimal? @db.Decimal(10, 3) // seuil d'alerte
+  updatedAt DateTime @updatedAt
+
+  @@index([siteId])
+  @@index([siteId, alertAt])
+}
+
+model StockMovement {
+  id        String       @id @default(cuid())
+  siteId    String
+  productId String
+  type      MovementType
+  quantity  Decimal      @db.Decimal(10, 3)
+  reason    String?
+  orderId   String?      // renseigné pour les ventes
+  userId    String?
+  createdAt DateTime     @default(now())
+
+  @@index([siteId, createdAt])
+  @@index([productId])
+}
+
+// 14 allergènes INCO — seedés en base, non modifiables par les users
+model Allergen {
+  id       String           @id @default(cuid())
+  name     String           @unique
+  code     String           @unique // "GLUTEN", "LAIT", etc.
+  isInco   Boolean          @default(true)
+  products ProductAllergen[]
+}
+
+model ProductAllergen {
+  productId  String
+  allergenId String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  allergen   Allergen @relation(fields: [allergenId], references: [id])
+  traces     Boolean  @default(false) // présence sous forme de traces
+
+  @@id([productId, allergenId])
+  @@index([productId])
+}
+
+// NF525 — Clôture journalière (ticket Z)
+model DayClosure {
+  id           String   @id @default(cuid())
+  siteId       String
+  date         DateTime // jour de clôture (minuit UTC)
+  totalOrders  Int
+  totalAmount  Decimal  @db.Decimal(10, 2)
+  lastCounter  Int      // dernier counter NF525 de la journée
+  hash         String   // SHA-256 de la clôture
+  closedAt     DateTime @default(now())
+  closedBy     String?
+
+  @@unique([siteId, date])
+  @@index([siteId])
+}
+
+enum MovementType {
+  SALE
+  RESTOCK
+  ADJUSTMENT
+  TRANSFER
+  LOSS
+}
+
+enum Channel {
+  IN_STORE
+  CLICK_COLLECT
+  B2B
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMode {
+  CARD
+  CASH
+  MIXED
+  INVOICE
+  TICKET_RESTO
+}

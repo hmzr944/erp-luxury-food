@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-api
+  namespace: erp-production
+  labels:
+    app: erp-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: erp-api
+  template:
+    metadata:
+      labels:
+        app: erp-api
+    spec:
+      containers:
+        - name: api
+          image: registry.gra.cloud.ovh.net/erp/api:latest
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - secretRef:
+                name: erp-api-secrets
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3001"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: erp-api
+  namespace: erp-production
+spec:
+  selector:
+    app: erp-api
+  ports:
+    - port: 3001
+      targetPort: 3001

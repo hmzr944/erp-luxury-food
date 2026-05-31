@@ -1,0 +1,31 @@
+{
+  "name": "erp-luxury",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "db:migrate": "pnpm --filter api run db:migrate",
+    "db:seed": "pnpm --filter api run db:seed",
+    "db:studio": "pnpm --filter api run db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "prettier": "^3.5.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.1",
+    "typescript": "^5.8.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
+    "*.{json,md}": ["prettier --write"]
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@11.5.0"
+}

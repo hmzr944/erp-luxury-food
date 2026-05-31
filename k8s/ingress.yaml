@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: erp-ingress
+  namespace: erp-production
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-set-headers: "erp-production/erp-websocket-headers"
+spec:
+  tls:
+    - hosts:
+        - app.yourdomain.fr
+        - api.yourdomain.fr
+      secretName: erp-tls
+  rules:
+    - host: app.yourdomain.fr
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: erp-web
+                port:
+                  number: 3000
+
+    - host: api.yourdomain.fr
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: erp-api
+                port:
+                  number: 3001

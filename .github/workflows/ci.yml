@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-test-build:
+    name: Lint + Test + Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp
+          POSTGRES_DB: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://erp:erp@localhost:5432/erp_test
+        run: pnpm exec prisma generate
+
+      - name: Run migrations (test DB)
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://erp:erp@localhost:5432/erp_test
+        run: pnpm exec prisma migrate deploy
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test (API)
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://erp:erp@localhost:5432/erp_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-secret-32chars-minimum
+          JWT_REFRESH_SECRET: ci-refresh-test-secret-32chars-min
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+        env:
+          DATABASE_URL: postgresql://erp:erp@localhost:5432/erp_test
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXT_PUBLIC_WS_URL: ws://localhost:3001

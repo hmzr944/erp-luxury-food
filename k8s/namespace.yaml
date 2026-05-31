@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: erp-production
+  labels:
+    environment: production
+    region: eu-west

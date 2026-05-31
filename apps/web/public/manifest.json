@@ -1,0 +1,42 @@
+{
+  "name": "ERP Luxury Food",
+  "short_name": "ERP",
+  "description": "Caisse et gestion pour manufactures et boutiques luxury food",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0A0A0A",
+  "theme_color": "#0A0A0A",
+  "lang": "fr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/pos-landscape.png",
+      "sizes": "1366x768",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Caisse en mode paysage"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ouvrir la caisse",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

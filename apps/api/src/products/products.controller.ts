@@ -1,0 +1,83 @@
+import {
+  Controller, Get, Post, Patch, Delete, Body, Param,
+  Query, UseGuards, HttpCode, HttpStatus,
+} from '@nestjs/common'
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
+import { SiteGuard } from '../common/guards/site.guard'
+import { ProductsService, type CreateProductDto, type UpdateProductDto } from './products.service'
+
+@Controller('sites/:siteId')
+@UseGuards(JwtAuthGuard, SiteGuard)
+export class ProductsController {
+  constructor(private products: ProductsService) {}
+
+  // ── Produits ────────────────────────────────────────────────
+
+  @Get('products')
+  findAll(
+    @Param('siteId') siteId: string,
+    @Query('all') all?: string,
+  ) {
+    return this.products.findAll(siteId, all === 'true')
+  }
+
+  @Get('products/barcode/:barcode')
+  findByBarcode(@Param('siteId') siteId: string, @Param('barcode') barcode: string) {
+    return this.products.findByBarcode(barcode, siteId)
+  }
+
+  @Get('products/:id')
+  findById(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.products.findById(id, siteId)
+  }
+
+  @Post('products')
+  create(@Param('siteId') siteId: string, @Body() dto: CreateProductDto) {
+    return this.products.create(siteId, dto)
+  }
+
+  @Patch('products/:id')
+  update(
+    @Param('siteId') siteId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateProductDto,
+  ) {
+    return this.products.update(id, siteId, dto)
+  }
+
+  @Delete('products/:id')
+  @HttpCode(HttpStatus.OK)
+  remove(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.products.remove(id, siteId)
+  }
+
+  // ── Catégories ──────────────────────────────────────────────
+
+  @Get('categories')
+  findCategories(@Param('siteId') siteId: string) {
+    return this.products.findCategories(siteId)
+  }
+
+  @Post('categories')
+  createCategory(
+    @Param('siteId') siteId: string,
+    @Body() dto: { name: string; color?: string; position?: number },
+  ) {
+    return this.products.createCategory(siteId, dto)
+  }
+
+  @Patch('categories/:id')
+  updateCategory(
+    @Param('siteId') siteId: string,
+    @Param('id') id: string,
+    @Body() dto: { name?: string; color?: string; position?: number },
+  ) {
+    return this.products.updateCategory(id, siteId, dto)
+  }
+
+  @Delete('categories/:id')
+  @HttpCode(HttpStatus.OK)
+  removeCategory(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.products.removeCategory(id, siteId)
+  }
+}
