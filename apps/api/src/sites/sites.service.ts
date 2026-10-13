@@ -47,7 +47,7 @@ export class SitesService {
         },
       })
       if (!res.ok) return []
-      return res.json()
+      return (await res.json()) as any[]
     } catch {
       return []
     }

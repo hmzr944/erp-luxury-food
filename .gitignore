@@ -45,3 +45,4 @@ coverage
 
 # Docker
 .docker-data
+*.tsbuildinfo

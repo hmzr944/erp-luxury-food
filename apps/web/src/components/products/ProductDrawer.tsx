@@ -21,7 +21,7 @@ const productSchema = z.object({
   sku: z.string().optional(),
   barcode: z.string().optional(),
   price: z.number({ invalid_type_error: 'Prix requis' }).positive('Prix > 0'),
-  taxRate: z.number().min(0).max(100).default(5.5),
+  taxRate: z.number().min(0).max(100),
   categoryId: z.string().optional(),
   variants: z.array(variantSchema).optional(),
 })

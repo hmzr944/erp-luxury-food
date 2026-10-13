@@ -8,14 +8,14 @@ import { toast } from 'sonner'
 import { OrderCard } from './OrderCard'
 import { useSocket } from '@/hooks/useSocket'
 import { ordersApi, type ApiOrder } from '@/lib/api/orders'
-import type { OrderStatus } from '@erp/types'
+import { OrderStatus } from '@erp/types'
 
 const STATUS_TABS: Array<{ key: OrderStatus | 'ALL'; label: string; color: string }> = [
   { key: 'ALL',       label: 'Toutes',          color: 'text-[var(--color-text-secondary)]' },
-  { key: 'PENDING',   label: 'En attente',      color: 'text-yellow-400' },
-  { key: 'PREPARING', label: 'En préparation',  color: 'text-blue-400' },
-  { key: 'READY',     label: 'Prêtes',          color: 'text-green-400' },
-  { key: 'COMPLETED', label: 'Servies',         color: 'text-[var(--color-text-muted)]' },
+  { key: OrderStatus.PENDING,   label: 'En attente',      color: 'text-yellow-400' },
+  { key: OrderStatus.PREPARING, label: 'En préparation',  color: 'text-blue-400' },
+  { key: OrderStatus.READY,     label: 'Prêtes',          color: 'text-green-400' },
+  { key: OrderStatus.COMPLETED, label: 'Servies',         color: 'text-[var(--color-text-muted)]' },
 ]
 
 interface OrdersHubProps {

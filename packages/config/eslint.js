@@ -18,5 +18,8 @@ export const base = tseslint.config(
 export const nestjs = tseslint.config(...base, {
   rules: {
     '@typescript-eslint/no-extraneous-class': 'off',
+    // L'injection de dépendances Nest lit les types du constructeur à l'exécution :
+    // un `import type` casserait silencieusement l'injection.
+    '@typescript-eslint/consistent-type-imports': 'off',
   },
 })

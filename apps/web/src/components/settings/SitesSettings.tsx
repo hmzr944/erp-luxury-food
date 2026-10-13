@@ -118,7 +118,7 @@ export function SitesSettings() {
                 {editingId === site.id ? (
                   <SiteEditRow
                     site={site}
-                    onSave={(data) => updateSite.mutate({ id: site.id, data })}
+                    onSave={(data: { name: string; address?: string; timezone?: string }) => updateSite.mutate({ id: site.id, data })}
                     onCancel={() => setEditingId(null)}
                     isSaving={updateSite.isPending}
                   />

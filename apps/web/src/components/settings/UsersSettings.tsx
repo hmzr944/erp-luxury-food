@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash, ChevronDown } from '@phosphor-icons/react'
+import { Plus, Trash, CaretDown } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api/client'
 import { useAuthStore } from '@/stores/auth.store'

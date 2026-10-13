@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { CreditCard, Money, Clock, Storefront, ShoppingBag } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import { StatusBadge } from './StatusBadge'
-import type { OrderStatus } from '@erp/types'
+import { OrderStatus } from '@erp/types'
 
 interface OrderCardItem {
   name: string
@@ -25,9 +25,9 @@ interface OrderCardProps {
 }
 
 const NEXT_STATUS: Partial<Record<OrderStatus, { label: string; next: OrderStatus }>> = {
-  PENDING:   { label: 'Commencer',    next: 'PREPARING' },
-  PREPARING: { label: 'Prêt',         next: 'READY' },
-  READY:     { label: 'Servi',        next: 'COMPLETED' },
+  PENDING:   { label: 'Commencer',    next: OrderStatus.PREPARING },
+  PREPARING: { label: 'Prêt',         next: OrderStatus.READY },
+  READY:     { label: 'Servi',        next: OrderStatus.COMPLETED },
 }
 
 const CHANNEL_ICON: Record<string, React.ElementType> = {

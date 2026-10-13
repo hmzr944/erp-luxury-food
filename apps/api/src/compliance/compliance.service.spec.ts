@@ -15,7 +15,7 @@ describe('ComplianceService', () => {
   let mockTx: any
 
   beforeEach(() => {
-    service = new ComplianceService()
+    service = new ComplianceService({} as any)
     mockTx = {
       receiptChain: {
         findFirst: vi.fn(),
@@ -48,7 +48,7 @@ describe('ComplianceService', () => {
     expect(result.hash).toBe(expectedHash)
     expect(result.id).toBe('receipt-1')
     expect(mockTx.receiptChain.create).toHaveBeenCalledWith(
-      expect.objectContaining({ siteId: 'site-1', counter: 1 }),
+      expect.objectContaining({ data: expect.objectContaining({ siteId: 'site-1', counter: 1 }) }),
     )
 
     vi.useRealTimers()

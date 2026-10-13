@@ -1,7 +1,8 @@
 'use client'
 
 import { productsApi } from '@/lib/api/products'
-import { cacheProducts, cacheCategories, flushPendingCommands } from './queue'
+import { cacheProducts, cacheCategories } from './db'
+import { flushPendingCommands } from './queue'
 
 // Synchronisation complète au retour online
 export async function syncAll(siteId: string): Promise<void> {

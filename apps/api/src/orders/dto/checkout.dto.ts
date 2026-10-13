@@ -14,7 +14,7 @@ import { Channel, PaymentMode } from '@erp/types'
 
 export class CheckoutItemDto {
   @IsString()
-  productId: string
+  productId!: string
 
   @IsOptional()
   @IsString()
@@ -22,7 +22,7 @@ export class CheckoutItemDto {
 
   @IsInt()
   @Min(1)
-  quantity: number
+  quantity!: number
 
   @IsOptional()
   @IsNumber()
@@ -34,10 +34,10 @@ export class CheckoutDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CheckoutItemDto)
-  items: CheckoutItemDto[]
+  items!: CheckoutItemDto[]
 
   @IsEnum(PaymentMode)
-  paymentMode: PaymentMode
+  paymentMode!: PaymentMode
 
   @IsOptional()
   @IsEnum(Channel)
