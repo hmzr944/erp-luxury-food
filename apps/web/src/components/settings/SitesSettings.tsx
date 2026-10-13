@@ -58,7 +58,7 @@ export function SitesSettings() {
         <motion.button
           onClick={() => setShowCreate(!showCreate)}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
         >
           <Plus size={13} weight="bold" />
           Nouveau site
@@ -98,7 +98,7 @@ export function SitesSettings() {
                 <button
                   onClick={() => createSite.mutate()}
                   disabled={createSite.isPending || !form.name.trim()}
-                  className="px-4 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] disabled:opacity-50 transition-all"
+                  className="px-4 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] disabled:opacity-50 transition-all"
                 >
                   Créer
                 </button>
@@ -157,7 +157,7 @@ function SiteEditRow({ site, onSave, onCancel, isSaving }: any) {
       <input value={data.address} onChange={(e) => setData({ ...data, address: e.target.value })} className={inputCls} placeholder="Adresse" />
       <div className="flex gap-2 justify-end">
         <button onClick={onCancel} className="px-2 h-7 font-body text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">Annuler</button>
-        <button onClick={() => onSave(data)} disabled={isSaving || !data.name.trim()} className="px-3 h-7 bg-[var(--color-accent)] text-black font-body text-xs rounded-[var(--radius-sm)] disabled:opacity-50">Enregistrer</button>
+        <button onClick={() => onSave(data)} disabled={isSaving || !data.name.trim()} className="px-3 h-7 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-xs rounded-[var(--radius-sm)] disabled:opacity-50">Enregistrer</button>
       </div>
     </div>
   )

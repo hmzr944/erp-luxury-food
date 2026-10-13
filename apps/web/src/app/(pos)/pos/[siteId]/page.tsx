@@ -7,5 +7,5 @@ interface Props { params: Promise<{ siteId: string }> }
 
 export default async function POSPage({ params }: Props) {
   const { siteId } = await params
-  return <POSClient siteId={siteId} siteName="Boutique" />
+  return <POSClient siteId={siteId} />
 }

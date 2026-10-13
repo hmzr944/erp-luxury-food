@@ -1,70 +1,102 @@
 'use client'
 
-import { SignOut, Lightning, Clock } from '@phosphor-icons/react'
-import { useAuthStore } from '@/stores/auth.store'
-import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { CaretLeft, CloudCheck, CloudSlash, WarningCircle, SignOut } from '@phosphor-icons/react'
+import { useAuthStore } from '@/stores/auth.store'
+import type { SaleQueueState } from './useSaleQueue'
 
 interface POSHeaderProps {
   siteName: string
+  terminalName?: string
+  queue: SaleQueueState
 }
 
-export function POSHeader({ siteName }: POSHeaderProps) {
+export function POSHeader({ siteName, terminalName, queue }: POSHeaderProps) {
   const { user, logout } = useAuthStore()
   const router = useRouter()
-  const [time, setTime] = useState('')
-
-  useEffect(() => {
-    const update = () => {
-      setTime(
-        new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      )
-    }
-    update()
-    const id = setInterval(update, 30_000)
-    return () => clearInterval(id)
-  }, [])
-
-  const handleLogout = () => {
-    logout()
-    router.push('/login')
-  }
+  const time = useClock()
+  const who = [terminalName, user?.firstName].filter(Boolean).join(', ')
 
   return (
-    <header className="flex items-center justify-between h-12 px-4 border-b border-[var(--color-border)] bg-[var(--color-bg-surface)] shrink-0">
-      <div className="flex items-center gap-3">
-        <span className="font-display text-base text-[var(--color-text-primary)] leading-none">
-          {siteName}
-        </span>
-        <span className="h-3 w-px bg-[var(--color-border-strong)]" />
-        <span className="flex items-center gap-1 font-data text-xs text-[var(--color-text-muted)]">
-          <Clock size={11} weight="regular" />
-          {time}
-        </span>
+    <header className="flex h-16 shrink-0 items-center gap-2 border-b border-[var(--color-border)] px-2 md:gap-3 md:px-4">
+      <Link
+        href="/dashboard"
+        aria-label="Retour au back-office"
+        className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-pill)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]"
+      >
+        <CaretLeft size={20} />
+      </Link>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-base font-semibold leading-tight">{siteName}</p>
+        <p className="truncate text-sm text-[var(--color-text-secondary)]">
+          {who}
+          {time && <span className="tabular hidden sm:inline">{who ? ', ' : ''}{time}</span>}
+        </p>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <Lightning size={10} weight="fill" className="text-[var(--color-success)]" />
-          <span className="font-data text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide">
-            En ligne
-          </span>
-        </div>
+      <SyncStatus queue={queue} />
 
-        {user && (
-          <span className="font-body text-xs text-[var(--color-text-secondary)]">
-            {user.firstName} {user.lastName[0]}.
-          </span>
-        )}
-
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] transition-colors"
-          aria-label="Se déconnecter"
-        >
-          <SignOut size={13} weight="regular" />
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => {
+          logout()
+          router.push('/login')
+        }}
+        aria-label="Se déconnecter"
+        className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-pill)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]"
+      >
+        <SignOut size={20} />
+      </button>
     </header>
   )
+}
+
+// L'état du réseau n'empêche jamais de vendre : on informe, sans alarmer
+function SyncStatus({ queue }: { queue: SaleQueueState }) {
+  const { online, pending, rejected, flush } = queue
+  let Icon = CloudCheck
+  let label = 'En ligne'
+  if (rejected > 0) {
+    Icon = WarningCircle
+    label = `${rejected} ${rejected > 1 ? 'ventes refusées' : 'vente refusée'}, à vérifier`
+  } else if (!online) {
+    Icon = CloudSlash
+    label = pending ? `Hors ligne, ${pending} à envoyer` : 'Hors ligne'
+  } else if (pending > 0) {
+    label = `${pending} à envoyer`
+  }
+  const attention = rejected > 0 || !online
+
+  return (
+    <button
+      type="button"
+      onClick={flush}
+      title="Envoyer maintenant"
+      className={[
+        'flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-pill)] px-3 text-sm font-medium',
+        attention
+          ? 'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)]'
+          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]',
+      ].join(' ')}
+    >
+      <Icon size={18} aria-hidden weight={rejected > 0 ? 'fill' : 'regular'} />
+      <span className={attention ? '' : 'hidden sm:inline'} aria-live="polite">
+        <span className={attention ? 'hidden sm:inline' : ''}>{label}</span>
+        {attention && <span className="sm:hidden">{rejected > 0 ? 'À vérifier' : 'Hors ligne'}</span>}
+      </span>
+    </button>
+  )
+}
+
+function useClock() {
+  const [time, setTime] = useState('')
+  useEffect(() => {
+    const update = () => setTime(new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))
+    update()
+    const id = window.setInterval(update, 15_000)
+    return () => window.clearInterval(id)
+  }, [])
+  return time
 }

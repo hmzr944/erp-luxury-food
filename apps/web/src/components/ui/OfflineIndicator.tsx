@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { usePathname } from 'next/navigation'
 import { WifiSlash, WifiHigh } from '@phosphor-icons/react'
 
 export function OfflineIndicator() {
   const [isOffline, setIsOffline] = useState(false)
   const [showOnline, setShowOnline] = useState(false)
+  // La caisse affiche son propre état de connexion dans son en-tête
+  const onPOS = usePathname()?.startsWith('/pos/')
 
   useEffect(() => {
     setIsOffline(!navigator.onLine)
@@ -25,6 +28,8 @@ export function OfflineIndicator() {
       window.removeEventListener('online', goOnline)
     }
   }, [])
+
+  if (onPOS) return null
 
   return (
     <AnimatePresence>
@@ -47,7 +52,7 @@ export function OfflineIndicator() {
             <WifiHigh size={13} weight="fill" />
           )}
           <span className="font-data text-xs">
-            {isOffline ? 'Mode hors ligne — commandes mises en file' : 'Connexion rétablie'}
+            {isOffline ? 'Hors ligne. Les ventes restent enregistrées sur cet appareil.' : 'Connexion rétablie'}
           </span>
         </motion.div>
       )}

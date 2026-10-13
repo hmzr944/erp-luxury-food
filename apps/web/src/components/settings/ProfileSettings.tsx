@@ -123,7 +123,7 @@ export function ProfileSettings() {
               type="submit"
               disabled={savingProfile}
               whileTap={{ scale: 0.98 }}
-              className="px-4 h-9 bg-[var(--color-accent)] text-black font-body text-sm font-medium rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+              className="px-4 h-9 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
             >
               {savingProfile ? 'Enregistrement...' : 'Enregistrer'}
             </motion.button>

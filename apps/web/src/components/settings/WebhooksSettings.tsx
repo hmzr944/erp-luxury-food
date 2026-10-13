@@ -72,7 +72,7 @@ export function WebhooksSettings() {
         <motion.button
           onClick={() => setShowCreate(!showCreate)}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
         >
           <Plus size={13} weight="bold" />
           Nouveau
@@ -124,7 +124,7 @@ export function WebhooksSettings() {
                 <button
                   onClick={() => create.mutate()}
                   disabled={create.isPending || !form.url || form.events.length === 0}
-                  className="px-4 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] disabled:opacity-50 hover:bg-[var(--color-accent-hover)] transition-all"
+                  className="px-4 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] disabled:opacity-50 hover:bg-[var(--color-accent-hover)] transition-all"
                 >
                   Créer
                 </button>

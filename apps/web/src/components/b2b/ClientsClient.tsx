@@ -87,7 +87,7 @@ function ClientForm({
           onClick={() => onSave(data)}
           disabled={isSaving || !data.name?.trim()}
           whileTap={{ scale: 0.98 }}
-          className="px-4 h-9 bg-[var(--color-accent)] text-black font-body text-sm font-medium rounded-[var(--radius-md)] disabled:opacity-50 hover:bg-[var(--color-accent-hover)] transition-all"
+          className="px-4 h-9 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] disabled:opacity-50 hover:bg-[var(--color-accent-hover)] transition-all"
         >
           {isSaving ? 'Enregistrement...' : 'Enregistrer'}
         </motion.button>
@@ -136,7 +136,7 @@ export function ClientsClient() {
         <motion.button
           onClick={() => setShowCreate(true)}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
         >
           <Plus size={13} weight="bold" />
           Nouveau client

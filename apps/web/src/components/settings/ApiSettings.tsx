@@ -67,7 +67,7 @@ export function ApiSettings() {
         <motion.button
           onClick={() => setShowCreate(!showCreate)}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
         >
           <Plus size={13} weight="bold" />
           Nouveau token
@@ -156,7 +156,7 @@ export function ApiSettings() {
                 <button
                   onClick={() => create.mutate()}
                   disabled={create.isPending || !form.name.trim() || form.scopes.length === 0}
-                  className="px-4 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] disabled:opacity-50 hover:bg-[var(--color-accent-hover)] transition-all"
+                  className="px-4 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] disabled:opacity-50 hover:bg-[var(--color-accent-hover)] transition-all"
                 >
                   Créer
                 </button>
@@ -172,7 +172,7 @@ export function ApiSettings() {
           <div className="h-16 animate-pulse" />
         ) : tokens.length === 0 ? (
           <div className="px-4 py-8 text-center">
-            <p className="font-body text-sm text-[var(--color-text-muted)]">Aucun token — créez-en un pour commencer</p>
+            <p className="font-body text-sm text-[var(--color-text-muted)]">Aucun token. Créez-en un pour commencer.</p>
           </div>
         ) : tokens.map((t: any) => (
           <div key={t.id} className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] last:border-0">

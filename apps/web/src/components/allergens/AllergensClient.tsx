@@ -81,7 +81,7 @@ function ProductRow({ product, allergens, siteId }: ProductRowProps) {
       allergensApi.setProductAllergens(siteId, product.id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products-allergens', siteId] })
-      toast.success(`Allergènes mis à jour — ${product.name}`)
+      toast.success(`Allergènes mis à jour : ${product.name}`)
     },
     onError: () => toast.error('Erreur lors de la mise à jour'),
   })

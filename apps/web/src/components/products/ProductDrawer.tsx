@@ -235,7 +235,7 @@ export function ProductDrawer({
             form="product-form"
             disabled={isSaving}
             whileTap={{ scale: 0.98 }}
-            className="flex-1 h-10 bg-[var(--color-accent)] text-black font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+            className="flex-1 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
           >
             {isSaving ? 'Enregistrement...' : isNew ? 'Créer' : 'Enregistrer'}
           </motion.button>

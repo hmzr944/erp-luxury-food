@@ -34,6 +34,7 @@ export class PickupController {
         channel: true,
         createdAt: true,
         items: { select: { name: true, quantity: true, price: true } },
+        site: { select: { name: true } },
       },
     })
     if (!order) throw new NotFoundException('Commande introuvable')

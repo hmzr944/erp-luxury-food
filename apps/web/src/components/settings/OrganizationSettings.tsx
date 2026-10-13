@@ -103,7 +103,7 @@ export function OrganizationSettings() {
         <div className="flex items-center gap-2 mb-4">
           <ShieldCheck size={14} weight="regular" className="text-[var(--color-accent)]" />
           <p className="font-body text-sm font-semibold text-[var(--color-text-primary)]">
-            E-invoicing — Plateforme Agréée
+            Facturation électronique : plateforme agréée
           </p>
           <span className="font-data text-[9px] text-[var(--color-warning)] bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/20 px-1.5 py-0.5 rounded-full">
             Obligatoire sept. 2026
@@ -164,7 +164,7 @@ export function OrganizationSettings() {
           onClick={() => save.mutate()}
           disabled={save.isPending}
           whileTap={{ scale: 0.98 }}
-          className="px-5 h-10 bg-[var(--color-accent)] text-black font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+          className="px-5 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
         >
           {save.isPending ? 'Enregistrement...' : 'Enregistrer'}
         </motion.button>

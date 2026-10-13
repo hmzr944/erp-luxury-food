@@ -81,9 +81,9 @@ export function OnboardingWizard() {
                 className={[
                   'w-6 h-6 rounded-full flex items-center justify-center font-data text-[10px] transition-all',
                   s.id < step
-                    ? 'bg-[var(--color-success)] text-black'
+                    ? 'bg-[var(--color-success)] text-[var(--color-on-accent)]'
                     : s.id === step
-                    ? 'bg-[var(--color-accent)] text-black'
+                    ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
                     : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] border border-[var(--color-border)]',
                 ].join(' ')}
               >
@@ -125,7 +125,7 @@ export function OnboardingWizard() {
                   onClick={handleCreateSite}
                   disabled={loading || !siteData.name.trim()}
                   whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 bg-[var(--color-accent)] text-black font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
+                  className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
                 >
                   {loading ? 'Création...' : <>Continuer <ArrowRight size={14} weight="bold" /></>}
                 </motion.button>
@@ -147,7 +147,7 @@ export function OnboardingWizard() {
                 <motion.button
                   onClick={() => setStep(3)}
                   whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 bg-[var(--color-accent)] text-black font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] flex items-center justify-center gap-2 transition-all"
+                  className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] flex items-center justify-center gap-2 transition-all"
                 >
                   Continuer <ArrowRight size={14} weight="bold" />
                 </motion.button>
@@ -170,7 +170,7 @@ export function OnboardingWizard() {
                 <motion.button
                   onClick={() => setStep(4)}
                   whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 bg-[var(--color-accent)] text-black font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] flex items-center justify-center gap-2 transition-all"
+                  className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] flex items-center justify-center gap-2 transition-all"
                 >
                   Continuer <ArrowRight size={14} weight="bold" />
                 </motion.button>
@@ -203,7 +203,7 @@ export function OnboardingWizard() {
                 <motion.button
                   onClick={handleFinish}
                   whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 bg-[var(--color-accent)] text-black font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+                  className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
                 >
                   Ouvrir la caisse
                 </motion.button>

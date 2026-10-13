@@ -59,7 +59,7 @@ export function UsersSettings() {
         <motion.button
           onClick={() => setShowInvite(!showInvite)}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
         >
           <Plus size={13} weight="bold" />
           Ajouter
@@ -117,7 +117,7 @@ export function UsersSettings() {
                 <button
                   onClick={() => invite.mutate(form)}
                   disabled={invite.isPending || !form.email || !form.firstName}
-                  className="px-4 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+                  className="px-4 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
                 >
                   {invite.isPending ? 'Création...' : 'Créer'}
                 </button>

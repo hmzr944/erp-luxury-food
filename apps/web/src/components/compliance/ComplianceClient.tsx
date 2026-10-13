@@ -29,7 +29,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
     mutationFn: () => complianceApi.closeDay(siteId),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['closures', siteId] })
-      toast.success(`Journée clôturée — ticket Z #${data.lastCounter}`)
+      toast.success(`Journée clôturée, ticket Z n° ${data.lastCounter}`)
     },
     onError: (err: any) => toast.error(err.message ?? 'Erreur lors de la clôture'),
   })
@@ -100,7 +100,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
                 </p>
                 <p className="font-body text-xs text-[var(--color-text-muted)]">
                   {todayAlreadyClosed
-                    ? `Journée clôturée — ${new Date().toLocaleDateString('fr-FR')}`
+                    ? `Journée clôturée le ${new Date().toLocaleDateString('fr-FR')}`
                     : 'À effectuer en fin de journée (obligatoire NF525)'}
                 </p>
               </div>
@@ -115,7 +115,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
                 }}
                 disabled={closeDay.isPending}
                 whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-2 px-4 h-9 bg-[var(--color-accent)] text-black font-body text-sm font-medium rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 px-4 h-9 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
               >
                 <LockKey size={13} weight="fill" />
                 {closeDay.isPending ? 'Clôture...' : 'Clôturer la journée'}
@@ -143,8 +143,8 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
                 <div>
                   <p className={`font-body text-sm font-medium ${verifyResult.valid ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
                     {verifyResult.valid
-                      ? `Chaîne valide — ${verifyResult.checked} tickets vérifiés`
-                      : `Chaîne invalide — ${verifyResult.errors?.length} erreur(s)`}
+                      ? `Chaîne valide : ${verifyResult.checked} tickets vérifiés`
+                      : `Chaîne invalide : ${verifyResult.errors?.length} erreur(s)`}
                   </p>
                   {verifyResult.errors?.map((e: string, i: number) => (
                     <p key={i} className="font-data text-xs text-[var(--color-danger)] mt-1">{e}</p>

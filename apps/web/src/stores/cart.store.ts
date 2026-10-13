@@ -13,94 +13,78 @@ export interface CartProduct {
 }
 
 export interface CartLine {
+  key: string
   product: CartProduct
   variantId?: string
   variantName?: string
+  serialNumber?: string
   quantity: number
-  discount: number  // remise en euros sur la ligne
+  discount: number // remise en euros sur la ligne
+}
+
+interface AddOptions {
+  variantId?: string
+  variantName?: string
+  serialNumber?: string
 }
 
 interface CartState {
   lines: CartLine[]
   orderDiscount: number
-  // Actions
-  addProduct: (product: CartProduct, variantId?: string, variantName?: string) => void
-  removeProduct: (productId: string, variantId?: string) => void
-  setQuantity: (productId: string, quantity: number, variantId?: string) => void
-  setLineDiscount: (productId: string, discount: number, variantId?: string) => void
+  lastAddedKey: string | null
+  addProduct: (product: CartProduct, options?: AddOptions) => void
+  removeLine: (key: string) => void
+  setQuantity: (key: string, quantity: number) => void
+  setLineDiscount: (key: string, discount: number) => void
   setOrderDiscount: (discount: number) => void
   clearCart: () => void
 }
 
-function lineKey(productId: string, variantId?: string) {
-  return variantId ? `${productId}:${variantId}` : productId
+// Une pièce numérotée est toujours une ligne à part, en un exemplaire
+function lineKey(productId: string, options: AddOptions = {}) {
+  return [productId, options.variantId ?? '', options.serialNumber ?? ''].join(':')
 }
 
-export const useCartStore = create<CartState>()((set, get) => ({
+export const useCartStore = create<CartState>()((set) => ({
   lines: [],
   orderDiscount: 0,
+  lastAddedKey: null,
 
-  addProduct: (product, variantId, variantName) => {
+  addProduct: (product, options = {}) => {
+    const key = lineKey(product.id, options)
     set((state) => {
-      const key = lineKey(product.id, variantId)
-      const existing = state.lines.find(
-        (l) => lineKey(l.product.id, l.variantId) === key,
-      )
-
-      if (existing) {
+      const existing = state.lines.find((l) => l.key === key)
+      if (existing && !options.serialNumber) {
         return {
-          lines: state.lines.map((l) =>
-            lineKey(l.product.id, l.variantId) === key
-              ? { ...l, quantity: l.quantity + 1 }
-              : l,
-          ),
+          lastAddedKey: key,
+          lines: state.lines.map((l) => (l.key === key ? { ...l, quantity: l.quantity + 1 } : l)),
         }
       }
-
+      if (existing) return { lastAddedKey: key }
       return {
-        lines: [
-          ...state.lines,
-          { product, variantId, variantName, quantity: 1, discount: 0 },
-        ],
+        lastAddedKey: key,
+        lines: [...state.lines, { key, product, ...options, quantity: 1, discount: 0 }],
       }
     })
   },
 
-  removeProduct: (productId, variantId) => {
-    const key = lineKey(productId, variantId)
-    set((state) => ({
-      lines: state.lines.filter((l) => lineKey(l.product.id, l.variantId) !== key),
-    }))
-  },
+  removeLine: (key) => set((state) => ({ lines: state.lines.filter((l) => l.key !== key) })),
 
-  setQuantity: (productId, quantity, variantId) => {
-    const key = lineKey(productId, variantId)
-    if (quantity <= 0) {
-      set((state) => ({
-        lines: state.lines.filter((l) => lineKey(l.product.id, l.variantId) !== key),
-      }))
-      return
-    }
+  setQuantity: (key, quantity) =>
     set((state) => ({
-      lines: state.lines.map((l) =>
-        lineKey(l.product.id, l.variantId) === key ? { ...l, quantity } : l,
-      ),
-    }))
-  },
+      lines:
+        quantity <= 0
+          ? state.lines.filter((l) => l.key !== key)
+          : state.lines.map((l) => (l.key === key && !l.serialNumber ? { ...l, quantity } : l)),
+    })),
 
-  setLineDiscount: (productId, discount, variantId) => {
-    const key = lineKey(productId, variantId)
+  setLineDiscount: (key, discount) =>
     set((state) => ({
-      lines: state.lines.map((l) =>
-        lineKey(l.product.id, l.variantId) === key
-          ? { ...l, discount: Math.max(0, discount) }
-          : l,
-      ),
-    }))
-  },
+      lines: state.lines.map((l) => (l.key === key ? { ...l, discount: Math.max(0, discount) } : l)),
+    })),
 
   setOrderDiscount: (discount) => set({ orderDiscount: Math.max(0, discount) }),
-  clearCart: () => set({ lines: [], orderDiscount: 0 }),
+  clearCart: () => set({ lines: [], orderDiscount: 0, lastAddedKey: null }),
 }))
 
 // Totaux calculés avec la même fonction que le serveur : le montant affiché

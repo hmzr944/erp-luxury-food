@@ -47,11 +47,11 @@ export default function LoginPage() {
       >
         {/* Brand */}
         <div className="text-center mb-8">
-          <h1 className="font-display text-3xl text-[var(--color-text-primary)] leading-none mb-1">
-            Maison Artisane
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-[var(--color-text-primary)] leading-none mb-2">
+            Connexion
           </h1>
           <p className="font-body text-sm text-[var(--color-text-muted)]">
-            Espace de gestion
+            Caisse et back-office
           </p>
         </div>
 
@@ -133,7 +133,7 @@ export default function LoginPage() {
               type="submit"
               disabled={isLoading || !email || !password}
               whileTap={{ scale: 0.98 }}
-              className="w-full h-11 bg-[var(--color-accent)] text-black font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed active:-translate-y-px transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+              className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed active:-translate-y-px transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
             >
               {isLoading ? (
                 <motion.span
@@ -149,9 +149,6 @@ export default function LoginPage() {
           </form>
         </motion.div>
 
-        <p className="text-center mt-6 font-data text-[10px] text-[var(--color-text-muted)]">
-          NF525 certifié · RGPD · Hébergement EU
-        </p>
       </motion.div>
     </div>
   )

@@ -63,7 +63,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
           <motion.button
             onClick={() => window.print()}
             whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-1.5 px-4 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+            className="flex items-center gap-1.5 px-4 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
           >
             <Printer size={13} weight="regular" />
             Imprimer / PDF
@@ -208,11 +208,10 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
           {/* Pied de page */}
           <div style={{ borderTop: '1px solid #eee', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div style={{ fontSize: '10px', color: '#aaa' }}>
-              <p>Facture générée par ERP Luxury Food</p>
-              <p>Système certifié NF525 — Données hébergées en France (OVHcloud)</p>
+              <p>Facture émise depuis le logiciel de caisse de {order.site?.organization?.name ?? 'la boutique'}</p>
               {order.receiptChain && (
                 <p style={{ fontFamily: 'monospace', marginTop: '2px' }}>
-                  Hash NF525: {order.receiptChain ? '#' + order.receiptChain.counter : '-'}
+                  Ticket n° {order.receiptChain ? order.receiptChain.counter : '-'}
                 </p>
               )}
             </div>

@@ -21,8 +21,19 @@ export interface ApiProduct {
   categoryId: string | null
   category: ApiCategory | null
   variants: ApiVariant[]
+  options: ApiProductOption[]
+  tracking: 'NONE' | 'LOT' | 'LOT_EXPIRY' | 'SERIAL'
+  attributes: Record<string, unknown>
+  stockItem: { quantity: string; alertAt: string | null } | null
   isActive: boolean
   imageUrl: string | null
+}
+
+export interface ApiProductOption {
+  id: string
+  name: string
+  values: string[]
+  position: number
 }
 
 export interface ApiVariant {
@@ -30,6 +41,9 @@ export interface ApiVariant {
   name: string
   price: number
   barcode: string | null
+  sku: string | null
+  options: Record<string, string>
+  stock: { quantity: string; alertAt: string | null } | null
 }
 
 export const productsApi = {

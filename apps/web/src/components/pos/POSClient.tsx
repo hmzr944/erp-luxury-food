@@ -1,97 +1,216 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { toast } from 'sonner'
+import { formatPrice } from '@erp/utils'
+import { productsApi, type ApiProduct, type ApiVariant } from '@/lib/api/products'
+import { sitesApi } from '@/lib/api/sites'
+import { usePlatformConfig } from '@/lib/api/platform'
+import { ensureTerminal, recordSale, type TerminalNotRegisteredError } from '@/lib/terminal/terminal'
+import { useCartStore, computeCartTotals } from '@/stores/cart.store'
 import { POSHeader } from './POSHeader'
-import { CategoryTabs } from './CategoryTabs'
-import { ProductGrid } from './ProductGrid'
-import { Cart } from './Cart'
-import { CheckoutModal } from './CheckoutModal'
-import { productsApi, type ApiProduct } from '@/lib/api/products'
-import { useCartStore } from '@/stores/cart.store'
-import { ensureTerminal, flushSales } from '@/lib/terminal/terminal'
+import { Catalog } from './Catalog'
+import { Ticket } from './Ticket'
+import { VariantPicker } from './VariantPicker'
+import { PaymentSheet, type ReceiptView } from './PaymentSheet'
+import { Sheet, EASE } from './Sheet'
+import { useSaleQueue } from './useSaleQueue'
 
 interface POSClientProps {
   siteId: string
-  siteName: string
 }
 
-export function POSClient({ siteId, siteName }: POSClientProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [checkoutOpen, setCheckoutOpen] = useState(false)
+// Caisse : choisir les articles, encaisser, ticket signé. Trois gestes pour
+// une vente simple, sans dépendre du réseau.
+export function POSClient({ siteId }: POSClientProps) {
+  const { lines, orderDiscount, addProduct, clearCart } = useCartStore()
+  const { data: config } = usePlatformConfig()
+  const queue = useSaleQueue(siteId)
+  const [terminalName, setTerminalName] = useState<string>()
+  const [picking, setPicking] = useState<ApiProduct | null>(null)
+  const [paying, setPaying] = useState(false)
+  const [ticketOpen, setTicketOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [payError, setPayError] = useState<string | null>(null)
+  const [receipt, setReceipt] = useState<ReceiptView | null>(null)
 
-  const { addProduct } = useCartStore()
-
-  // Enregistre cet appareil comme caisse, puis envoie les ventes en attente
-  // au démarrage, au retour du réseau et toutes les 30 secondes
-  useEffect(() => {
-    ensureTerminal(siteId)
-      .then(() => flushSales(siteId))
-      .catch((e: Error) => toast.error(e.message))
-    const flush = () => void flushSales(siteId).catch(() => {})
-    window.addEventListener('online', flush)
-    const timer = window.setInterval(flush, 30_000)
-    return () => {
-      window.removeEventListener('online', flush)
-      window.clearInterval(timer)
-    }
-  }, [siteId])
-
-  const { data: products = [], isLoading: loadingProducts } = useQuery({
+  const products = useQuery({
     queryKey: ['products', siteId],
     queryFn: () => productsApi.getAll(siteId),
     staleTime: 60_000,
   })
-
-  const { data: categories = [] } = useQuery({
+  const categories = useQuery({
     queryKey: ['categories', siteId],
     queryFn: () => productsApi.getCategories(siteId),
     staleTime: 60_000,
   })
+  const sites = useQuery({ queryKey: ['sites'], queryFn: sitesApi.getAll, staleTime: 5 * 60_000 })
+  const siteName = sites.data?.find((s) => s.id === siteId)?.name ?? 'Caisse'
 
-  const handleAddProduct = (product: ApiProduct) => {
-    addProduct(
-      {
-        id: product.id,
-        name: product.name,
-        subtitle: product.subtitle ?? undefined,
-        price: Number(product.price),
-        taxRate: Number(product.taxRate),
-        categoryId: product.categoryId ?? undefined,
-      },
-    )
+  // Cet appareil devient une caisse du site à sa première ouverture
+  useEffect(() => {
+    ensureTerminal(siteId)
+      .then((t) => {
+        setTerminalName(t.name)
+        queue.flush()
+      })
+      .catch((e: TerminalNotRegisteredError) => toast.error(e.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteId])
 
-    // Feedback sonore optionnel
-    // toast.success(product.name, { duration: 1000 })
+  const priceIncludesTax = config?.priceIncludesTax ?? true
+  const totals = computeCartTotals(lines, orderDiscount, priceIncludesTax)
+  const methods = (config?.paymentMethods ?? []).filter((m) => m.isActive)
+
+  const add = useCallback(
+    (product: ApiProduct, variant?: ApiVariant, serialNumber?: string) => {
+      addProduct(
+        {
+          id: product.id,
+          name: product.name,
+          subtitle: product.subtitle ?? undefined,
+          price: Number(variant?.price ?? product.price),
+          taxRate: Number(product.taxRate),
+          categoryId: product.categoryId ?? undefined,
+        },
+        { variantId: variant?.id, variantName: variant?.name, serialNumber },
+      )
+      setPicking(null)
+    },
+    [addProduct],
+  )
+
+  // Produit simple : ajouté d'un geste. Variantes ou n° de série : on demande.
+  const pick = (product: ApiProduct, variant?: ApiVariant) => {
+    if (variant && product.tracking !== 'SERIAL') return add(product, variant)
+    if (product.variants.length || product.tracking === 'SERIAL') return setPicking(product)
+    add(product)
+  }
+
+  const pay = async (payments: Array<{ code: string; amount: number }>, email?: string) => {
+    setBusy(true)
+    setPayError(null)
+    const sold = [...lines]
+    try {
+      const sale = await recordSale(siteId, {
+        items: sold.map((l) => ({
+          productId: l.product.id,
+          ...(l.variantId ? { variantId: l.variantId } : {}),
+          quantity: l.quantity,
+          unitPrice: l.product.price,
+          taxRate: l.product.taxRate,
+          ...(l.discount > 0 ? { discount: l.discount } : {}),
+          ...(l.serialNumber ? { serialNumber: l.serialNumber } : {}),
+        })),
+        payments,
+        orderDiscount: orderDiscount || undefined,
+        customerEmail: email,
+        priceIncludesTax,
+      })
+      const labels = new Map(methods.map((m) => [m.code, m.label]))
+      setReceipt({
+        sale,
+        lines: sold,
+        payments: payments.map((p) => ({ label: labels.get(p.code) ?? p.code, amount: p.amount })),
+      })
+      clearCart()
+      setTicketOpen(false)
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "La vente n'a pas pu être enregistrée")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const closePayment = () => {
+    setPaying(false)
+    setReceipt(null)
+    setPayError(null)
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] overflow-hidden bg-[var(--color-bg-base)]">
-      <POSHeader siteName={siteName} />
+    <MotionConfig reducedMotion="user">
+      <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
+        <POSHeader siteName={siteName} terminalName={terminalName} queue={queue} />
 
-      <div className="flex flex-1 overflow-hidden">
-        <CategoryTabs
-          categories={categories}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
+        <div className="flex min-h-0 flex-1">
+          <Catalog
+            products={products.data ?? []}
+            categories={categories.data ?? []}
+            isLoading={products.isLoading}
+            isError={products.isError}
+            onPick={pick}
+          />
+
+          {/* Tablette et ordinateur : le ticket reste visible à droite */}
+          <aside
+            aria-label="Vente en cours"
+            className="hidden w-[380px] shrink-0 border-l border-[var(--color-border)] bg-[var(--color-bg-surface)] md:block lg:w-[420px]"
+          >
+            <Ticket totals={totals} priceIncludesTax={priceIncludesTax} onCheckout={() => setPaying(true)} />
+          </aside>
+        </div>
+
+        {/* Téléphone : barre de vente en bas, le ticket s'ouvre au toucher */}
+        <AnimatePresence>
+          {totals.itemCount > 0 && !paying && !ticketOpen && (
+            <motion.div
+              initial={{ y: 96 }}
+              animate={{ y: 0 }}
+              exit={{ y: 96 }}
+              transition={{ duration: 0.22, ease: EASE }}
+              className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-[var(--color-border)] bg-[var(--color-bg-surface)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden"
+            >
+              <button
+                type="button"
+                onClick={() => setTicketOpen(true)}
+                className="flex h-14 min-w-0 flex-1 flex-col items-start justify-center rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-4 text-left"
+              >
+                <span className="text-sm text-[var(--color-text-secondary)]">
+                  {totals.itemCount} {totals.itemCount > 1 ? 'articles' : 'article'}
+                </span>
+                <span className="tabular text-lg font-semibold leading-tight">{formatPrice(totals.total)}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaying(true)}
+                className="h-14 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 text-lg font-semibold text-[var(--color-on-accent)]"
+              >
+                Encaisser
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <Sheet open={ticketOpen} title="Vente en cours" onClose={() => setTicketOpen(false)}>
+          <div className="-mx-5 h-[70dvh]">
+            <Ticket
+              totals={totals}
+              priceIncludesTax={priceIncludesTax}
+              onCheckout={() => {
+                setTicketOpen(false)
+                setPaying(true)
+              }}
+            />
+          </div>
+        </Sheet>
+
+        <VariantPicker product={picking} onClose={() => setPicking(null)} onChoose={add} />
+
+        <PaymentSheet
+          open={paying}
+          total={totals.total}
+          methods={methods}
+          siteName={siteName}
+          receipt={receipt}
+          busy={busy}
+          error={payError}
+          onPay={pay}
+          onClose={closePayment}
         />
-
-        <ProductGrid
-          products={products}
-          selectedCategory={selectedCategory}
-          onAddProduct={handleAddProduct}
-          isLoading={loadingProducts}
-        />
-
-        <Cart onCheckout={() => setCheckoutOpen(true)} />
       </div>
-
-      <CheckoutModal
-        siteId={siteId}
-        isOpen={checkoutOpen}
-        onClose={() => setCheckoutOpen(false)}
-      />
-    </div>
+    </MotionConfig>
   )
 }

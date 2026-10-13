@@ -74,7 +74,7 @@ export function PickupClient({ code }: PickupClientProps) {
       >
         {/* Brand */}
         <p className="font-display text-2xl text-center text-[var(--color-text-primary)] mb-8">
-          Maison Artisane
+          {order?.site?.name ?? 'Votre commande'}
         </p>
 
         <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-xl)] overflow-hidden">

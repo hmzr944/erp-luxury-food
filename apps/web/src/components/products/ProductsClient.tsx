@@ -102,7 +102,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
         <motion.button
           onClick={() => setDrawerProduct('new')}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-black font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
         >
           <Plus size={13} weight="bold" />
           Nouveau produit
@@ -164,7 +164,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
           <div className="flex flex-col items-center gap-2 py-20">
             <Tag size={28} weight="regular" className="text-[var(--color-text-muted)]/40" />
             <p className="font-body text-sm text-[var(--color-text-muted)]">
-              {search ? `Aucun résultat pour "${search}"` : 'Aucun produit — créez le premier'}
+              {search ? `Aucun résultat pour "${search}"` : 'Aucun produit. Créez le premier.'}
             </p>
           </div>
         ) : (
