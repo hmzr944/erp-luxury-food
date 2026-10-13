@@ -6,10 +6,12 @@ import { CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, Clou
 import { formatPrice } from '@erp/utils'
 import { PaymentKind } from '@erp/types'
 import type { PlatformConfig } from '@/lib/api/platform'
+import type { PaymentDevice } from '@/lib/api/payments'
 import { db } from '@/lib/offline/db'
 import type { RecordedSale } from '@/lib/terminal/terminal'
 import type { CartLine } from '@/stores/cart.store'
 import { EASE, Sheet } from './Sheet'
+import { TerminalWait } from './TerminalWait'
 
 const KIND_ICON: Record<PaymentKind, React.ElementType> = {
   [PaymentKind.CARD]: CreditCard,
@@ -29,36 +31,72 @@ export interface ReceiptView {
 
 interface PaymentSheetProps {
   open: boolean
+  siteId: string
+  // TPE connecté de cette caisse : la carte y est encaissée automatiquement
+  device: PaymentDevice | null
   total: number
   methods: Method[]
   siteName: string
   receipt: ReceiptView | null
   busy: boolean
   error: string | null
-  onPay: (payments: Array<{ code: string; amount: number }>, email?: string) => void
+  onPay: (payments: Array<{ code: string; amount: number }>, email?: string, clientId?: string) => void
   onClose: () => void
 }
 
-export function PaymentSheet({ open, total, methods, siteName, receipt, busy, error, onPay, onClose }: PaymentSheetProps) {
+export function PaymentSheet({ open, siteId, device, total, methods, siteName, receipt, busy, error, onPay, onClose }: PaymentSheetProps) {
   const [split, setSplit] = useState(false)
+  const [terminal, setTerminal] = useState<Method | null>(null)
   const [email, setEmail] = useState('')
   const [showEmail, setShowEmail] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setSplit(false)
+      setTerminal(null)
       setEmail('')
       setShowEmail(false)
     }
   }, [open])
 
-  const title = receipt ? 'Vente enregistrée' : split ? 'Paiement en plusieurs fois' : `Encaisser ${formatPrice(total)}`
+  const title = receipt
+    ? 'Vente enregistrée'
+    : terminal
+      ? 'Paiement sur le TPE'
+      : split
+        ? 'Paiement en plusieurs fois'
+        : `Encaisser ${formatPrice(total)}`
+
+  // Carte + TPE connecté + réseau : le montant part au TPE. Sinon, TPE autonome.
+  const choose = (m: Method) => {
+    if (m.kind === PaymentKind.CARD && device && navigator.onLine) return setTerminal(m)
+    onPay([{ code: m.code, amount: total }], mail)
+  }
   const mail = email.trim() || undefined
 
   return (
-    <Sheet open={open} title={title} onClose={onClose} locked={busy}>
+    // Pendant l'attente du TPE, on ne ferme qu'en annulant : sinon le client
+    // pourrait payer sans que la vente soit enregistrée
+    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!!terminal && !receipt)}>
       {receipt ? (
         <Receipt receipt={receipt} siteName={siteName} onNext={onClose} />
+      ) : terminal && device ? (
+        <>
+          {error && (
+            // Paiement accepté mais vente non enregistrée : à ne jamais perdre de vue
+            <p role="alert" className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+              Paiement accepté, mais la vente n&apos;a pas pu être enregistrée : {error}
+            </p>
+          )}
+          <TerminalWait
+            siteId={siteId}
+            device={device}
+            amount={total}
+            onApproved={(clientId) => onPay([{ code: terminal.code, amount: total }], mail, clientId)}
+            onPaidElsewhere={() => onPay([{ code: terminal.code, amount: total }], mail)}
+            onBack={() => setTerminal(null)}
+          />
+        </>
       ) : split ? (
         <SplitPayment total={total} methods={methods} busy={busy} onPay={(p) => onPay(p, mail)} onBack={() => setSplit(false)} />
       ) : (
@@ -72,7 +110,7 @@ export function PaymentSheet({ open, total, methods, siteName, receipt, busy, er
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => onPay([{ code: m.code, amount: total }], mail)}
+                    onClick={() => choose(m)}
                     className="flex h-20 w-full flex-col items-start justify-between rounded-[var(--radius-md)] border border-[var(--color-border-strong)] p-3 text-left transition-[transform,border-color] duration-150 hover:border-[var(--color-accent)] active:scale-[0.98] disabled:opacity-50"
                   >
                     <Icon size={22} aria-hidden />

@@ -158,6 +158,19 @@ export class OrdersService {
         ...missingSerials.map((sn) => `N° de série absent du stock à la synchronisation : ${sn}`),
       ].filter(Boolean)
 
+      // Paiements encaissés sur un TPE connecté : on garde la référence du prestataire
+      const terminalRefs = await tx.terminalPayment.findMany({
+        where: { clientSaleId: dto.clientId, status: 'SUCCEEDED', siteId },
+        select: { amount: true, providerRef: true, id: true },
+      })
+      for (const p of draft.payments) {
+        const i = terminalRefs.findIndex((t) => t.amount === Math.round(p.amount * 100))
+        if (i >= 0) {
+          p.reference = terminalRefs[i].providerRef ?? terminalRefs[i].id
+          terminalRefs.splice(i, 1)
+        }
+      }
+
       return this.persistOrder(tx, siteId, draft, {
         channel: 'IN_STORE',
         customerEmail: dto.customerEmail,
@@ -301,6 +314,7 @@ export class OrdersService {
             label: p.label,
             kind: p.kind as PaymentKind,
             amount: new Decimal(p.amount),
+            reference: p.reference,
           })),
         },
       },
@@ -357,6 +371,7 @@ export class OrdersService {
       where: { id, siteId },
       include: {
         items: { include: { product: { select: { name: true, subtitle: true } } } },
+        payments: true,
         receiptChain: true,
       },
     })

@@ -22,6 +22,7 @@ import { InvoicesModule } from './invoices/invoices.module'
 import { PlatformModule } from './platform/platform.module'
 import { TerminalsModule } from './terminals/terminals.module'
 import { DataModule } from './data/data.module'
+import { PaymentsModule } from './payments/payments.module'
 import { HealthController } from './health/health.controller'
 
 @Module({
@@ -70,6 +71,7 @@ import { HealthController } from './health/health.controller'
     PlatformModule,
     TerminalsModule,
     DataModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

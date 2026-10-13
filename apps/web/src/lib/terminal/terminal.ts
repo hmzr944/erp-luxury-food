@@ -71,6 +71,8 @@ export interface SaleInput {
   customerEmail?: string
   note?: string
   priceIncludesTax: boolean
+  // Identifiant de vente déjà utilisé pour un paiement sur TPE connecté
+  clientId?: string
 }
 
 export interface RecordedSale {
@@ -98,7 +100,7 @@ export async function recordSale(siteId: string, input: SaleInput): Promise<Reco
     payments: input.payments,
     ...(input.orderDiscount ? { orderDiscount: input.orderDiscount } : {}),
   }
-  const clientId = crypto.randomUUID()
+  const clientId = input.clientId ?? crypto.randomUUID()
 
   const recorded = await withLock(`terminal:${siteId}`, async () => {
     const current = (await db.terminals.get(siteId))!

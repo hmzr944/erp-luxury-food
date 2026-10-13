@@ -57,7 +57,8 @@ export interface OrderDraft {
     discount: number
   }>
   pricing: PricedOrder
-  payments: Array<DraftPaymentMethod & { amount: number }>
+  // reference : identifiant chez le prestataire du TPE connecté, s'il y en a un
+  payments: Array<DraftPaymentMethod & { amount: number; reference?: string }>
   paymentMode: string
   // Lignes dont le prix signé diffère du catalogue actuel
   priceDifferences: string[]

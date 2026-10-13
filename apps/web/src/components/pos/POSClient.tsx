@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { formatPrice } from '@erp/utils'
 import { productsApi, type ApiProduct, type ApiVariant } from '@/lib/api/products'
 import { sitesApi } from '@/lib/api/sites'
+import { paymentsApi, type PaymentDevice } from '@/lib/api/payments'
 import { usePlatformConfig } from '@/lib/api/platform'
 import { ensureTerminal, recordSale, type TerminalNotRegisteredError } from '@/lib/terminal/terminal'
 import { useCartStore, computeCartTotals } from '@/stores/cart.store'
@@ -48,6 +49,9 @@ export function POSClient({ siteId }: POSClientProps) {
   })
   const sites = useQuery({ queryKey: ['sites'], queryFn: sitesApi.getAll, staleTime: 5 * 60_000 })
   const siteName = sites.data?.find((s) => s.id === siteId)?.name ?? 'Caisse'
+  // TPE connecté de cette caisse : celui choisi sur cet appareil, sinon le premier
+  const devices = useQuery({ queryKey: ['payment-devices', siteId], queryFn: () => paymentsApi.devices(siteId), staleTime: 60_000 })
+  const device = useTerminalDevice(siteId, devices.data ?? [])
 
   // Cet appareil devient une caisse du site à sa première ouverture
   useEffect(() => {
@@ -89,7 +93,7 @@ export function POSClient({ siteId }: POSClientProps) {
     add(product)
   }
 
-  const pay = async (payments: Array<{ code: string; amount: number }>, email?: string) => {
+  const pay = async (payments: Array<{ code: string; amount: number }>, email?: string, clientId?: string) => {
     setBusy(true)
     setPayError(null)
     const sold = [...lines]
@@ -108,6 +112,7 @@ export function POSClient({ siteId }: POSClientProps) {
         orderDiscount: orderDiscount || undefined,
         customerEmail: email,
         priceIncludesTax,
+        clientId,
       })
       const labels = new Map(methods.map((m) => [m.code, m.label]))
       setReceipt({
@@ -201,6 +206,8 @@ export function POSClient({ siteId }: POSClientProps) {
 
         <PaymentSheet
           open={paying}
+          siteId={siteId}
+          device={device}
           total={totals.total}
           methods={methods}
           siteName={siteName}
@@ -213,4 +220,16 @@ export function POSClient({ siteId }: POSClientProps) {
       </div>
     </MotionConfig>
   )
+}
+
+function useTerminalDevice(siteId: string, devices: PaymentDevice[]) {
+  const [preferred, setPreferred] = useState<string | null>(null)
+  useEffect(() => {
+    try {
+      setPreferred(localStorage.getItem(`pos:device:${siteId}`))
+    } catch {
+      setPreferred(null)
+    }
+  }, [siteId])
+  return devices.find((d) => d.id === preferred) ?? devices[0] ?? null
 }

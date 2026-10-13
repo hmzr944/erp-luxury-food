@@ -29,6 +29,7 @@ model Organization {
   taxRates             TaxRate[]
   paymentMethods       PaymentMethod[]
   attributeDefinitions AttributeDefinition[]
+  paymentAccounts      PaymentAccount[]
   sites                Site[]
   users                User[]
   settings             OrganizationSettings?
@@ -76,20 +77,21 @@ model InvoiceSequence {
 }
 
 model Site {
-  id             String         @id @default(cuid())
+  id             String          @id @default(cuid())
   organizationId String
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name           String
   address        String?
-  timezone       String         @default("Europe/Paris")
+  timezone       String          @default("Europe/Paris")
   users          UserSite[]
   receiptChains  ReceiptChain[]
   terminals      Terminal[]
+  paymentDevices PaymentDevice[]
   categories     Category[]
   products       Product[]
   orders         Order[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@index([organizationId])
 }
@@ -611,6 +613,8 @@ model OrderPayment {
   label     String
   kind      PaymentKind
   amount    Decimal     @db.Decimal(10, 2)
+  // Référence du paiement chez le prestataire (TPE connecté)
+  reference String?
   createdAt DateTime    @default(now())
 
   @@index([orderId])
@@ -634,4 +638,75 @@ model Terminal {
   receipts   ReceiptChain[]
 
   @@index([siteId])
+}
+
+// ============================================================
+// PAIEMENT INTÉGRÉ — la caisse envoie le montant au TPE
+// ============================================================
+
+enum PaymentProvider {
+  SIMULATOR // TPE virtuel, pour essayer sans matériel
+  STRIPE // Stripe Terminal (intégration pilotée par le serveur)
+  SUMUP // SumUp Solo (Cloud API)
+}
+
+enum TerminalPaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+// Compte du commerçant chez un prestataire de paiement
+model PaymentAccount {
+  id             String          @id @default(cuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       PaymentProvider
+  // Identifiants chiffrés (AES-256-GCM), jamais renvoyés au navigateur
+  credentials    String
+  // Mode test du prestataire (aucun argent réel)
+  testMode       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([organizationId, provider])
+}
+
+// TPE appairé à une boutique
+model PaymentDevice {
+  id         String            @id @default(cuid())
+  siteId     String
+  site       Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  provider   PaymentProvider
+  name       String
+  externalId String // identifiant du lecteur chez le prestataire
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  payments   TerminalPayment[]
+
+  @@index([siteId])
+}
+
+// Une demande de paiement envoyée à un TPE
+model TerminalPayment {
+  id            String                @id @default(cuid())
+  siteId        String
+  deviceId      String
+  device        PaymentDevice         @relation(fields: [deviceId], references: [id])
+  provider      PaymentProvider
+  amount        Int // en centimes
+  currency      String                @default("EUR")
+  status        TerminalPaymentStatus @default(PENDING)
+  // Vente de la caisse à laquelle ce paiement est destiné (clientId du ticket)
+  clientSaleId  String?
+  providerRef   String?
+  failureReason String?
+  createdBy     String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([siteId, createdAt])
+  @@index([deviceId, status])
+  @@index([clientSaleId])
 }

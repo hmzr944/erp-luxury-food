@@ -34,10 +34,13 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body?.message ?? `HTTP ${res.status}`)
+    const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message
+    throw new Error(message ?? `HTTP ${res.status}`)
   }
 
-  return res.json()
+  // Certaines routes renvoient « rien » (null) : corps vide
+  const text = await res.text()
+  return (text ? JSON.parse(text) : null) as T
 }
 
 // Requête authentifiée qui renvoie la réponse brute, sans jamais rediriger
