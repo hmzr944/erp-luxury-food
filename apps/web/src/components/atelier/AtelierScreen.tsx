@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { sitesApi } from '@/lib/api/sites'
 import { STATUS_LABEL, deliveryLabel, qty, supplyApi, type Production, type SupplyOrder } from '@/lib/api/supply'
 import { BRAND } from '@/lib/brand'
+import { FlowMark } from '@/components/brand/FlowLogo'
 
 const shift = (day: string, n: number) => {
   const d = new Date(`${day}T00:00:00Z`)
@@ -65,8 +66,9 @@ export function AtelierScreen({ siteId }: { siteId: string }) {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
       <header className="flex flex-wrap items-center gap-4 border-b border-[var(--color-border)] px-4 py-3 md:px-8">
+        <FlowMark size={44} className="shrink-0" />
         <div className="min-w-0">
-          <p className="text-2xl font-semibold tracking-tight">{site?.name ?? 'Atelier'}</p>
+          <p className="font-display text-2xl font-bold tracking-tight">{site?.name ?? 'Atelier'}</p>
           <p className="text-base text-[var(--color-text-secondary)]">
             {BRAND}, atelier{user?.firstName ? `, ${user.firstName}` : ''}
           </p>
@@ -157,7 +159,7 @@ function Totals({ siteId, p }: { siteId: string; p: Production }) {
         <ul className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
           {p.consolidated.map((c) => (
             <li key={`${c.productId}:${c.variantId}`} className="grid grid-cols-[minmax(9rem,auto)_1fr] items-baseline gap-x-8 py-5">
-              <p className="tabular text-right text-7xl font-semibold leading-none tracking-tight">
+              <p className="tabular text-right font-display text-7xl font-bold leading-none tracking-tight">
                 {qty(c.total)}
                 {c.unit && c.unit !== 'pièce' ? <span className="text-3xl"> {c.unit}</span> : null}
               </p>

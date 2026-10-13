@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { CASH_DIFFERENCE_REASONS, EURO_DENOMINATIONS, closingPlan, countCash, formatPrice } from '@erp/utils'
+import { CASH_DIFFERENCE_REASONS, EURO_DENOMINATIONS, countCash, describeCash, formatPrice, splitFloat } from '@erp/utils'
 import { cashApi, type CashSession } from '@/lib/api/cash'
 import { ApiError } from '@/lib/api/client'
 import { QtyInput } from '@/components/supply/QtyInput'
@@ -125,7 +125,7 @@ export function CashCloseSheet({
   const [needsReason, setNeedsReason] = useState<number | null>(null)
   const [reason, setReason] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [done, setDone] = useState<CashSession | null>(null)
+  const [done, setDone] = useState<(CashSession & { keep: Record<string, number>; depositDetail: Record<string, number> }) | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -138,7 +138,8 @@ export function CashCloseSheet({
 
   const counted = useMemo(() => countCash(Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0))) / 100, [counts])
   const target = state.data?.floatTarget ?? 0
-  const preview = closingPlan({ counted: Math.round(counted * 100), expected: 0, floatTarget: Math.round(target * 100), tolerance: 0 })
+  const filled = Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0))
+  const preview = splitFloat(filled, Math.round(target * 100))
 
   const submit = async () => {
     setSaving(true)
@@ -177,14 +178,25 @@ export function CashCloseSheet({
             <CheckCircle size={26} weight="fill" aria-hidden className="text-[var(--color-accent)]" />
             {formatPrice(done.counted ?? 0)} comptés
           </p>
+          {/* Plus de calcul : la caisse dit quoi laisser et quoi déposer, coupure par coupure */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] p-4">
-              <p className="text-sm text-[var(--color-text-secondary)]">Gardez dans le tiroir pour demain</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">Laissez dans le tiroir pour demain</p>
               <p className="tabular text-3xl font-semibold">{formatPrice(done.keptFloat ?? 0)}</p>
+              <ul className="mt-2 space-y-0.5 text-[15px]">
+                {describeCash(done.keep).map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
             </div>
             <div className="rounded-[var(--radius-lg)] bg-[var(--color-accent)] p-4 text-[var(--color-on-accent)]">
-              <p className="text-sm opacity-90">Déposez dans l&apos;enveloppe banque</p>
+              <p className="text-sm opacity-90">Mettez dans l&apos;enveloppe banque</p>
               <p className="tabular text-3xl font-semibold">{formatPrice(done.deposit ?? 0)}</p>
+              <ul className="mt-2 space-y-0.5 text-[15px]">
+                {describeCash(done.depositDetail).map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
             </div>
           </div>
           <p className="text-[15px] text-[var(--color-text-secondary)]">
@@ -220,7 +232,7 @@ export function CashCloseSheet({
             </p>
             {counted > 0 && needsReason == null && (
               <p className="text-sm text-[var(--color-text-secondary)]">
-                Vous garderez {formatPrice(preview.keep / 100)} et déposerez {formatPrice(preview.deposit / 100)}.
+                Vous garderez {formatPrice(preview.keepTotal / 100)} et déposerez {formatPrice(preview.depositTotal / 100)}.
               </p>
             )}
             {needsReason != null && (

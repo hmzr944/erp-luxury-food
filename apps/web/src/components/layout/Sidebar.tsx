@@ -20,6 +20,7 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useSiteStore } from '@/stores/site.store'
+import { FlowLogo } from '@/components/brand/FlowLogo'
 import { sitesApi } from '@/lib/api/sites'
 import { useBilling } from '@/lib/api/billing'
 
@@ -53,8 +54,9 @@ export function Sidebar() {
     <nav className="flex flex-col w-48 shrink-0 h-full border-r border-[var(--color-border)] bg-[var(--color-bg-surface)]">
       {/* Brand + site selector */}
       <div className="px-4 py-4 border-b border-[var(--color-border)]">
-        <p className="font-display text-sm text-[var(--color-text-primary)] leading-tight mb-2 truncate">
-          {currentSite?.name ?? 'FLŌW'}
+        <FlowLogo size={24} className="mb-3" />
+        <p className="font-display text-sm font-semibold text-[var(--color-text-primary)] leading-tight mb-2 truncate">
+          {currentSite?.name ?? ''}
         </p>
 
         {sites.length > 1 && (

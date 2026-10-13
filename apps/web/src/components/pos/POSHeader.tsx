@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowUUpLeft, CaretLeft, CloudCheck, CloudSlash, DotsThreeVertical, Money, UserSwitch, WarningCircle, SignOut } from '@phosphor-icons/react'
 import { Sheet } from './Sheet'
+import { FlowMark } from '@/components/brand/FlowLogo'
 import { useAuthStore } from '@/stores/auth.store'
 import type { SaleQueueState } from './useSaleQueue'
 import { SupplyButton } from './SupplyButton'
@@ -39,8 +40,9 @@ export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cas
           <CaretLeft size={20} />
         </Link>
       )}
+      <FlowMark size={28} className="hidden shrink-0 sm:block" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-base font-semibold leading-tight">{siteName}</p>
+        <p className="truncate font-display text-[17px] font-semibold leading-tight">{siteName}</p>
         <p className="truncate text-sm text-[var(--color-text-secondary)]">
           {who}
           {time && <span className="tabular hidden sm:inline">{who ? ', ' : ''}{time}</span>}

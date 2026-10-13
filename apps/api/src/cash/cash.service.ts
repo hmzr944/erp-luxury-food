@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
 import { Decimal } from '@prisma/client/runtime/library'
-import { CashCountError, closingPlan, countCash } from '@erp/utils'
+import { CashCountError, closingPlan, countCash, recommendCash, splitFloat } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 
@@ -18,9 +18,39 @@ export class CashService {
     private audit: AuditService,
   ) {}
 
+  // Réglages en vigueur : calculés (par défaut) ou fixés par le gérant
+  async settings(siteId: string) {
+    const site = await this.prisma.site.findUniqueOrThrow({
+      where: { id: siteId },
+      select: { cashFloat: true, cashTolerance: true, cashAuto: true, organization: { select: { sector: true } } },
+    })
+    const recommended = await this.recommendation(siteId, site.organization.sector)
+    return {
+      auto: site.cashAuto,
+      cashFloat: site.cashAuto ? recommended.floatTarget : Number(site.cashFloat),
+      cashTolerance: site.cashAuto ? recommended.tolerance : Number(site.cashTolerance),
+      recommended,
+      manual: { cashFloat: Number(site.cashFloat), cashTolerance: Number(site.cashTolerance) },
+    }
+  }
+
+  private async recommendation(siteId: string, sector: string) {
+    const days = 28
+    const since = new Date(Date.now() - days * 86_400_000)
+    const agg = await this.prisma.orderPayment.aggregate({
+      where: { kind: 'CASH', amount: { gt: 0 }, order: { siteId, kind: 'SALE', createdAt: { gte: since } } },
+      _sum: { amount: true },
+      _count: true,
+    })
+    // Commerces où l'on rend beaucoup de monnaie : boulangerie, épicerie, cave
+    const fallbackFloat = sector === 'FOOD' || sector === 'WINE' ? 150 : 100
+    return recommendCash({ days, cashTickets: agg._count, cashTotal: Number(agg._sum.amount ?? 0), fallbackFloat })
+  }
+
   async current(siteId: string, terminalId: string) {
     await this.terminal(siteId, terminalId)
-    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { cashFloat: true, cashTolerance: true } })
+    const eff = await this.settings(siteId)
+    const site = { cashFloat: eff.cashFloat, cashTolerance: eff.cashTolerance }
     const open = await this.prisma.cashSession.findFirst({ where: { terminalId, status: 'OPEN' }, orderBy: { openedAt: 'desc' } })
     const last = await this.prisma.cashSession.findFirst({
       where: { terminalId, status: 'CLOSED' },
@@ -66,7 +96,7 @@ export class CashService {
       if (e instanceof CashCountError) throw new BadRequestException(e.message)
       throw e
     }
-    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { cashFloat: true, cashTolerance: true } })
+    const site = await this.settings(siteId)
     const cashIn = await this.cashMovements(dto.terminalId, session.openedAt)
     const plan = closingPlan({
       counted,
@@ -74,6 +104,8 @@ export class CashService {
       floatTarget: cents(site.cashFloat),
       tolerance: cents(site.cashTolerance),
     })
+    // Quelles coupures laisser dans le tiroir : le fond exact, avec la monnaie
+    const split = splitFloat(dto.denominations, cents(site.cashFloat))
     const reason = dto.reason?.trim()
     if (!plan.withinTolerance && !reason) {
       // Rien n'est enregistré : l'écran demande le motif puis renvoie le comptage
@@ -94,8 +126,8 @@ export class CashService {
         expectedCash: euros(plan.expected),
         difference: euros(plan.difference),
         differenceReason: reason || null,
-        keptFloat: euros(plan.keep),
-        deposit: euros(plan.deposit),
+        keptFloat: euros(split.keepTotal),
+        deposit: euros(split.depositTotal),
       },
     })
     const site2 = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { organizationId: true } })
@@ -107,18 +139,19 @@ export class CashService {
       terminalId: dto.terminalId,
       detail: `compté ${(plan.counted / 100).toFixed(2)} €, écart ${(plan.difference / 100).toFixed(2)} €${reason ? `, ${reason}` : ''}`,
     })
-    return { ...this.view(closed), withinTolerance: plan.withinTolerance }
+    return { ...this.view(closed), withinTolerance: plan.withinTolerance, keep: split.keep, depositDetail: split.deposit, exactFloat: split.exact }
   }
 
-  async updateSettings(siteId: string, dto: { cashFloat?: number; cashTolerance?: number }) {
-    return this.prisma.site.update({
+  async updateSettings(siteId: string, dto: { cashAuto?: boolean; cashFloat?: number; cashTolerance?: number }) {
+    await this.prisma.site.update({
       where: { id: siteId },
       data: {
+        ...(dto.cashAuto !== undefined ? { cashAuto: dto.cashAuto } : {}),
         ...(dto.cashFloat !== undefined ? { cashFloat: new Decimal(dto.cashFloat) } : {}),
         ...(dto.cashTolerance !== undefined ? { cashTolerance: new Decimal(dto.cashTolerance) } : {}),
       },
-      select: { cashFloat: true, cashTolerance: true },
     })
+    return this.settings(siteId)
   }
 
   async history(siteId: string) {

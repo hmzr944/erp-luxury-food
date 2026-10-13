@@ -1,20 +1,50 @@
 @import "tailwindcss";
 
 /* ============================================================
-   DESIGN TOKENS
-   Trois couleurs seulement : fond, encre, accent. Toutes les autres
-   teintes (surfaces, bordures, textes atténués, états) en sont des
-   mélanges. Thème clair et sombre selon le réglage de l'appareil.
-   Contrastes vérifiés (WCAG AA) : texte atténué 4,9:1 en clair, 6,6:1 en sombre.
+   IDENTITÉ FLŌW : le rythme de la boutique
+   Encre et papier pour lire, l'indigo « Flux » pour agir, et six gammes
+   (corail, soleil, menthe, lagon, lilas, pivoine) qui donnent une couleur
+   à chaque rayon : on retrouve un produit à sa couleur avant de lire son nom.
+   Règle d'accessibilité : une gamme est un aplat sous un texte encre
+   (contraste 6,5:1 minimum), jamais un texte sur fond clair.
    ============================================================ */
 
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('/fonts/bricolage-grotesque-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('/fonts/bricolage-grotesque-latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
-  --base-bg: #F5F5F3;
-  --base-ink: #16171A;
-  --base-accent: #2B46C8;
+  --base-bg: #F6F5F1;
+  --base-ink: #15131F;
+  --base-accent: #3B37E6; /* Flux */
   --base-on-accent: #FFFFFF;
   --base-surface: #FFFFFF;
-  --scrim: color-mix(in srgb, #16171A 40%, transparent);
+  --scrim: color-mix(in srgb, #15131F 42%, transparent);
+  /* Gammes : identiques en clair et en sombre */
+  --gamme-corail: #FF6B57;
+  --gamme-soleil: #FFC94A;
+  --gamme-menthe: #23C49A;
+  --gamme-lagon: #2EA8F5;
+  --gamme-lilas: #A88BFF;
+  --gamme-pivoine: #FF6FAE;
+  --on-gamme: #15131F;
+  /* États (texte lisible sur fond et surface) */
+  --state-success: #0B7A5E;
+  --state-warning: #8A5A00;
+  --state-danger: #C2311F;
   color-scheme: light;
 }
 
@@ -22,23 +52,29 @@
    à distance) via data-theme sur <html> */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --base-bg: #111214;
-    --base-ink: #ECECE8;
-    --base-accent: #93A5FF;
-    --base-on-accent: #111214;
-    --base-surface: #1A1B1E;
-    --scrim: color-mix(in srgb, #08090A 65%, transparent);
+    --base-bg: #121118;
+    --base-ink: #EEEDF5;
+    --base-accent: #8E8BFF;
+    --base-on-accent: #121118;
+    --base-surface: #1B1A23;
+    --scrim: color-mix(in srgb, #07060B 65%, transparent);
+    --state-success: #4BE0B5;
+    --state-warning: #FFC94A;
+    --state-danger: #FF8A7A;
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --base-bg: #111214;
-  --base-ink: #ECECE8;
-  --base-accent: #93A5FF;
-  --base-on-accent: #111214;
-  --base-surface: #1A1B1E;
-  --scrim: color-mix(in srgb, #08090A 65%, transparent);
+  --base-bg: #121118;
+  --base-ink: #EEEDF5;
+  --base-accent: #8E8BFF;
+  --base-on-accent: #121118;
+  --base-surface: #1B1A23;
+  --scrim: color-mix(in srgb, #07060B 65%, transparent);
+  --state-success: #4BE0B5;
+  --state-warning: #FFC94A;
+  --state-danger: #FF8A7A;
   color-scheme: dark;
 }
 
@@ -54,24 +90,34 @@
   --color-text-secondary: color-mix(in srgb, var(--base-ink) 78%, var(--base-bg));
   --color-text-muted:     color-mix(in srgb, var(--base-ink) 62%, var(--base-bg));
 
-  /* Accent unique */
+  /* Flux : la couleur de l'action (encaisser, valider, envoyer) */
   --color-accent:       var(--base-accent);
   --color-accent-hover: color-mix(in srgb, var(--base-accent) 85%, var(--base-ink));
   --color-accent-muted: color-mix(in srgb, var(--base-accent) 12%, var(--base-surface));
   --color-on-accent:    var(--base-on-accent);
 
-  /* États : nuances des trois couleurs, toujours doublées d'une icône ou d'un libellé */
-  --color-success: var(--base-accent);
-  --color-warning: var(--base-ink);
-  --color-danger:  var(--base-ink);
+  /* États, toujours doublés d'une icône ou d'un libellé */
+  --color-success: var(--state-success);
+  --color-warning: var(--state-warning);
+  --color-danger:  var(--state-danger);
   --color-info:    var(--base-accent);
+
+  /* Gammes (rayons, offres, espaces) */
+  --color-corail:  var(--gamme-corail);
+  --color-soleil:  var(--gamme-soleil);
+  --color-menthe:  var(--gamme-menthe);
+  --color-lagon:   var(--gamme-lagon);
+  --color-lilas:   var(--gamme-lilas);
+  --color-pivoine: var(--gamme-pivoine);
+  --color-on-gamme: var(--on-gamme);
 
   /* Bordures */
   --color-border:        color-mix(in srgb, var(--base-ink) 12%, var(--base-bg));
   --color-border-strong: color-mix(in srgb, var(--base-ink) 30%, var(--base-bg));
 
-  /* Typographie : Geist auto-hébergée (disponible hors ligne) */
-  --font-display: var(--font-geist-sans), system-ui, sans-serif;
+  /* Typographie auto-hébergée (disponible hors ligne) : Bricolage Grotesque
+     pour la voix de la marque (titres, chiffres clés), Geist pour lire et saisir */
+  --font-display: 'Bricolage Grotesque', var(--font-geist-sans), system-ui, sans-serif;
   --font-body:    var(--font-geist-sans), system-ui, sans-serif;
   --font-data:    var(--font-geist-mono), ui-monospace, monospace;
 
@@ -179,4 +225,14 @@
 .pin-shake { animation: pin-shake 0.35s ease-in-out; }
 @media (prefers-reduced-motion: reduce) {
   .pin-shake { animation: none; }
+}
+
+/* Barres de rythme du site : montent une à une au chargement */
+@keyframes site-bar {
+  from { transform: scaleY(0.15); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.site-bar { transform-origin: bottom; animation: site-bar 0.6s cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--delay, 0ms); }
+@media (prefers-reduced-motion: reduce) {
+  .site-bar { animation: none; }
 }

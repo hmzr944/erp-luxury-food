@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Check } from '@phosphor-icons/react/dist/ssr'
 import { PLAN_OFFERS, TRIAL_DAYS } from '@erp/types'
-import { BRAND } from '@/lib/brand'
+import { BRAND, GAMMES, PLAN_GAMME } from '@/lib/brand'
 import comptoir from '../../../public/site/comptoir.jpg'
 import paiement from '../../../public/site/paiement.jpg'
 import mode from '../../../public/site/mode.jpg'
@@ -13,7 +13,7 @@ import cave from '../../../public/site/cave.jpg'
 import fleuriste from '../../../public/site/fleuriste.jpg'
 import labo from '../../../public/site/labo.webp'
 
-const h2 = 'text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-[1.05] tracking-[-0.03em]'
+const h2 = 'font-display text-[clamp(2rem,4vw,3.4rem)] font-bold leading-[1.02] tracking-[-0.035em]'
 const lead = 'text-[17px] leading-relaxed text-[var(--color-text-secondary)]'
 const primary =
   'inline-flex h-12 items-center justify-center rounded-[var(--radius-pill)] bg-[var(--color-accent)] px-6 text-[16px] font-semibold text-[var(--color-on-accent)] transition-[background-color,transform] duration-150 hover:bg-[var(--color-accent-hover)] active:scale-[0.97]'
@@ -24,7 +24,7 @@ export function Hero() {
   return (
     <section className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-12 md:px-6 md:pt-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end lg:gap-12 lg:pb-24">
       <div>
-        <h1 className="site-rise text-balance text-[clamp(2.5rem,5.6vw,4.75rem)] font-semibold leading-[1] tracking-[-0.045em]">
+        <h1 className="site-rise text-balance font-display text-[clamp(2.6rem,5.8vw,5rem)] font-bold leading-[0.98] tracking-[-0.045em]">
           La caisse qu&apos;on sait utiliser dès la première vente.
         </h1>
         <p className={`site-rise mt-6 max-w-xl ${lead}`} style={{ '--delay': '180ms' } as React.CSSProperties}>
@@ -42,6 +42,7 @@ export function Hero() {
         <p className="site-rise mt-4 text-[15px] text-[var(--color-text-secondary)]" style={{ '--delay': '300ms' } as React.CSSProperties}>
           Sans carte bancaire, sans engagement, rien à installer.
         </p>
+        <RhythmBars />
       </div>
       <figure className="site-rise" style={{ '--delay': '140ms' } as React.CSSProperties}>
         <Image
@@ -54,6 +55,29 @@ export function Hero() {
         />
       </figure>
     </section>
+  )
+}
+
+// Signature FLŌW : les barres du logo, une par gamme, qui montent au chargement
+function RhythmBars() {
+  const bars: Array<[string, number]> = [
+    ['var(--gamme-corail)', 44],
+    ['var(--gamme-soleil)', 72],
+    ['var(--gamme-menthe)', 56],
+    ['var(--gamme-lagon)', 30],
+    ['var(--gamme-lilas)', 64],
+    ['var(--gamme-pivoine)', 38],
+  ]
+  return (
+    <div aria-hidden className="mt-10 flex h-20 items-end gap-2">
+      {bars.map(([c, h], i) => (
+        <span
+          key={c}
+          className="site-bar w-5 rounded-full"
+          style={{ background: c, height: `${h}px`, '--delay': `${320 + i * 60}ms` } as React.CSSProperties}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -104,11 +128,11 @@ export function Sectors() {
       </div>
 
       <div className="mt-12 grid gap-4 md:grid-cols-6">
-        <SectorFigure image={mode} className="md:col-span-4" ratio="aspect-[3/2]" title="Prêt-à-porter, maroquinerie" text="Tailles et couleurs en grille, stock par variante, collection, saison, matière." alt="Portants de vêtements dans une boutique claire, sous des suspensions en métal." />
-        <SectorFigure image={patisserie} className="md:col-span-2" ratio="aspect-[3/4] md:aspect-auto md:h-full" title="Pâtisserie, chocolaterie" text="TVA à 5,5 % par défaut, lots et dates limites, origine et conservation." alt="Vitrine de pâtisserie avec des tartes aux fruits rouges et des gâteaux au chocolat." />
-        <SectorFigure image={bijoux} className="md:col-span-2" ratio="aspect-[4/3]" title="Bijouterie, horlogerie" text="Numéro de série pièce par pièce, métal, pierres, certificat, garantie." alt="Bagues en or présentées sur des supports dans une vitrine." />
-        <SectorFigure image={cave} className="md:col-span-2" ratio="aspect-[4/3]" title="Cave, spiritueux" text="Millésime, appellation et degré sur chaque fiche." alt="Bouteilles de vin couchées sur des étagères en bois." />
-        <SectorFigure image={fleuriste} className="md:col-span-2" ratio="aspect-[4/3]" title="Fleurs, concept store" text="Article libre au prix saisi à la main quand rien n'est au catalogue." alt="Boutique de fleuriste remplie de bouquets colorés sous des guirlandes lumineuses." />
+        <SectorFigure gamme="var(--gamme-corail)" image={mode} className="md:col-span-4" ratio="aspect-[3/2]" title="Prêt-à-porter, maroquinerie" text="Tailles et couleurs en grille, stock par variante, collection, saison, matière." alt="Portants de vêtements dans une boutique claire, sous des suspensions en métal." />
+        <SectorFigure gamme="var(--gamme-soleil)" image={patisserie} className="md:col-span-2" ratio="aspect-[3/4] md:aspect-auto md:h-full" title="Pâtisserie, chocolaterie" text="TVA à 5,5 % par défaut, lots et dates limites, origine et conservation." alt="Vitrine de pâtisserie avec des tartes aux fruits rouges et des gâteaux au chocolat." />
+        <SectorFigure gamme="var(--gamme-menthe)" image={bijoux} className="md:col-span-2" ratio="aspect-[4/3]" title="Bijouterie, horlogerie" text="Numéro de série pièce par pièce, métal, pierres, certificat, garantie." alt="Bagues en or présentées sur des supports dans une vitrine." />
+        <SectorFigure gamme="var(--gamme-lagon)" image={cave} className="md:col-span-2" ratio="aspect-[4/3]" title="Cave, spiritueux" text="Millésime, appellation et degré sur chaque fiche." alt="Bouteilles de vin couchées sur des étagères en bois." />
+        <SectorFigure gamme="var(--gamme-lilas)" image={fleuriste} className="md:col-span-2" ratio="aspect-[4/3]" title="Fleurs, concept store" text="Article libre au prix saisi à la main quand rien n'est au catalogue." alt="Boutique de fleuriste remplie de bouquets colorés sous des guirlandes lumineuses." />
       </div>
       <p className="mt-6 max-w-2xl text-[15px] text-[var(--color-text-secondary)]">
         Aussi : beauté et parfumerie, décoration et arts de la table, ateliers et prestations. Un code-barres inconnu se transforme en fiche
@@ -125,7 +149,9 @@ function SectorFigure({
   title,
   text,
   alt,
+  gamme,
 }: {
+  gamme: string
   image: typeof mode
   className: string
   ratio: string
@@ -139,7 +165,10 @@ function SectorFigure({
         <Image src={image} alt={alt} fill placeholder="blur" sizes="(min-width: 768px) 50vw, 100vw" className="object-cover" />
       </div>
       <figcaption className="mt-3">
-        <span className="block text-[17px] font-semibold">{title}</span>
+        <span className="flex items-center gap-2 font-display text-[18px] font-bold">
+          <span aria-hidden className="size-3 rounded-full" style={{ background: gamme }} />
+          {title}
+        </span>
         <span className="block text-[15px] text-[var(--color-text-secondary)]">{text}</span>
       </figcaption>
     </figure>
@@ -213,9 +242,14 @@ export function Supply() {
         <ol className="border-t border-[var(--color-border-strong)]">
           {SUPPLY.map((s, i) => (
             <li key={s.title} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-5">
-              <span className="tabular text-xl font-semibold text-[var(--color-accent)]">{i + 1}</span>
+              <span
+                className="tabular grid size-8 place-items-center rounded-full font-display text-[15px] font-bold text-[var(--on-gamme)]"
+                style={{ background: GAMMES[i % GAMMES.length].css }}
+              >
+                {i + 1}
+              </span>
               <div>
-                <h3 className="text-xl font-semibold tracking-tight">{s.title}</h3>
+                <h3 className="font-display text-xl font-bold tracking-tight">{s.title}</h3>
                 <p className="mt-1.5 text-[16px] leading-relaxed text-[var(--color-text-secondary)]">{s.text}</p>
               </div>
             </li>
@@ -256,9 +290,14 @@ export function Start() {
         <ol className="border-t border-[var(--color-border-strong)]">
           {START.map((s, i) => (
             <li key={s.title} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-6">
-              <span className="tabular text-xl font-semibold text-[var(--color-accent)]">{i + 1}</span>
+              <span
+                className="tabular grid size-8 place-items-center rounded-full font-display text-[15px] font-bold text-[var(--on-gamme)]"
+                style={{ background: GAMMES[i % GAMMES.length].css }}
+              >
+                {i + 1}
+              </span>
               <div>
-                <h3 className="text-xl font-semibold tracking-tight">{s.title}</h3>
+                <h3 className="font-display text-xl font-bold tracking-tight">{s.title}</h3>
                 <p className="mt-1.5 text-[16px] leading-relaxed text-[var(--color-text-secondary)]">{s.text}</p>
               </div>
             </li>
@@ -287,14 +326,18 @@ export function Pricing() {
             <div
               key={p.code}
               className={[
-                'flex flex-col rounded-[var(--radius-xl)] p-6 md:p-8',
+                'relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] p-6 pt-9 md:p-8 md:pt-11',
                 i === 0 ? 'border-2 border-[var(--color-accent)]' : 'border border-[var(--color-border-strong)]',
               ].join(' ')}
             >
-              <h3 className="text-2xl font-semibold tracking-tight">{p.name}</h3>
+              <span aria-hidden className="absolute inset-x-0 top-0 h-2.5" style={{ background: PLAN_GAMME[p.code] }} />
+              <h3 className="flex items-center gap-2.5 font-display text-3xl font-bold tracking-tight">
+                <span aria-hidden className="size-4 rounded-full" style={{ background: PLAN_GAMME[p.code] }} />
+                {p.name}
+              </h3>
               <p className="mt-1 text-[16px] text-[var(--color-text-secondary)] md:min-h-12">{p.summary}</p>
               <p className="mt-6 flex items-baseline gap-2">
-                <span className="tabular text-5xl font-semibold tracking-tight">{p.monthlyPrice} €</span>
+                <span className="tabular font-display text-6xl font-bold tracking-tight">{p.monthlyPrice} €</span>
                 <span className="text-[15px] text-[var(--color-text-secondary)]">HT par boutique et par mois</span>
               </p>
               <ul className="mt-6 flex-1 space-y-2.5 text-[16px]">

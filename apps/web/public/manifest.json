@@ -5,8 +5,8 @@
   "start_url": "/login",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#F5F5F3",
-  "theme_color": "#F5F5F3",
+  "background_color": "#F6F5F1",
+  "theme_color": "#3B37E6",
   "lang": "fr",
   "categories": [
     "business",

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
-import { IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator'
+import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator'
 import { Role } from '@erp/types'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
@@ -21,6 +21,7 @@ class CloseDto {
 }
 
 class SettingsDto {
+  @IsOptional() @IsBoolean() cashAuto?: boolean
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(10_000) cashFloat?: number
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(1_000) cashTolerance?: number
 }
@@ -51,6 +52,13 @@ export class CashController {
   @Roles(Role.OWNER, Role.MANAGER)
   history(@Param('siteId') siteId: string) {
     return this.cash.history(siteId)
+  }
+
+  @Get('settings')
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER)
+  getSettings(@Param('siteId') siteId: string) {
+    return this.cash.settings(siteId)
   }
 
   @Patch('settings')

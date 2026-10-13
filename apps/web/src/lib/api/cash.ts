@@ -25,6 +25,14 @@ export interface CashState {
   tolerance: number
 }
 
+export interface CashSettingsView {
+  auto: boolean
+  cashFloat: number
+  cashTolerance: number
+  recommended: { floatTarget: number; tolerance: number; reasons: string[] }
+  manual: { cashFloat: number; cashTolerance: number }
+}
+
 const base = (siteId: string) => `/sites/${siteId}/cash`
 
 export const cashApi = {
@@ -32,8 +40,9 @@ export const cashApi = {
   open: (siteId: string, body: { terminalId: string; amount: number; note?: string }) =>
     apiClient<CashSession>(`${base(siteId)}/open`, { method: 'POST', body: JSON.stringify(body) }),
   close: (siteId: string, body: { terminalId: string; denominations: Record<string, number>; reason?: string }) =>
-    apiClient<CashSession & { withinTolerance: boolean }>(`${base(siteId)}/close`, { method: 'POST', body: JSON.stringify(body) }),
+    apiClient<CashSession & { withinTolerance: boolean; keep: Record<string, number>; depositDetail: Record<string, number>; exactFloat: boolean }>(`${base(siteId)}/close`, { method: 'POST', body: JSON.stringify(body) }),
   sessions: (siteId: string) => apiClient<CashSession[]>(`${base(siteId)}/sessions`),
-  settings: (siteId: string, body: { cashFloat?: number; cashTolerance?: number }) =>
-    apiClient(`${base(siteId)}/settings`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getSettings: (siteId: string) => apiClient<CashSettingsView>(`${base(siteId)}/settings`),
+  settings: (siteId: string, body: { cashAuto?: boolean; cashFloat?: number; cashTolerance?: number }) =>
+    apiClient<CashSettingsView>(`${base(siteId)}/settings`, { method: 'PATCH', body: JSON.stringify(body) }),
 }

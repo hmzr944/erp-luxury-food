@@ -26,6 +26,16 @@ const KIND_ICON: Record<PaymentKind, React.ElementType> = {
 
 type Method = PlatformConfig['paymentMethods'][number]
 
+// Chaque moyen de paiement a sa couleur, la même partout dans FLŌW
+const KIND_GAMME: Record<PaymentKind, string> = {
+  [PaymentKind.CARD]: 'var(--gamme-lagon)',
+  [PaymentKind.CASH]: 'var(--gamme-menthe)',
+  [PaymentKind.VOUCHER]: 'var(--gamme-soleil)',
+  [PaymentKind.TRANSFER]: 'var(--gamme-lilas)',
+  [PaymentKind.OTHER]: 'var(--gamme-pivoine)',
+}
+const methodGamme = (m: Method) => (m.code === 'CREDIT' ? 'var(--gamme-lilas)' : (KIND_GAMME[m.kind] ?? 'var(--gamme-pivoine)'))
+
 export interface ReceiptView {
   sale: RecordedSale
   lines: CartLine[]
@@ -152,9 +162,11 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
                     type="button"
                     disabled={busy}
                     onClick={() => choose(m)}
-                    className="flex h-20 w-full flex-col items-start justify-between rounded-[var(--radius-md)] border border-[var(--color-border-strong)] p-3 text-left transition-[transform,border-color] duration-150 hover:border-[var(--color-accent)] active:scale-[0.98] disabled:opacity-50"
+                    className="flex h-24 w-full flex-col items-start justify-between rounded-[var(--radius-md)] border border-[var(--color-border-strong)] p-3 text-left transition-[transform,border-color] duration-150 hover:border-[var(--color-accent)] active:scale-[0.98] disabled:opacity-50"
                   >
-                    <Icon size={22} aria-hidden />
+                    <span aria-hidden className="grid size-9 place-items-center rounded-[var(--radius-pill)] text-[var(--on-gamme)]" style={{ background: methodGamme(m) }}>
+                      <Icon size={20} weight="bold" />
+                    </span>
                     <span className="text-[15px] font-semibold">{m.label}</span>
                   </button>
                 </li>

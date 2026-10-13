@@ -13,6 +13,7 @@
   "dependencies": {
     "@erp/types": "workspace:*",
     "@erp/utils": "workspace:*",
+    "@fontsource-variable/bricolage-grotesque": "5.2.10",
     "@gsap/react": "2.1.2",
     "@hookform/resolvers": "^5.0.1",
     "@phosphor-icons/react": "^2.1.7",

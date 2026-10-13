@@ -75,7 +75,7 @@ export function GesturesDemo() {
     <section ref={root} id="fonctions" aria-labelledby="gestes-title" className="bg-[var(--color-bg-surface)] motion-safe:lg:flex motion-safe:lg:h-[100dvh] motion-safe:lg:items-center">
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 md:px-6 motion-safe:lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center lg:gap-14 motion-safe:lg:py-0">
         <div>
-          <h2 id="gestes-title" className="text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-[1.05] tracking-[-0.03em]">
+          <h2 id="gestes-title" className="font-display text-[clamp(2rem,4vw,3.4rem)] font-bold leading-[1.02] tracking-[-0.035em]">
             Une vente, trois gestes.
           </h2>
           <p className="mt-4 max-w-md text-[17px] leading-relaxed text-[var(--color-text-secondary)]">
@@ -92,8 +92,10 @@ export function GesturesDemo() {
             <ol className="space-y-10 lg:space-y-8">
               {STEPS.map((s, i) => (
                 <li key={s.title} data-step>
-                  <h3 className="text-xl font-semibold tracking-tight">
-                    <span className="tabular mr-2 text-[var(--color-accent)]">{i + 1}.</span>
+                  <h3 className="flex items-center gap-3 font-display text-2xl font-bold tracking-tight">
+                    <span aria-hidden className="tabular grid size-8 shrink-0 place-items-center rounded-full text-[15px] text-[var(--on-gamme)]" style={{ background: ['var(--gamme-corail)', 'var(--gamme-soleil)', 'var(--gamme-menthe)'][i] }}>
+                      {i + 1}
+                    </span>
                     {s.title}
                   </h3>
                   <p className="mt-1.5 max-w-md text-[16px] leading-relaxed text-[var(--color-text-secondary)]">{s.text}</p>

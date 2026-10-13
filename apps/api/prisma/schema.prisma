@@ -99,6 +99,9 @@ model Site {
   // Caisse : fond laissé dans le tiroir et écart toléré sans justification
   cashFloat       Decimal         @default(150) @db.Decimal(10, 2)
   cashTolerance   Decimal         @default(2) @db.Decimal(10, 2)
+  // Réglage automatique (par défaut) : fond et tolérance calculés sur les
+  // ventes en espèces ; cashFloat et cashTolerance servent si on le coupe
+  cashAuto        Boolean         @default(true)
   supplyOrdersOut SupplyOrder[]   @relation("SupplyFrom")
   supplyOrdersIn  SupplyOrder[]   @relation("SupplyTo")
   users           UserSite[]

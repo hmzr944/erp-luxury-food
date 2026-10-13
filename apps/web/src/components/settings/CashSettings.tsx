@@ -19,8 +19,8 @@ export function CashSettings() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Caisse et fond de caisse</h1>
         <p className="text-[15px] text-[var(--color-text-secondary)]">
-          Le fond laissé dans le tiroir est proposé à l&apos;ouverture suivante. Sous la tolérance, un écart est enregistré sans rien demander au
-          vendeur.
+          Rien à régler : à la fermeture, la caisse dit quels billets et pièces laisser dans le tiroir, et le fond est confirmé d&apos;un geste le
+          lendemain.
         </p>
       </header>
       {shops.length > 1 && (
@@ -44,45 +44,85 @@ export function CashSettings() {
   )
 }
 
-function SiteCash({ site }: { site: ApiSite & { cashFloat?: string | number; cashTolerance?: string | number } }) {
+function SiteCash({ site }: { site: ApiSite }) {
   const qc = useQueryClient()
-  const [float, setFloat] = useState(String(site.cashFloat ?? 150).replace('.', ','))
-  const [tolerance, setTolerance] = useState(String(site.cashTolerance ?? 2).replace('.', ','))
+  const settings = useQuery({ queryKey: ['cash-settings', site.id], queryFn: () => cashApi.getSettings(site.id) })
   const sessions = useQuery({ queryKey: ['cash-sessions', site.id], queryFn: () => cashApi.sessions(site.id) })
+  const [float, setFloat] = useState<string | null>(null)
+  const [tolerance, setTolerance] = useState<string | null>(null)
   const num = (v: string) => Number(v.replace(',', '.'))
   const field = 'tabular h-11 w-28 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-right text-[15px]'
+  const s = settings.data
+
+  const save = async (body: Parameters<typeof cashApi.settings>[1]) => {
+    try {
+      const next = await cashApi.settings(site.id, body)
+      qc.setQueryData(['cash-settings', site.id], next)
+      toast.success(next.auto ? 'Réglage automatique activé' : 'Réglage enregistré')
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  if (!s) return <p className="text-sm text-[var(--color-text-secondary)]">Chargement...</p>
 
   return (
     <>
-      <form
-        className="flex flex-wrap items-end gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          try {
-            await cashApi.settings(site.id, { cashFloat: num(float), cashTolerance: num(tolerance) })
-            await qc.invalidateQueries({ queryKey: ['sites'] })
-            toast.success('Consignes enregistrées')
-          } catch (err) {
-            toast.error((err as Error).message)
-          }
-        }}
-      >
-        <label className="space-y-1 text-sm font-medium">
-          <span className="block">Fond à garder chaque soir</span>
-          <span className="flex items-center gap-2">
-            <input inputMode="decimal" value={float} onChange={(e) => setFloat(e.target.value)} className={field} /> €
+      <section className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" checked={s.auto} onChange={(e) => save({ cashAuto: e.target.checked })} className="mt-1 size-5 accent-[var(--color-accent)]" />
+          <span>
+            <span className="block text-[16px] font-semibold">Réglage automatique</span>
+            <span className="block text-[15px] text-[var(--color-text-secondary)]">
+              La caisse fixe le fond et la tolérance d&apos;après vos ventes en espèces des quatre dernières semaines, et les ajuste toute seule.
+            </span>
           </span>
         </label>
-        <label className="space-y-1 text-sm font-medium">
-          <span className="block">Écart toléré</span>
-          <span className="flex items-center gap-2">
-            ± <input inputMode="decimal" value={tolerance} onChange={(e) => setTolerance(e.target.value)} className={field} /> €
-          </span>
-        </label>
-        <button type="submit" className="h-11 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)]">
-          Enregistrer
-        </button>
-      </form>
+        <dl className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-hover)] p-4">
+            <dt className="text-sm text-[var(--color-text-secondary)]">Fond gardé chaque soir</dt>
+            <dd className="tabular text-3xl font-semibold">{formatPrice(s.cashFloat)}</dd>
+          </div>
+          <div className="rounded-[var(--radius-md)] bg-[var(--color-bg-hover)] p-4">
+            <dt className="text-sm text-[var(--color-text-secondary)]">Écart accepté sans motif</dt>
+            <dd className="tabular text-3xl font-semibold">± {formatPrice(s.cashTolerance)}</dd>
+          </div>
+        </dl>
+        {s.auto ? (
+          <ul className="space-y-1 text-sm text-[var(--color-text-secondary)]">
+            {s.recommended.reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        ) : (
+          <form
+            className="flex flex-wrap items-end gap-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void save({ cashFloat: num(float ?? String(s.manual.cashFloat)), cashTolerance: num(tolerance ?? String(s.manual.cashTolerance)) })
+            }}
+          >
+            <label className="space-y-1 text-sm font-medium">
+              <span className="block">Fond à garder</span>
+              <span className="flex items-center gap-2">
+                <input inputMode="decimal" value={float ?? String(s.manual.cashFloat).replace('.', ',')} onChange={(e) => setFloat(e.target.value)} className={field} /> €
+              </span>
+            </label>
+            <label className="space-y-1 text-sm font-medium">
+              <span className="block">Écart toléré</span>
+              <span className="flex items-center gap-2">
+                ± <input inputMode="decimal" value={tolerance ?? String(s.manual.cashTolerance).replace('.', ',')} onChange={(e) => setTolerance(e.target.value)} className={field} /> €
+              </span>
+            </label>
+            <button type="submit" className="h-11 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)]">
+              Enregistrer
+            </button>
+            <p className="w-full text-sm text-[var(--color-text-secondary)]">
+              Suggestion actuelle : {formatPrice(s.recommended.floatTarget)} de fond, ± {formatPrice(s.recommended.tolerance)}.
+            </p>
+          </form>
+        )}
+      </section>
 
       <section aria-labelledby="sessions-title" className="space-y-2">
         <h2 id="sessions-title" className="text-lg font-semibold">

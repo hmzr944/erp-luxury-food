@@ -25,7 +25,7 @@ export const PLAN_OFFERS: PlanOffer[] = [
       'Ventes hors ligne, tickets signés',
       'TPE relié (SumUp, Stripe) ou votre TPE habituel',
       'Retours, échanges et avoirs',
-      'Code vendeur à 4 chiffres, fond de caisse compté par coupures',
+      'Connexion par code ou badge (QR, NFC), fond de caisse réglé tout seul',
       'Stock, tailles et couleurs, lots et dates limites',
       'Exports complets à tout moment',
     ],

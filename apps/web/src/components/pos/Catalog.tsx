@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { MagnifyingGlass, Barcode, X, Plus } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
+import { rayonColors } from '@/lib/brand'
 import type { ApiCategory, ApiProduct, ApiVariant } from '@/lib/api/products'
 
 interface CatalogProps {
@@ -22,6 +23,8 @@ const normalize = (s: string) =>
 
 export function Catalog({ products, categories, isLoading, isError, onPick, onCustom, onCreate }: CatalogProps) {
   const [category, setCategory] = useState<string | null>(null)
+  // Une couleur par rayon (choisie, sinon attribuée dans l'ordre)
+  const colorOf = useMemo(() => rayonColors(categories), [categories])
   const [query, setQuery] = useState('')
   const [notFound, setNotFound] = useState<string | null>(null)
   const search = useRef<HTMLInputElement>(null)
@@ -131,19 +134,24 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
         >
           {[{ id: null, name: 'Tout' }, ...categories].map((c) => {
             const active = category === c.id
+            const color = c.id ? colorOf.get(c.id) : undefined
             return (
               <button
                 key={c.id ?? 'all'}
                 role="tab"
                 aria-selected={active}
                 onClick={() => setCategory(c.id)}
+                style={active && color ? { background: color, color: 'var(--on-gamme)' } : undefined}
                 className={[
-                  'h-11 shrink-0 rounded-[var(--radius-pill)] px-5 text-[15px] font-medium transition-colors duration-150',
+                  'flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-pill)] px-5 text-[15px] font-medium transition-colors duration-150',
                   active
-                    ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]'
+                    ? color
+                      ? 'font-semibold'
+                      : 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]'
                     : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]',
                 ].join(' ')}
               >
+                {color && !active && <span aria-hidden className="size-2.5 rounded-full" style={{ background: color }} />}
                 {c.name}
               </button>
             )
@@ -180,7 +188,7 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
             )}
             {visible.map((p) => (
               <li key={p.id}>
-                <ProductTile product={p} onPick={() => onPick(p)} />
+                <ProductTile product={p} color={p.categoryId ? colorOf.get(p.categoryId) : undefined} onPick={() => onPick(p)} />
               </li>
             ))}
             {products.length === 0 && (
@@ -196,7 +204,9 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
   )
 }
 
-function ProductTile({ product, onPick }: { product: ApiProduct; onPick: () => void }) {
+// La couleur du rayon teinte la tuile : on repère « Mailles » ou « Pâtisseries »
+// d'un coup d'œil, le nom et le prix restent en encre (contraste élevé)
+function ProductTile({ product, color, onPick }: { product: ApiProduct; color?: string; onPick: () => void }) {
   const prices = product.variants.length ? product.variants.map((v) => Number(v.price)) : [Number(product.price)]
   const min = Math.min(...prices)
   const varies = Math.max(...prices) !== min
@@ -206,8 +216,10 @@ function ProductTile({ product, onPick }: { product: ApiProduct; onPick: () => v
     <button
       type="button"
       onClick={onPick}
-      className="group flex h-full min-h-[112px] w-full flex-col justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4 text-left transition-[transform,border-color] duration-150 ease-[var(--ease-standard)] hover:border-[var(--color-border-strong)] active:scale-[0.98]"
+      style={color ? { background: `color-mix(in srgb, ${color} 16%, var(--base-surface))`, borderColor: `color-mix(in srgb, ${color} 45%, var(--base-surface))` } : undefined}
+      className="group relative flex h-full min-h-[112px] w-full flex-col justify-between gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4 pt-5 text-left transition-[transform,border-color] duration-150 ease-[var(--ease-standard)] hover:border-[var(--color-border-strong)] active:scale-[0.98]"
     >
+      {color && <span aria-hidden className="absolute inset-x-0 top-0 h-1.5" style={{ background: color }} />}
       <span className="block">
         <span className="block text-[15px] font-semibold leading-snug">{product.name}</span>
         {product.subtitle && (
