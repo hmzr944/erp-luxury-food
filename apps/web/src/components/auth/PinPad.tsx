@@ -43,8 +43,17 @@ export function PinPad({
       })
   }, [pin])
 
+  // Un lecteur de badge tape aussi des chiffres, mais en rafale : ignorés ici
   useEffect(() => {
+    let last = 0
     const onKey = (e: KeyboardEvent) => {
+      const now = performance.now()
+      const burst = now - last < 35
+      last = now
+      if (burst) {
+        setPin('')
+        return
+      }
       if (/^\d$/.test(e.key)) push(e.key)
       else if (e.key === 'Backspace') setPin((p) => p.slice(0, -1))
     }

@@ -23,6 +23,7 @@ import type { PayLine } from './CreditPayment'
 import { ReturnFinder } from './ReturnFinder'
 import { CashCloseSheet, CashOpenSheet, useCashState } from './CashSheets'
 import { PinPad } from '@/components/auth/PinPad'
+import { BadgeLogin } from '@/components/auth/BadgeLogin'
 import { useAuthStore } from '@/stores/auth.store'
 
 interface POSClientProps {
@@ -42,7 +43,7 @@ export function POSClient({ siteId }: POSClientProps) {
   const [openDismissed, setOpenDismissed] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [pinError, setPinError] = useState<string | null>(null)
-  const { pinLogin } = useAuthStore()
+  const { pinLogin, badgeLogin } = useAuthStore()
   const [picking, setPicking] = useState<ApiProduct | null>(null)
   const [paying, setPaying] = useState(false)
   const [ticketOpen, setTicketOpen] = useState(false)
@@ -318,6 +319,16 @@ export function POSClient({ siteId }: POSClientProps) {
                 }
               }}
             />
+            <div className="mt-5">
+              <BadgeLogin
+                active={switching}
+                onBadge={async (code) => {
+                  await badgeLogin(siteId, code)
+                  setSwitching(false)
+                  toast.success(`Bonjour ${useAuthStore.getState().user?.firstName ?? ''}`)
+                }}
+              />
+            </div>
           </div>
         </Sheet>
 

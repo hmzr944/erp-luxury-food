@@ -443,6 +443,9 @@ export class OrdersService {
   }
 
   async updateStatus(id: string, siteId: string, status: string) {
+    // La commande doit appartenir au site demandé (et donc à l'organisation)
+    const exists = await this.prisma.order.findFirst({ where: { id, siteId }, select: { id: true } })
+    if (!exists) throw new NotFoundException('Commande introuvable')
     const order = await this.prisma.order.update({
       where: { id },
       data: { status: status as any },

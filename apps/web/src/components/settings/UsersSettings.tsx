@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api/client'
 import { sitesApi } from '@/lib/api/sites'
 import { useAuthStore } from '@/stores/auth.store'
 import { ROLE_LABEL, type AppRole } from '@/lib/workspace'
+import { BadgeSheet } from './BadgeSheet'
 
 interface TeamMember {
   id: string
@@ -16,6 +17,8 @@ interface TeamMember {
   lastName: string
   role: AppRole
   pinSetAt: string | null
+  badgeKind: string | null
+  badgeSetAt: string | null
   sites: Array<{ siteId: string }>
 }
 
@@ -39,6 +42,7 @@ export function UsersSettings() {
   const empty = { email: '', firstName: '', lastName: '', role: 'SELLER' as AppRole, password: '', siteIds: [] as string[] }
   const [form, setForm] = useState(empty)
   const [shownPin, setShownPin] = useState<{ id: string; pin: string } | null>(null)
+  const [badgeFor, setBadgeFor] = useState<TeamMember | null>(null)
 
   const { data: users = [], isLoading } = useQuery({ queryKey: ['users-settings'], queryFn: () => apiClient<TeamMember[]>('/users') })
   const sites = useQuery({ queryKey: ['sites'], queryFn: sitesApi.getAll })
@@ -88,7 +92,7 @@ export function UsersSettings() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Équipe</h1>
-          <p className="text-[15px] text-[var(--color-text-secondary)]">Le code à 4 chiffres permet de se connecter sur une caisse déjà installée, sans e-mail.</p>
+          <p className="text-[15px] text-[var(--color-text-secondary)]">Code à 4 chiffres ou badge (carte QR, NFC) : on se connecte à une caisse déjà installée sans e-mail.</p>
         </div>
         {canManage && (
           <button
@@ -216,6 +220,11 @@ export function UsersSettings() {
                     )}
                   </div>
                 )}
+                {canManage && (
+                  <button type="button" onClick={() => setBadgeFor(u)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-3 text-sm font-medium">
+                    {u.badgeKind ? (u.badgeKind === 'QR' ? 'Carte QR' : 'Badge NFC') : 'Badge'}
+                  </button>
+                )}
                 {u.id !== me?.id && canManage && (
                   <button
                     type="button"
@@ -231,6 +240,7 @@ export function UsersSettings() {
               </li>
             ))}
       </ul>
+      <BadgeSheet member={badgeFor} onClose={() => setBadgeFor(null)} onChanged={() => void refresh()} />
     </div>
   )
 }

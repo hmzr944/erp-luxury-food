@@ -1,11 +1,12 @@
+import { AuditModule } from './audit/audit.module'
 import { CashModule } from './cash/cash.module'
-import { APP_INTERCEPTOR } from '@nestjs/core'
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { WorkspaceInterceptor } from './common/access/workspace.interceptor'
 import { SupplyModule } from './supply/supply.module'
 import { BillingModule } from './billing/billing.module'
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
-import { ThrottlerModule } from '@nestjs/throttler'
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { BullModule } from '@nestjs/bull'
 import { PrismaModule } from './common/prisma/prisma.module'
@@ -36,16 +37,9 @@ import { HealthController } from './health/health.controller'
     ConfigModule.forRoot({ isGlobal: true }),
 
     ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60_000,
-        limit: 100,
-      },
-      {
-        name: 'auth',
-        ttl: 60_000,
-        limit: 20,
-      },
+      // Une seule limite générale ; les routes sensibles (connexion, codes)
+      // la resserrent avec @Throttle
+      { name: 'default', ttl: 60_000, limit: 600 },
     ]),
 
     EventEmitterModule.forRoot(),
@@ -58,6 +52,7 @@ import { HealthController } from './health/health.controller'
     }),
 
     PrismaModule,
+    AuditModule,
     AuthModule,
     OrganizationsModule,
     SitesModule,
@@ -82,6 +77,11 @@ import { HealthController } from './health/health.controller'
     CashModule,
   ],
   // Espaces par rôle (vendeur, atelier, gérant), vérifiés sur chaque route
-  providers: [{ provide: APP_INTERCEPTOR, useClass: WorkspaceInterceptor }],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: WorkspaceInterceptor },
+    // Limite générale par adresse : large pour la synchronisation d'une
+    // caisse revenue en ligne, mais bloque les rafales automatisées
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

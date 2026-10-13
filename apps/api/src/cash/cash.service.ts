@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Decimal } from '@prisma/client/runtime/library'
 import { CashCountError, closingPlan, countCash } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { AuditService } from '../audit/audit.service'
 
 const cents = (d: Decimal | number | null | undefined) => Math.round(Number(d ?? 0) * 100)
 const euros = (c: number) => new Decimal(c).div(100)
@@ -12,7 +13,10 @@ const euros = (c: number) => new Decimal(c).div(100)
 // et un petit écart ne bloque jamais la fermeture.
 @Injectable()
 export class CashService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   async current(siteId: string, terminalId: string) {
     await this.terminal(siteId, terminalId)
@@ -93,6 +97,15 @@ export class CashService {
         keptFloat: euros(plan.keep),
         deposit: euros(plan.deposit),
       },
+    })
+    const site2 = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { organizationId: true } })
+    await this.audit.log({
+      organizationId: site2.organizationId,
+      userId,
+      action: 'cash.closed',
+      target: closed.id,
+      terminalId: dto.terminalId,
+      detail: `compté ${(plan.counted / 100).toFixed(2)} €, écart ${(plan.difference / 100).toFixed(2)} €${reason ? `, ${reason}` : ''}`,
     })
     return { ...this.view(closed), withinTolerance: plan.withinTolerance }
   }

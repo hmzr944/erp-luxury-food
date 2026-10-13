@@ -36,3 +36,21 @@ describe('code vendeur', () => {
     expect(a.firstUse('sig', 1000)).toBe(false)
   })
 })
+
+import { badgeLookup, normalizeBadge, newBadgeToken } from './pin'
+
+describe('badge vendeur', () => {
+  it('QR : préfixe et jeton', () => {
+    const t = newBadgeToken()
+    expect(normalizeBadge(`FLOW1:${t}`)).toEqual({ kind: 'QR', value: t })
+    expect(normalizeBadge('FLOW1:court')).toBeNull()
+  })
+  it('NFC : identifiant nettoyé quel que soit le lecteur', () => {
+    expect(normalizeBadge('04:a2:2b:1a:9c:5e:80')).toEqual({ kind: 'NFC', value: '04A22B1A9C5E80' })
+    expect(normalizeBadge(' 04A22B1A9C5E80\n')).toEqual({ kind: 'NFC', value: '04A22B1A9C5E80' })
+    expect(normalizeBadge('bonjour')).toBeNull()
+  })
+  it('empreinte différente pour un QR et un NFC de même valeur', () => {
+    expect(badgeLookup('k', 'o', { kind: 'QR', value: 'ABCDEF' })).not.toBe(badgeLookup('k', 'o', { kind: 'NFC', value: 'ABCDEF' }))
+  })
+})

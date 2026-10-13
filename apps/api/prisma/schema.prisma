@@ -126,13 +126,20 @@ model User {
   role           Role         @default(SELLER)
   // Code vendeur à 4 chiffres : empreinte HMAC (clé serveur), unique dans
   // l'organisation pour identifier la personne sans e-mail
+  // Incrémenté pour révoquer toutes les sessions (rôle changé, mot de passe changé, déconnexion partout)
+  tokenVersion   Int          @default(0)
   pinLookup      String?
   pinSetAt       DateTime?
+  // Badge : carte à QR code ou badge NFC, même principe (empreinte seulement)
+  badgeLookup    String?
+  badgeKind      String? // QR | NFC
+  badgeSetAt     DateTime?
   sites          UserSite[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@unique([organizationId, pinLookup])
+  @@unique([organizationId, badgeLookup])
   @@index([organizationId])
 }
 
@@ -896,4 +903,21 @@ model SupplyAlert {
   createdAt      DateTime @default(now())
 
   @@index([organizationId, day])
+}
+
+// Journal d'audit : qui a fait quoi sur les actions sensibles. Ajout seul,
+// jamais modifié ni supprimé par l'application.
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String // ex. auth.login_failed, refund.created, cash.closed, user.role_changed
+  target         String?
+  detail         String?
+  ip             String?
+  terminalId     String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([action, createdAt])
 }

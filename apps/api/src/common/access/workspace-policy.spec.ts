@@ -24,6 +24,14 @@ describe('espaces par rôle', () => {
     expect(isAllowed('SELLER', 'POST', '/api/sites/s1/supply/orders/o1/ship')).toBe(false)
     expect(isAllowed('SELLER', 'GET', '/api/sites/s1/supply/statement')).toBe(false)
   })
+  it('la casse et les doubles barres ne contournent pas la règle', () => {
+    expect(isAllowed('SELLER', 'POST', '/api/WEBHOOKS')).toBe(false)
+    expect(isAllowed('SELLER', 'GET', '/api/Invoices')).toBe(false)
+    expect(isAllowed('SELLER', 'GET', '/api//b2b/clients')).toBe(false)
+    expect(isAllowed('SELLER', 'GET', '/api/sites/s1/B2B-orders')).toBe(false)
+    expect(isAllowed('PRODUCTION', 'GET', '/api/sites/s1/ORDERS')).toBe(false)
+  })
+
   it('gérant : tout', () => {
     expect(isAllowed('MANAGER', 'GET', '/api/dashboard/s1')).toBe(true)
     expect(isAllowed('OWNER', 'POST', '/api/sites/s1/supply/orders/o1/ship')).toBe(true)

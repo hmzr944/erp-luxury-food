@@ -43,3 +43,8 @@ export function maskSecret(s: string): string {
   const prefix = s.match(/^[a-z]+_(test|live)_/)?.[0] ?? ''
   return `${prefix}…${s.slice(-4)}`
 }
+
+// Valeur chiffrée (v1.…) ou ancienne valeur en clair, enregistrée avant chiffrement
+export function readSecret(value: string): string {
+  return value.startsWith('v1.') ? decryptSecret(value) : value
+}

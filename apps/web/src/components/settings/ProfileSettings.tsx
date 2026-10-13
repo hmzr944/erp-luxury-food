@@ -13,11 +13,13 @@ const profileSchema = z.object({
   firstName: z.string().min(1, 'Requis'),
   lastName: z.string().min(1, 'Requis'),
   email: z.string().email('Email invalide'),
+  // Requis seulement pour changer d'e-mail
+  currentPassword: z.string().optional(),
 })
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, 'Requis'),
-  newPassword: z.string().min(8, 'Minimum 8 caractères'),
+  newPassword: z.string().min(10, 'Minimum 10 caractères'),
   confirmPassword: z.string(),
 }).refine((d) => d.newPassword === d.confirmPassword, {
   message: 'Les mots de passe ne correspondent pas',
@@ -55,7 +57,7 @@ function FormField({
 const inputCls = 'w-full h-9 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 focus:ring-1 focus:ring-[var(--color-accent)]/20 transition-colors'
 
 export function ProfileSettings() {
-  const { user } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
 
@@ -76,7 +78,11 @@ export function ProfileSettings() {
   const saveProfile = async (data: ProfileForm) => {
     setSavingProfile(true)
     try {
-      await apiClient('/users/me', { method: 'PATCH', body: JSON.stringify(data) })
+      const changingEmail = data.email.trim().toLowerCase() !== (user?.email ?? '').toLowerCase()
+      await apiClient('/users/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ firstName: data.firstName, lastName: data.lastName, email: data.email, ...(changingEmail ? { currentPassword: data.currentPassword } : {}) }),
+      })
       toast.success('Profil mis à jour')
     } catch (err: any) {
       toast.error(err.message ?? 'Erreur lors de la mise à jour')
@@ -88,11 +94,14 @@ export function ProfileSettings() {
   const savePassword = async (data: PasswordForm) => {
     setSavingPassword(true)
     try {
-      await apiClient('/users/me/password', {
+      // Les autres appareils sont déconnectés ; celui-ci reçoit de nouveaux jetons
+      const r = await apiClient<{ accessToken: string; refreshToken: string }>('/users/me/password', {
         method: 'PATCH',
         body: JSON.stringify({ currentPassword: data.currentPassword, newPassword: data.newPassword }),
       })
-      toast.success('Mot de passe mis à jour')
+      localStorage.setItem('access_token', r.accessToken)
+      localStorage.setItem('refresh_token', r.refreshToken)
+      toast.success('Mot de passe mis à jour, vos autres appareils sont déconnectés')
       passwordForm.reset()
     } catch (err: any) {
       toast.error(err.message ?? 'Erreur lors de la mise à jour')
@@ -118,6 +127,9 @@ export function ProfileSettings() {
           <FormField label="Email" error={profileForm.formState.errors.email?.message}>
             <input {...profileForm.register('email')} type="email" className={inputCls} />
           </FormField>
+          <FormField label="Mot de passe actuel (seulement pour changer d'e-mail)" error={profileForm.formState.errors.currentPassword?.message}>
+            <input {...profileForm.register('currentPassword')} type="password" autoComplete="current-password" className={inputCls} />
+          </FormField>
           <div className="flex justify-end">
             <motion.button
               type="submit"
@@ -137,7 +149,7 @@ export function ProfileSettings() {
             <input {...passwordForm.register('currentPassword')} type="password" className={inputCls} placeholder="••••••••" />
           </FormField>
           <FormField label="Nouveau mot de passe" error={passwordForm.formState.errors.newPassword?.message}>
-            <input {...passwordForm.register('newPassword')} type="password" className={inputCls} placeholder="8 caractères minimum" />
+            <input {...passwordForm.register('newPassword')} type="password" className={inputCls} placeholder="10 caractères minimum" />
           </FormField>
           <FormField label="Confirmer" error={passwordForm.formState.errors.confirmPassword?.message}>
             <input {...passwordForm.register('confirmPassword')} type="password" className={inputCls} placeholder="••••••••" />
@@ -155,11 +167,26 @@ export function ProfileSettings() {
         </form>
       </SettingsSection>
 
-      <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-4">
-        <p className="font-body text-xs text-[var(--color-text-muted)]">
-          Rôle : <span className="text-[var(--color-text-secondary)]">{user?.role}</span>
+      <SettingsSection title="Sécurité">
+        <p className="font-body text-sm text-[var(--color-text-secondary)]">
+          Téléphone perdu, tablette prêtée : déconnectez toutes les sessions ouvertes avec ce compte, y compris celle-ci.
         </p>
-      </div>
+        <button
+          type="button"
+          onClick={async () => {
+            if (!confirm('Déconnecter tous vos appareils ?')) return
+            try {
+              await apiClient('/auth/logout-all', { method: 'POST' })
+            } finally {
+              logout()
+              window.location.href = '/login'
+            }
+          }}
+          className="mt-3 h-10 px-4 border border-[var(--color-border-strong)] font-body text-sm font-medium rounded-[var(--radius-md)]"
+        >
+          Déconnecter tous mes appareils
+        </button>
+      </SettingsSection>
     </div>
   )
 }

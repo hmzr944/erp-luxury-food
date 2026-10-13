@@ -10,6 +10,15 @@ import {
 import { Server, Socket } from 'socket.io'
 import { OnEvent } from '@nestjs/event-emitter'
 import { Logger } from '@nestjs/common'
+import { JwtService } from '@nestjs/jwt'
+import { ConfigService } from '@nestjs/config'
+import { PrismaService } from '../common/prisma/prisma.service'
+
+interface SocketUser {
+  id: string
+  role: string
+  organizationId: string
+}
 
 @WebSocketGateway({
   cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:3000', credentials: true },
@@ -21,8 +30,28 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(OrdersGateway.name)
 
-  handleConnection(client: Socket) {
-    this.logger.debug(`Client connected: ${client.id}`)
+  constructor(
+    private jwt: JwtService,
+    private config: ConfigService,
+    private prisma: PrismaService,
+  ) {}
+
+  // Connexion refusée sans jeton valide : les ventes d'un site (articles,
+  // montants, e-mails clients) ne sont diffusées qu'à son équipe
+  async handleConnection(client: Socket) {
+    const token = (client.handshake.auth as { token?: string } | undefined)?.token
+    try {
+      const payload = await this.jwt.verifyAsync<{ sub: string; role: string; organizationId: string; tv?: number }>(token ?? '', {
+        secret: this.config.getOrThrow<string>('JWT_SECRET'),
+        algorithms: ['HS256'],
+      })
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { role: true, organizationId: true, tokenVersion: true } })
+      if (!user || user.tokenVersion !== (payload.tv ?? 0) || user.organizationId !== payload.organizationId) throw new Error('révoqué')
+      client.data.user = { id: payload.sub, role: user.role, organizationId: user.organizationId } satisfies SocketUser
+    } catch {
+      client.emit('error', { message: 'Session expirée' })
+      client.disconnect(true)
+    }
   }
 
   handleDisconnect(client: Socket) {
@@ -31,11 +60,16 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // Client joins a site room to receive its order events
   @SubscribeMessage('join-site')
-  handleJoinSite(
-    @MessageBody() data: { siteId: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    client.join(data.siteId)
+  async handleJoinSite(@MessageBody() data: { siteId: string }, @ConnectedSocket() client: Socket) {
+    const user = client.data.user as SocketUser | undefined
+    if (!user || typeof data?.siteId !== 'string') return
+    const site = await this.prisma.site.findUnique({ where: { id: data.siteId }, select: { organizationId: true } })
+    if (!site || site.organizationId !== user.organizationId) return
+    if (user.role !== 'OWNER' && user.role !== 'MANAGER') {
+      const link = await this.prisma.userSite.findUnique({ where: { userId_siteId: { userId: user.id, siteId: data.siteId } } })
+      if (!link) return
+    }
+    await client.join(data.siteId)
     client.emit('joined', { siteId: data.siteId })
   }
 

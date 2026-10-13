@@ -186,7 +186,7 @@ export function SignupFlow() {
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         required
-                        minLength={8}
+                        minLength={10}
                         autoComplete="new-password"
                         aria-describedby="password-help"
                         value={account.password}
@@ -203,7 +203,7 @@ export function SignupFlow() {
                       </button>
                     </div>
                     <p id="password-help" className="text-sm text-[var(--color-text-secondary)]">
-                      8 caractères minimum.
+                      10 caractères minimum.
                     </p>
                   </div>
                   {error && (

@@ -30,7 +30,7 @@ export class RegisterDto {
   email!: string
 
   @IsString()
-  @MinLength(8, { message: 'Le mot de passe doit faire au moins 8 caractères' })
+  @MinLength(10, { message: 'Mot de passe : 10 caractères minimum' })
   @MaxLength(128)
   password!: string
 }

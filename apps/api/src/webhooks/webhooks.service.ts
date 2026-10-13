@@ -1,4 +1,5 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { assertPublicUrl, UnsafeUrlError } from '../common/net/public-url'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { InjectQueue } from '@nestjs/bull'
 import { OnEvent } from '@nestjs/event-emitter'
 import type { Queue } from 'bull'
@@ -38,7 +39,8 @@ export class WebhooksService {
     })
   }
 
-  create(organizationId: string, data: { url: string; events: string[] }) {
+  async create(organizationId: string, data: { url: string; events: string[] }) {
+    await this.publicUrl(data.url)
     const secret = `whsec_${randomBytes(20).toString('hex')}`
     return this.prisma.webhook.create({
       data: {
@@ -58,7 +60,26 @@ export class WebhooksService {
   async update(id: string, organizationId: string, data: { url?: string; events?: string[]; isActive?: boolean }) {
     const wh = await this.prisma.webhook.findFirst({ where: { id, organizationId } })
     if (!wh) throw new NotFoundException('Webhook introuvable')
-    return this.prisma.webhook.update({ where: { id }, data })
+    if (data.url) await this.publicUrl(data.url)
+    // Seuls ces trois champs sont modifiables (jamais l'organisation)
+    return this.prisma.webhook.update({
+      where: { id },
+      data: {
+        ...(data.url ? { url: data.url } : {}),
+        ...(data.events ? { events: data.events.filter((e) => ALL_EVENTS.includes(e)) } : {}),
+        ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      },
+      select: { id: true, url: true, events: true, isActive: true, failureCount: true, lastTriggeredAt: true, createdAt: true },
+    })
+  }
+
+  private async publicUrl(url: string) {
+    try {
+      await assertPublicUrl(url)
+    } catch (e) {
+      if (e instanceof UnsafeUrlError) throw new BadRequestException(e.message)
+      throw e
+    }
   }
 
   async remove(id: string, organizationId: string) {

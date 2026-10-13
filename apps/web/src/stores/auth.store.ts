@@ -33,6 +33,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>
   // Code vendeur sur la caisse de cette boutique (change la personne connectée)
   pinLogin: (siteId: string, pin: string) => Promise<void>
+  badgeLogin: (siteId: string, code: string) => Promise<void>
   register: (data: RegisterInput) => Promise<{ siteId: string }>
   logout: () => void
   clearError: () => void
@@ -85,6 +86,18 @@ export const useAuthStore = create<AuthState>()(
         const data = await apiClient<{ accessToken: string; refreshToken: string; user: AuthUser }>('/auth/pin', {
           method: 'POST',
           body: JSON.stringify({ ...challenge, pin }),
+          skipAuth: true,
+        })
+        localStorage.setItem('access_token', data.accessToken)
+        localStorage.setItem('refresh_token', data.refreshToken)
+        set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true, error: null })
+      },
+
+      badgeLogin: async (siteId, code) => {
+        const challenge = await signPinChallenge(siteId)
+        const data = await apiClient<{ accessToken: string; refreshToken: string; user: AuthUser }>('/auth/badge', {
+          method: 'POST',
+          body: JSON.stringify({ ...challenge, code }),
           skipAuth: true,
         })
         localStorage.setItem('access_token', data.accessToken)

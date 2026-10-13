@@ -1,3 +1,6 @@
+import { RolesGuard } from '../common/guards/roles.guard'
+import { Roles } from '../common/decorators/roles.decorator'
+import { Role } from '@erp/types'
 import {
   Controller, Get, Post, Patch, Param, Query, Body,
   UseGuards, HttpCode, HttpStatus, Res,
@@ -10,7 +13,8 @@ import { InvoicesService } from './invoices.service'
 import { PrismaService } from '../common/prisma/prisma.service'
 
 @Controller('invoices')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.OWNER, Role.MANAGER)
 export class InvoicesController {
   constructor(
     private invoices: InvoicesService,

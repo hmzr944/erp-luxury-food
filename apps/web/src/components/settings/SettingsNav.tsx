@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { User, Users, Buildings, MapPin, Printer, Key, WebhooksLogo, Database, DeviceMobile, CreditCard, Money } from '@phosphor-icons/react'
+import { User, Users, Buildings, MapPin, Printer, Key, WebhooksLogo, Database, DeviceMobile, CreditCard, Money, ShieldCheck } from '@phosphor-icons/react'
 
 const NAV = [
   { href: '/settings/profile',      icon: User,      label: 'Mon profil' },
@@ -14,6 +14,7 @@ const NAV = [
   { href: '/settings/cash',         icon: Money,     label: 'Fond de caisse' },
   { href: '/settings/printing',     icon: Printer,   label: 'Impression' },
   { href: '/settings/data',         icon: Database,  label: 'Données' },
+  { href: '/settings/security',     icon: ShieldCheck, label: 'Sécurité' },
   { href: '/settings/api',          icon: Key,       label: 'API' },
   { href: '/settings/webhooks',     icon: WebhooksLogo, label: 'Webhooks' },
 ]

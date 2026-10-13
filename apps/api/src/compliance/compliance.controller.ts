@@ -33,6 +33,8 @@ export class ComplianceController {
 
   // Export DGFiP — CSV des clôtures journalières
   @Get('export/dgfip')
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER)
   async exportDGFiP(
     @Param('siteId') siteId: string,
     @Res() res: Response,

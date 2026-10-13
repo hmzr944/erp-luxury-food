@@ -28,6 +28,12 @@ const SELLER_DENY: Rule[] = [
   { path: /^\/organizations\/me\/data/ },
   { path: /^\/invoices/ },
   { path: /^\/b2b/ },
+  { path: new RegExp(`^${SITE}/b2b`) },
+  { path: new RegExp(`^${SITE}/compliance/export`) },
+  { path: new RegExp(`^${SITE}/cash/(sessions|settings)`) },
+  { path: /^\/sites\/[^/]+\/printers/ },
+  { path: /^\/organizations\/me\/(settings|audit)/ },
+  { path: /^\/billing\/(checkout|portal)/ },
   { path: /^\/api-tokens/ },
   { path: /^\/webhooks/ },
   { path: new RegExp(`^${SITE}/supply/(production|statement|catalog)`) },
@@ -40,7 +46,14 @@ const matches = (rules: Rule[], method: string, path: string) =>
   rules.some((r) => (!r.method || r.method === method) && r.path.test(path))
 
 export function isAllowed(role: string | undefined, method: string, rawPath: string): boolean {
-  const path = rawPath.split('?')[0].replace(/^\/api/, '').replace(/\/+$/, '') || '/'
+  // Les routes Express ignorent la casse : /api/WEBHOOKS mène à /api/webhooks.
+  // On compare donc en minuscules, après avoir retiré la requête et les // en trop
+  const path =
+    decodeURIComponent(rawPath.split('?')[0])
+      .toLowerCase()
+      .replace(/\/{2,}/g, '/')
+      .replace(/^\/api/, '')
+      .replace(/\/+$/, '') || '/'
   if (role === 'PRODUCTION') return matches(PRODUCTION_ALLOW, method, path)
   if (role === 'SELLER') return !matches(SELLER_DENY, method, path)
   return true

@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { homePath } from '@/lib/workspace'
 import { localTerminals } from '@/lib/terminal/terminal'
 import { PinPad } from '@/components/auth/PinPad'
+import { BadgeLogin } from '@/components/auth/BadgeLogin'
 import { BRAND } from '@/lib/brand'
 
 const fieldCls =
@@ -19,7 +20,7 @@ type Till = { siteId: string; terminalId: string; name: string }
 // suffit ; ailleurs, e-mail et mot de passe. Chacun arrive dans son espace.
 export default function LoginPage() {
   const router = useRouter()
-  const { login, pinLogin, isLoading, error, clearError } = useAuthStore()
+  const { login, pinLogin, badgeLogin, isLoading, error, clearError } = useAuthStore()
   const [tills, setTills] = useState<Till[] | null>(null)
   const [till, setTill] = useState<Till | null>(null)
   const [mode, setMode] = useState<'pin' | 'email'>('email')
@@ -67,7 +68,7 @@ export default function LoginPage() {
         <header className="space-y-1 text-center">
           <p className="text-lg font-semibold tracking-tight">{BRAND}</p>
           <h1 className="text-3xl font-semibold tracking-tight">{mode === 'pin' ? 'Qui encaisse ?' : 'Connexion'}</h1>
-          {mode === 'pin' && till && <p className="text-[15px] text-[var(--color-text-secondary)]">Code vendeur, sur {till.name}</p>}
+          {mode === 'pin' && till && <p className="text-[15px] text-[var(--color-text-secondary)]">Code ou badge, sur {till.name}</p>}
         </header>
 
         {mode === 'pin' && till ? (
@@ -89,6 +90,13 @@ export default function LoginPage() {
               </div>
             )}
             <PinPad onSubmit={submitPin} error={pinError} />
+            <BadgeLogin
+              onBadge={async (code) => {
+                await badgeLogin(till.siteId, code)
+                const user = useAuthStore.getState().user
+                router.replace(await homePath(user?.role, till.siteId))
+              }}
+            />
             <button type="button" onClick={() => setMode('email')} className="block h-11 w-full text-[15px] font-medium text-[var(--color-accent)]">
               Se connecter avec un e-mail
             </button>

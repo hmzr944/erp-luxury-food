@@ -24,8 +24,11 @@ class RegisterTerminalDto {
 export class TerminalsController {
   constructor(private terminals: TerminalsService) {}
 
-  // Appelé par la caisse à sa première ouverture sur cet appareil
+  // Appelé par la caisse à sa première ouverture sur cet appareil. Installer
+  // une caisse est réservé au gérant : une caisse peut ouvrir des sessions
+  // par code ou badge
   @Post()
+  @Roles(Role.OWNER, Role.MANAGER)
   register(
     @Param('siteId') siteId: string,
     @Body() dto: RegisterTerminalDto,

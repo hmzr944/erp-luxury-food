@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { JwtModule } from '@nestjs/jwt'
 import { CreditsController, OrdersController, PickupController } from './orders.controller'
 import { RefundsService } from './refunds.service'
 import { PaymentsModule } from '../payments/payments.module'
@@ -9,7 +10,7 @@ import { PrintingModule } from '../printing/printing.module'
 import { StockModule } from '../stock/stock.module'
 
 @Module({
-  imports: [ComplianceModule, PrintingModule, StockModule, PaymentsModule],
+  imports: [ComplianceModule, PrintingModule, StockModule, PaymentsModule, JwtModule.register({})],
   controllers: [OrdersController, PickupController, CreditsController],
   providers: [OrdersService, RefundsService, OrdersGateway],
   exports: [OrdersService],

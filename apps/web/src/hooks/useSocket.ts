@@ -19,7 +19,8 @@ export function useSocket(siteId: string | null) {
 
     const socket = io(`${wsUrl}/orders`, {
       transports: ['websocket'],
-      auth: token ? { token } : undefined,
+      // Jeton relu à chaque reconnexion (il est renouvelé toutes les 15 min)
+      auth: (cb: (data: object) => void) => cb({ token: localStorage.getItem('access_token') ?? token ?? '' }),
     })
 
     socket.on('connect', () => {

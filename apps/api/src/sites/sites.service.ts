@@ -19,20 +19,26 @@ export class SitesService {
     })
   }
 
+  async assertInOrganization(id: string, organizationId: string) {
+    const site = await this.prisma.site.findFirst({ where: { id, organizationId }, select: { id: true } })
+    if (!site) throw new NotFoundException('Site introuvable')
+  }
+
   findById(id: string) {
     return this.prisma.site.findUniqueOrThrow({ where: { id } })
   }
 
   async create(organizationId: string, data: { name: string; address?: string; timezone?: string }) {
     return this.prisma.site.create({
-      data: { organizationId, ...data, timezone: data.timezone ?? 'Europe/Paris' },
+      // organizationId en dernier : le corps de la requête ne peut pas le remplacer
+      data: { name: data.name, address: data.address, timezone: data.timezone ?? 'Europe/Paris', organizationId },
     })
   }
 
   async update(id: string, organizationId: string, data: { name?: string; address?: string; timezone?: string }) {
     const site = await this.prisma.site.findFirst({ where: { id, organizationId } })
     if (!site) throw new NotFoundException('Site introuvable')
-    return this.prisma.site.update({ where: { id }, data })
+    return this.prisma.site.update({ where: { id }, data: { name: data.name, address: data.address, timezone: data.timezone } })
   }
 
   // Récupère les imprimantes disponibles via PrintNode

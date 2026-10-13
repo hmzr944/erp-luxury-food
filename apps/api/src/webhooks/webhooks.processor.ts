@@ -1,5 +1,6 @@
 import { Processor, Process } from '@nestjs/bull'
 import { Logger } from '@nestjs/common'
+import { assertPublicUrl } from '../common/net/public-url'
 import type { Job } from 'bull'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { WebhooksService, type WebhookDelivery } from './webhooks.service'
@@ -17,7 +18,10 @@ export class WebhooksProcessor {
     const signature = WebhooksService.sign(secret, body)
 
     try {
+      // Revérifié à chaque envoi : le DNS d'un domaine peut changer
+      await assertPublicUrl(url)
       const res = await fetch(url, {
+        redirect: 'error',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

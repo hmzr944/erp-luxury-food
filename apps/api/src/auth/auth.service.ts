@@ -11,7 +11,9 @@ import * as bcrypt from 'bcrypt'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { randomBytes } from 'node:crypto'
 import { PlatformService } from '../platform/platform.service'
-import { PIN_RE, PinAttempts, pinChallenge, pinLookup, randomPin, verifyTerminalSignature } from './pin'
+import { AuditService } from '../audit/audit.service'
+import type { Prisma } from '@prisma/client'
+import { BADGE_QR_PREFIX, PIN_RE, PinAttempts, badgeLookup, newBadgeToken, normalizeBadge, pinChallenge, pinLookup, randomPin, verifyTerminalSignature } from './pin'
 import type { LoginDto } from './dto/login.dto'
 import type { RegisterDto } from './dto/register.dto'
 
@@ -24,6 +26,7 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private platform: PlatformService,
+    private audit: AuditService,
   ) {}
 
   // Inscription d'un commerce : organisation, première boutique et compte
@@ -73,20 +76,25 @@ export class AuthService {
         lastName: true,
         role: true,
         organizationId: true,
+        tokenVersion: true,
       },
     })
 
     if (!user) throw new UnauthorizedException('Identifiants invalides')
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash)
-    if (!valid) throw new UnauthorizedException('Identifiants invalides')
+    if (!valid) {
+      await this.audit.log({ organizationId: user.organizationId, userId: user.id, action: 'auth.login_failed' })
+      throw new UnauthorizedException('Identifiants invalides')
+    }
+    await this.audit.log({ organizationId: user.organizationId, userId: user.id, action: 'auth.login' })
 
-    const { passwordHash: _, ...safeUser } = user
-    return { ...this.issue(safeUser), user: safeUser }
+    const { passwordHash: _, tokenVersion, ...safeUser } = user
+    return { ...this.issue({ ...safeUser, tokenVersion }), user: safeUser }
   }
 
-  private issue(user: { id: string; email: string; role: string; organizationId: string }) {
-    const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId }
+  private issue(user: { id: string; email: string; role: string; organizationId: string; tokenVersion?: number }) {
+    const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId, tv: user.tokenVersion ?? 0 }
     const accessToken = this.jwt.sign(payload)
     const refreshToken = this.jwt.sign(payload, {
       secret: this.config.getOrThrow('JWT_REFRESH_SECRET'),
@@ -95,26 +103,44 @@ export class AuthService {
     return { accessToken, refreshToken }
   }
 
-  async refresh(userId: string) {
+  // Le jeton d'accès renouvelé reprend le rôle actuel ; un jeton révoqué
+  // (version dépassée) ou d'un compte supprimé est refusé
+  async refresh(userId: string, tokenVersion: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, role: true, organizationId: true, tokenVersion: true },
+    })
+    if (!user || user.tokenVersion !== tokenVersion) throw new UnauthorizedException('Session expirée')
+    const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId, tv: user.tokenVersion }
+    return { accessToken: this.jwt.sign(payload) }
+  }
+
+  async sessionFor(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { id: true, email: true, role: true, organizationId: true },
+      select: { id: true, email: true, role: true, organizationId: true, tokenVersion: true },
     })
+    return this.issue(user)
+  }
 
-    const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId }
-    const accessToken = this.jwt.sign(payload)
-    return { accessToken }
+  // Déconnecte tous les appareils de ce compte
+  async logoutEverywhere(userId: string, organizationId: string) {
+    await this.prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } })
+    await this.audit.log({ organizationId, userId, action: 'auth.logout_everywhere' })
+    return { success: true }
   }
 
   private pinAttempts = new PinAttempts()
+  // Par organisation aussi : multiplier les caisses ne donne pas plus d'essais
+  private orgAttempts = new PinAttempts(30, 15 * 60_000)
 
   private get pinSecret() {
     return this.config.get<string>('PIN_SECRET') ?? this.config.getOrThrow<string>('JWT_SECRET')
   }
 
-  // Connexion par code vendeur sur une caisse enregistrée. La caisse signe
-  // « pin-login:<caisse>:<heure> » ; le code identifie la personne.
-  async pinLogin(dto: { terminalId: string; signedAt: string; signature: string; pin: string }) {
+  // La caisse signe « pin-login:<caisse>:<heure> » : le code ou le badge n'est
+  // accepté que sur une caisse enregistrée, une seule fois par signature
+  private async verifiedTerminal(dto: { terminalId: string; signedAt: string; signature: string }) {
     const locked = this.pinAttempts.lockedFor(dto.terminalId)
     if (locked) throw new UnauthorizedException(`Trop d'essais : caisse bloquée ${locked} min`)
     const terminal = await this.prisma.terminal.findUnique({
@@ -131,27 +157,83 @@ export class AuthService {
     ) {
       throw new UnauthorizedException("Cette caisse n'est pas reconnue : connectez-vous avec un e-mail")
     }
-    const user = PIN_RE.test(dto.pin)
+    const orgLocked = this.orgAttempts.lockedFor(terminal.site.organizationId)
+    if (orgLocked) throw new UnauthorizedException(`Trop d'essais sur vos caisses : réessayez dans ${orgLocked} min ou connectez-vous avec un e-mail`)
+    return terminal
+  }
+
+  private async openTillSession(
+    terminal: { id: string; siteId: string; siteOrg: string },
+    where: Prisma.UserWhereUniqueInput | null,
+    unknown: string,
+  ) {
+    const user = where
       ? await this.prisma.user.findUnique({
-          where: { organizationId_pinLookup: { organizationId: terminal.site.organizationId, pinLookup: pinLookup(this.pinSecret, terminal.site.organizationId, dto.pin) } },
-          select: { id: true, email: true, firstName: true, lastName: true, role: true, organizationId: true, sites: { where: { siteId: terminal.siteId }, select: { siteId: true } } },
+          where,
+          select: { id: true, email: true, firstName: true, lastName: true, role: true, organizationId: true, tokenVersion: true, sites: { where: { siteId: terminal.siteId }, select: { siteId: true } } },
         })
       : null
     const allowed = user && (user.role === 'OWNER' || user.role === 'MANAGER' || user.sites.length > 0)
     if (!user || !allowed) {
       this.pinAttempts.fail(terminal.id)
-      throw new UnauthorizedException(user ? "Ce code n'a pas accès à cette boutique" : 'Code inconnu')
+      this.orgAttempts.fail(terminal.siteOrg)
+      await this.audit.log({ organizationId: user?.organizationId ?? null, userId: user?.id, action: 'auth.till_refused', detail: unknown, terminalId: terminal.id })
+      throw new UnauthorizedException(user ? "Ce compte n'a pas accès à cette boutique" : unknown)
     }
     this.pinAttempts.succeed(terminal.id)
-    const { sites: _, ...safeUser } = user
-    return { ...this.issue(safeUser), user: safeUser, siteId: terminal.siteId }
+    const { sites: _, tokenVersion, ...safeUser } = user
+    await this.audit.log({ organizationId: user.organizationId, userId: user.id, action: 'auth.till_login', terminalId: terminal.id })
+    return { ...this.issue({ ...safeUser, tokenVersion }), user: safeUser, siteId: terminal.siteId }
   }
 
-  // Attribue un code (choisi ou tiré au hasard), unique dans l'organisation
-  async setPin(userId: string, organizationId: string, wanted?: string) {
-    if (wanted !== undefined && !PIN_RE.test(wanted)) throw new BadRequestException('Le code fait 4 chiffres')
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const pin = wanted ?? randomPin()
+  // Connexion par code vendeur à 4 chiffres
+  async pinLogin(dto: { terminalId: string; signedAt: string; signature: string; pin: string }) {
+    const terminal = await this.verifiedTerminal(dto)
+    const org = terminal.site.organizationId
+    return this.openTillSession(
+      { ...terminal, siteOrg: org },
+      PIN_RE.test(dto.pin) ? { organizationId_pinLookup: { organizationId: org, pinLookup: pinLookup(this.pinSecret, org, dto.pin) } } : null,
+      'Code inconnu',
+    )
+  }
+
+  // Connexion par badge : QR code présenté à la caméra ou badge NFC
+  async badgeLogin(dto: { terminalId: string; signedAt: string; signature: string; code: string }) {
+    const terminal = await this.verifiedTerminal(dto)
+    const org = terminal.site.organizationId
+    const badge = normalizeBadge(dto.code)
+    return this.openTillSession(
+      { ...terminal, siteOrg: org },
+      badge ? { organizationId_badgeLookup: { organizationId: org, badgeLookup: badgeLookup(this.pinSecret, org, badge) } } : null,
+      'Badge inconnu',
+    )
+  }
+
+  // QR : un jeton neuf (l'ancien badge ne marche plus). NFC : l'identifiant lu.
+  async setBadge(userId: string, organizationId: string, dto: { kind: 'QR' | 'NFC'; uid?: string }) {
+    const badge = dto.kind === 'QR' ? { kind: 'QR' as const, value: newBadgeToken() } : normalizeBadge(dto.uid ?? '')
+    if (!badge || badge.kind !== dto.kind) throw new BadRequestException('Badge illisible : approchez-le à nouveau')
+    try {
+      await this.prisma.user.update({
+        where: { id: userId, organizationId },
+        data: { badgeLookup: badgeLookup(this.pinSecret, organizationId, badge), badgeKind: badge.kind, badgeSetAt: new Date() },
+      })
+    } catch (e) {
+      if ((e as { code?: string }).code === 'P2002') throw new ConflictException('Ce badge est déjà attribué à quelqu’un de l’équipe')
+      throw e
+    }
+    return badge.kind === 'QR' ? { kind: 'QR', payload: `${BADGE_QR_PREFIX}${badge.value}` } : { kind: 'NFC' }
+  }
+
+  async clearBadge(userId: string, organizationId: string) {
+    await this.prisma.user.update({ where: { id: userId, organizationId }, data: { badgeLookup: null, badgeKind: null, badgeSetAt: null } })
+  }
+
+  // Code tiré au hasard, unique dans l'organisation. Jamais choisi par
+  // l'utilisateur : « code déjà pris » révélerait ceux des collègues.
+  async setPin(userId: string, organizationId: string) {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const pin = randomPin()
       try {
         await this.prisma.user.update({
           where: { id: userId, organizationId },
@@ -160,7 +242,6 @@ export class AuthService {
         return { pin }
       } catch (e) {
         if ((e as { code?: string }).code !== 'P2002') throw e
-        if (wanted) throw new ConflictException('Ce code est déjà pris dans votre équipe')
       }
     }
     throw new ConflictException('Plus de code libre : retirez ceux des anciens comptes')

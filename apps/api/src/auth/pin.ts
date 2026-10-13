@@ -60,3 +60,27 @@ export class PinAttempts {
     return true
   }
 }
+
+// --- Badges vendeur : carte à QR code ou badge NFC ---------------------------
+// Le QR contient « FLOW1:<jeton aléatoire> ». Un badge NFC est reconnu par son
+// identifiant (lu par Web NFC ou par un lecteur USB qui le « tape » au clavier).
+export const BADGE_QR_PREFIX = 'FLOW1:'
+
+export function newBadgeToken(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  return Array.from({ length: 24 }, () => alphabet[randomInt(alphabet.length)]).join('')
+}
+
+export function normalizeBadge(raw: string): { kind: 'QR' | 'NFC'; value: string } | null {
+  const s = raw.trim()
+  if (s.toUpperCase().startsWith(BADGE_QR_PREFIX)) {
+    const value = s.slice(BADGE_QR_PREFIX.length).toUpperCase()
+    return /^[A-Z0-9]{16,64}$/.test(value) ? { kind: 'QR', value } : null
+  }
+  const uid = s.toUpperCase().replace(/[\s:-]/g, '')
+  return /^[0-9A-F]{6,32}$/.test(uid) ? { kind: 'NFC', value: uid } : null
+}
+
+export function badgeLookup(secret: string, organizationId: string, badge: { kind: string; value: string }): string {
+  return createHmac('sha256', secret).update(`${organizationId}:badge:${badge.kind}:${badge.value}`).digest('hex')
+}

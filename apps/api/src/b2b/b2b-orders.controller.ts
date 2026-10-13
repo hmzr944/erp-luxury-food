@@ -1,9 +1,13 @@
+import { CreateB2BOrderBody } from './b2b.dto'
 import {
-  Controller, Get, Post, Patch, Body, Param, Query, UseGuards, HttpCode, HttpStatus, Res,
+  Controller, Get, Post, Patch, Body, Param, Query, UseGuards, HttpCode, HttpStatus, Res, NotFoundException,
 } from '@nestjs/common'
 import type { Response } from 'express'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
+import { RolesGuard } from '../common/guards/roles.guard'
+import { Roles } from '../common/decorators/roles.decorator'
+import { Role } from '@erp/types'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { OrdersService } from '../orders/orders.service'
 import { PrismaService } from '../common/prisma/prisma.service'
@@ -11,7 +15,8 @@ import { Decimal } from '@prisma/client/runtime/library'
 import { randomInt } from 'node:crypto'
 
 @Controller('sites/:siteId/b2b-orders')
-@UseGuards(JwtAuthGuard, SiteGuard)
+@UseGuards(JwtAuthGuard, SiteGuard, RolesGuard)
+@Roles(Role.OWNER, Role.MANAGER)
 export class B2BOrdersController {
   constructor(
     private orders: OrdersService,
@@ -46,15 +51,13 @@ export class B2BOrdersController {
   @HttpCode(HttpStatus.CREATED)
   async createB2BOrder(
     @Param('siteId') siteId: string,
-    @Body() dto: {
-      b2bClientId: string
-      items: Array<{ productId: string; quantity: number; unitPrice?: number }>
-      paymentTerms?: number
-      note?: string
-      orderDiscount?: number
-    },
+    @Body() dto: CreateB2BOrderBody,
+    @CurrentUser() user: { organizationId: string },
   ) {
-    // Adapte le DTO pour checkout avec prix overridés si fournis
+    // Le client doit appartenir à l'organisation (sinon on exposerait sa fiche)
+    const client = await this.prisma.b2BClient.findFirst({ where: { id: dto.b2bClientId, organizationId: user.organizationId }, select: { id: true } })
+    if (!client) throw new NotFoundException('Client introuvable')
+
     const checkoutDto = {
       items: dto.items.map((i) => ({
         productId: i.productId,

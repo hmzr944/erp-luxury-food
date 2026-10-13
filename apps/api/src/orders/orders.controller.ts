@@ -17,11 +17,18 @@ import { OrdersService } from './orders.service'
 import { CheckoutDto } from './dto/checkout.dto'
 import { SyncSaleDto } from './dto/sync-sale.dto'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { IsIn } from 'class-validator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { RefundsService } from './refunds.service'
 import { RefundDto } from './dto/refund.dto'
 
 type AuthUser = { id: string; email?: string; organizationId: string }
+
+// Retours et annulations passent par le remboursement signé, pas par le statut
+class UpdateStatusDto {
+  @IsIn(['PENDING', 'PREPARING', 'READY', 'COMPLETED'])
+  status!: 'PENDING' | 'PREPARING' | 'READY' | 'COMPLETED'
+}
 
 // Route publique pour la page click & collect client
 @Controller('pickup')
@@ -103,12 +110,8 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  updateStatus(
-    @Param('siteId') siteId: string,
-    @Param('id') id: string,
-    @Body('status') status: string,
-  ) {
-    return this.orders.updateStatus(id, siteId, status)
+  updateStatus(@Param('siteId') siteId: string, @Param('id') id: string, @Body() dto: UpdateStatusDto) {
+    return this.orders.updateStatus(id, siteId, dto.status)
   }
 }
 

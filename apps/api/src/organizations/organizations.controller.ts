@@ -5,6 +5,24 @@ import { Roles } from '../common/decorators/roles.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { OrganizationsService } from './organizations.service'
 import { Role } from '@erp/types'
+import { BadRequestException } from '@nestjs/common'
+import { IsBoolean, IsNumber, IsOptional, IsString, IsUrl, Matches, MaxLength, Min } from 'class-validator'
+import { assertPublicUrl, UnsafeUrlError } from '../common/net/public-url'
+
+class SettingsDto {
+  @IsOptional() @Matches(/^\d{14}$/, { message: 'SIRET : 14 chiffres' }) siret?: string
+  @IsOptional() @Matches(/^[A-Z]{2}[0-9A-Z]{2,13}$/, { message: 'Numéro de TVA invalide' }) vatNumber?: string
+  @IsOptional() @IsString() @MaxLength(40) legalForm?: string
+  @IsOptional() @IsNumber() @Min(0) capital?: number
+  @IsOptional() @IsString() @MaxLength(120) rcs?: string
+  @IsOptional() @IsString() @MaxLength(200) legalAddress?: string
+  @IsOptional() @IsString() @MaxLength(100) legalCity?: string
+  @IsOptional() @IsString() @MaxLength(12) legalZipCode?: string
+  @IsOptional() @IsString() @MaxLength(80) pdpName?: string
+  @IsOptional() @IsUrl({ protocols: ['https'], require_protocol: true }) @MaxLength(300) pdpEndpoint?: string
+  @IsOptional() @IsString() @MaxLength(500) pdpApiKey?: string
+  @IsOptional() @IsBoolean() pdpEnabled?: boolean
+}
 
 @Controller('organizations')
 @UseGuards(JwtAuthGuard)
@@ -24,10 +42,15 @@ export class OrganizationsController {
   @Put('me/settings')
   @UseGuards(RolesGuard)
   @Roles(Role.OWNER)
-  upsertSettings(
+  async upsertSettings(
     @CurrentUser() user: { organizationId: string },
-    @Body() data: any,
+    @Body() data: SettingsDto,
   ) {
+    if (data.pdpEndpoint) {
+      await assertPublicUrl(data.pdpEndpoint).catch((e) => {
+        throw e instanceof UnsafeUrlError ? new BadRequestException(e.message) : e
+      })
+    }
     return this.orgs.upsertSettings(user.organizationId, data)
   }
 }

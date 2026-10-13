@@ -1,13 +1,18 @@
+import { RolesGuard } from '../common/guards/roles.guard'
+import { Roles } from '../common/decorators/roles.decorator'
+import { Role } from '@erp/types'
 import {
   Controller, Get, Post, Patch, Delete, Body, Param,
   UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
-import { B2BClientsService, type CreateB2BClientDto } from './b2b-clients.service'
+import { B2BClientsService } from './b2b-clients.service'
+import { CreateB2BClientBody, UpdateB2BClientBody } from './b2b.dto'
 
 @Controller('b2b/clients')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.OWNER, Role.MANAGER)
 export class B2BClientsController {
   constructor(private clients: B2BClientsService) {}
 
@@ -35,7 +40,7 @@ export class B2BClientsController {
   @Post()
   create(
     @CurrentUser() user: { organizationId: string },
-    @Body() dto: CreateB2BClientDto,
+    @Body() dto: CreateB2BClientBody,
   ) {
     return this.clients.create(user.organizationId, dto)
   }
@@ -44,7 +49,7 @@ export class B2BClientsController {
   update(
     @CurrentUser() user: { organizationId: string },
     @Param('id') id: string,
-    @Body() dto: Partial<CreateB2BClientDto>,
+    @Body() dto: UpdateB2BClientBody,
   ) {
     return this.clients.update(id, user.organizationId, dto)
   }

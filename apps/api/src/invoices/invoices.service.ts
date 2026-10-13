@@ -1,3 +1,5 @@
+import { assertPublicUrl } from '../common/net/public-url'
+import { readSecret } from '../common/crypto/secrets'
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { FacturxService } from './facturx.service'
@@ -139,11 +141,14 @@ export class InvoicesService {
 
     const xml = this.facturx.generate(order)
 
+    await assertPublicUrl(settings.pdpEndpoint)
     const res = await fetch(settings.pdpEndpoint, {
       method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(20_000),
       headers: {
         'Content-Type': 'application/xml',
-        Authorization: `Bearer ${settings.pdpApiKey}`,
+        Authorization: `Bearer ${readSecret(settings.pdpApiKey)}`,
         'X-Invoice-Number': order.invoiceNumber,
       },
       body: xml,

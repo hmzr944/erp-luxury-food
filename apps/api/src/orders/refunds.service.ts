@@ -5,6 +5,7 @@ import type { PaymentKind, Prisma } from '@prisma/client'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { ComplianceService } from '../compliance/compliance.service'
 import { PaymentsService } from '../payments/payments.service'
+import { AuditService } from '../audit/audit.service'
 import { creditCode, normalizeCreditCode } from './credits'
 import { planRefund, RefundPlanError } from './refund-plan'
 import type { RefundDto } from './dto/refund.dto'
@@ -19,6 +20,7 @@ export class RefundsService {
     private compliance: ComplianceService,
     private payments: PaymentsService,
     private events: EventEmitter2,
+    private audit: AuditService,
   ) {}
 
   async refund(siteId: string, orderId: string, dto: RefundDto, user: { id: string; organizationId: string; email?: string }) {
@@ -127,6 +129,13 @@ export class RefundsService {
     })
 
     this.events.emit('order.created', { siteId, order: result.refund })
+    await this.audit.log({
+      organizationId: user.organizationId,
+      userId: user.id,
+      action: 'refund.created',
+      target: sale.id,
+      detail: `${plan.total.toFixed(2)} € en ${method.label}${dto.reason ? `, ${dto.reason}` : ''}`,
+    })
     return {
       ...result.refund,
       credit: result.credit ? { code: result.credit.code, balance: Number(result.credit.balance), expiresAt: result.credit.expiresAt } : null,
