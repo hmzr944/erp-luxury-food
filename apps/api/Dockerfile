@@ -27,9 +27,20 @@ COPY packages/types ./packages/types
 COPY packages/utils ./packages/utils
 COPY packages/config ./packages/config
 
+# Paquets partagés compilés en JS : l'API les charge à l'exécution
+RUN pnpm --filter @erp/types --filter @erp/utils run build
+
 WORKDIR /app/apps/api
 RUN pnpm exec prisma generate
 RUN pnpm run build
+
+# Dossier autonome : dépendances de prod de l'API + paquets partagés copiés
+WORKDIR /app
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+RUN pnpm --filter api deploy --prod --legacy /out \
+ && cp -r apps/api/dist /out/dist \
+ && cp -r apps/api/prisma /out/prisma \
+ && cd /out && pnpm exec prisma generate
 
 # ── Étape 3 : production ──────────────────────────────────────
 FROM node:22-alpine AS runner
@@ -38,14 +49,7 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-# Dépendances de production seulement (pas de pnpm global nécessaire en prod)
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/apps/api/dist ./dist
-# Client Prisma généré (engines + runtime)
-COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-# Schéma Prisma pour les migrations
-COPY apps/api/prisma ./prisma
+COPY --from=builder /out ./
 
 USER nestjs
 
