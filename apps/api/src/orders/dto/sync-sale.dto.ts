@@ -6,6 +6,7 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
+  MaxLength,
   IsString,
   IsUUID,
   Length,
@@ -44,6 +45,12 @@ export class SignedSaleItemDto {
   @IsOptional()
   @IsString()
   serialNumber?: string
+
+  // Article libre : nom saisi en caisse
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customName?: string
 }
 
 export class TerminalReceiptDto {

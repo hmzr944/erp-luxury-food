@@ -29,6 +29,15 @@ export interface ApiProduct {
   imageUrl: string | null
 }
 
+export interface ProductSuggestion {
+  barcode: string
+  name: string
+  brand?: string
+  quantity?: string
+  imageUrl?: string
+  source: string
+}
+
 export interface ApiProductOption {
   id: string
   name: string
@@ -52,6 +61,15 @@ export const productsApi = {
 
   getCategories: (siteId: string) =>
     apiClient<ApiCategory[]>(`/sites/${siteId}/categories`),
+
+  // Produit technique « Article libre » (nom et prix saisis en caisse)
+  customProduct: (siteId: string) => apiClient<{ id: string; taxRate: string }>(`/sites/${siteId}/products/custom`),
+
+  // Code-barres inconnu : fiche proposée par les bases ouvertes (Open Food Facts...)
+  lookup: (siteId: string, code: string) =>
+    apiClient<{ existingProductId: string | null; suggestion: ProductSuggestion | null }>(
+      `/sites/${siteId}/products/lookup/${encodeURIComponent(code)}`,
+    ),
 
   getByBarcode: (siteId: string, barcode: string) =>
     apiClient<ApiProduct | null>(`/sites/${siteId}/products/barcode/${barcode}`),

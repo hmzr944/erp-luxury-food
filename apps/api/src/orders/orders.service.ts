@@ -221,9 +221,10 @@ export class OrdersService {
       },
     })
     const products = await tx.product.findMany({
-      where: { id: { in: [...new Set(productIds)] }, siteId, ...(activeOnly ? { isActive: true } : {}) },
+      // L'article libre est masqué du catalogue mais toujours vendable
+      where: { id: { in: [...new Set(productIds)] }, siteId, ...(activeOnly ? { OR: [{ isActive: true }, { isCustom: true }] } : {}) },
       select: {
-        id: true, name: true, price: true, taxRate: true, tracking: true,
+        id: true, name: true, price: true, taxRate: true, tracking: true, isCustom: true,
         variants: {
           where: activeOnly ? { isActive: true } : {},
           select: { id: true, name: true, price: true },

@@ -10,6 +10,7 @@ export interface DraftProduct {
   price: number
   taxRate: number
   tracking: string
+  isCustom?: boolean
   variants: Array<{ id: string; name: string; price: number }>
 }
 
@@ -22,6 +23,8 @@ export interface DraftItemInput {
   // Vente signée par une caisse : prix et taux réellement appliqués
   unitPrice?: number
   taxRate?: number
+  // Article libre : nom saisi en caisse
+  customName?: string
 }
 
 export interface DraftPaymentMethod {
@@ -90,7 +93,18 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
     const catalogPrice = variant?.price ?? product.price
     let price = catalogPrice
     let taxRate = product.taxRate
-    if (input.useSignedPrices) {
+    let name = product.name
+    if (product.isCustom) {
+      // Article libre : nom, prix et taux viennent de la caisse
+      const custom = item.customName?.trim()
+      if (!custom) throw new OrderDraftError("Nom manquant pour l'article libre")
+      if (item.unitPrice === undefined || item.taxRate === undefined) {
+        throw new OrderDraftError(`Prix manquant pour ${custom}`)
+      }
+      name = custom.slice(0, 120)
+      price = item.unitPrice
+      taxRate = item.taxRate
+    } else if (input.useSignedPrices) {
       if (item.unitPrice === undefined || item.taxRate === undefined) {
         throw new OrderDraftError(`Prix signé manquant pour ${product.name}`)
       }
@@ -103,7 +117,7 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
     return {
       productId: product.id,
       variantId: variant?.id ?? null,
-      name: product.name,
+      name,
       variantName: variant?.name ?? null,
       serialNumber: item.serialNumber ?? null,
       price,

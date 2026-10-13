@@ -64,4 +64,14 @@ describe('verifyTerminalReceipt', () => {
     const res = await verifyTerminalReceipt({ publicKeyJwk, content, ...r })
     expect(res).toEqual({ ok: false, reason: 'Signature de la caisse invalide' })
   })
+  it('signe aussi le nom d\'un article libre', async () => {
+    const free: SignedSaleContent = {
+      items: [{ productId: 'free', quantity: 1, unitPrice: 870, taxRate: 20, customName: 'Retouche, ourlet' }],
+      payments: [{ code: 'CARD', amount: 870 }],
+    }
+    const r = await signLikeTerminal(keys, free)
+    expect(await verifyTerminalReceipt({ publicKeyJwk, content: free, ...r })).toEqual({ ok: true })
+    const renamed = { ...free, items: [{ ...free.items[0], customName: 'Autre chose' }] }
+    expect((await verifyTerminalReceipt({ publicKeyJwk, content: renamed, ...r })).ok).toBe(false)
+  })
 })

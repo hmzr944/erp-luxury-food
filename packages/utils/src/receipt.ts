@@ -14,6 +14,8 @@ export interface SignedSaleItem {
   taxRate: number
   discount?: number
   serialNumber?: string | null
+  // Article libre : nom saisi en caisse
+  customName?: string | null
 }
 
 export interface SignedSaleContent {
@@ -36,9 +38,12 @@ const money = (n: number | undefined) => (n ?? 0).toFixed(2)
 
 // Représentation canonique du contenu : ordre des champs et des lignes figé
 export function canonicalSaleContent(content: SignedSaleContent): string {
-  const items = content.items.map((i) =>
-    [i.productId, i.variantId ?? '', i.quantity, money(i.unitPrice), money(i.taxRate), money(i.discount), i.serialNumber ?? ''].join(','),
-  )
+  const items = content.items.map((i) => {
+    const fields = [i.productId, i.variantId ?? '', i.quantity, money(i.unitPrice), money(i.taxRate), money(i.discount), i.serialNumber ?? '']
+    // Ajouté à la fin et seulement s'il existe : les tickets déjà signés restent valides
+    if (i.customName) fields.push(`name=${encodeURIComponent(i.customName)}`)
+    return fields.join(',')
+  })
   const payments = content.payments.map((p) => `${p.code},${money(p.amount)}`)
   return [`items:${items.join(';')}`, `payments:${payments.join(';')}`, `discount:${money(content.orderDiscount)}`].join('|')
 }

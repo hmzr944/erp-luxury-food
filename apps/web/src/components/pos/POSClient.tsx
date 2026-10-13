@@ -18,6 +18,7 @@ import { VariantPicker } from './VariantPicker'
 import { PaymentSheet, type ReceiptView } from './PaymentSheet'
 import { Sheet, EASE } from './Sheet'
 import { useSaleQueue } from './useSaleQueue'
+import { CustomItemSheet, QuickProductSheet } from './QuickSheets'
 
 interface POSClientProps {
   siteId: string
@@ -36,6 +37,8 @@ export function POSClient({ siteId }: POSClientProps) {
   const [busy, setBusy] = useState(false)
   const [payError, setPayError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<ReceiptView | null>(null)
+  const [customOpen, setCustomOpen] = useState(false)
+  const [createSeed, setCreateSeed] = useState<string | null>(null)
 
   const products = useQuery({
     queryKey: ['products', siteId],
@@ -46,6 +49,12 @@ export function POSClient({ siteId }: POSClientProps) {
     queryKey: ['categories', siteId],
     queryFn: () => productsApi.getCategories(siteId),
     staleTime: 60_000,
+  })
+  // Article libre : produit technique du site, gardé en cache pour le hors ligne
+  const customProduct = useQuery({
+    queryKey: ['custom-product', siteId],
+    queryFn: () => productsApi.customProduct(siteId),
+    staleTime: Infinity,
   })
   const sites = useQuery({ queryKey: ['sites'], queryFn: sitesApi.getAll, staleTime: 5 * 60_000 })
   const siteName = sites.data?.find((s) => s.id === siteId)?.name ?? 'Caisse'
@@ -107,6 +116,7 @@ export function POSClient({ siteId }: POSClientProps) {
           taxRate: l.product.taxRate,
           ...(l.discount > 0 ? { discount: l.discount } : {}),
           ...(l.serialNumber ? { serialNumber: l.serialNumber } : {}),
+          ...(l.customName ? { customName: l.customName } : {}),
         })),
         payments,
         orderDiscount: orderDiscount || undefined,
@@ -147,6 +157,8 @@ export function POSClient({ siteId }: POSClientProps) {
             isLoading={products.isLoading}
             isError={products.isError}
             onPick={pick}
+            onCustom={() => setCustomOpen(true)}
+            onCreate={setCreateSeed}
           />
 
           {/* Tablette et ordinateur : le ticket reste visible à droite */}
@@ -203,6 +215,31 @@ export function POSClient({ siteId }: POSClientProps) {
         </Sheet>
 
         <VariantPicker product={picking} onClose={() => setPicking(null)} onChoose={add} />
+
+        <CustomItemSheet
+          open={customOpen}
+          config={config}
+          onClose={() => setCustomOpen(false)}
+          onAdd={(item) => {
+            const custom = customProduct.data
+            if (!custom) return toast.error('Article libre indisponible : connectez la caisse une première fois.')
+            addProduct({ id: custom.id, name: item.name, price: item.price, taxRate: item.taxRate }, { customName: item.name })
+            setCustomOpen(false)
+          }}
+        />
+
+        <QuickProductSheet
+          siteId={siteId}
+          seed={createSeed}
+          config={config}
+          categories={categories.data ?? []}
+          onClose={() => setCreateSeed(null)}
+          onCreated={(product) => {
+            setCreateSeed(null)
+            add(product)
+            toast.success(`${product.name} ajouté au catalogue`)
+          }}
+        />
 
         <PaymentSheet
           open={paying}

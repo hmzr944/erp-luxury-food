@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Barcode, X } from '@phosphor-icons/react'
+import { MagnifyingGlass, Barcode, X, Plus } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import type { ApiCategory, ApiProduct, ApiVariant } from '@/lib/api/products'
 
@@ -11,12 +11,16 @@ interface CatalogProps {
   isLoading: boolean
   isError: boolean
   onPick: (product: ApiProduct, variant?: ApiVariant) => void
+  // Vendre un article hors catalogue (nom et prix saisis)
+  onCustom: () => void
+  // Créer un produit à partir d'un code-barres ou d'un nom introuvable
+  onCreate: (seed: string) => void
 }
 
 const normalize = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-export function Catalog({ products, categories, isLoading, isError, onPick }: CatalogProps) {
+export function Catalog({ products, categories, isLoading, isError, onPick, onCustom, onCreate }: CatalogProps) {
   const [category, setCategory] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [notFound, setNotFound] = useState<string | null>(null)
@@ -102,8 +106,19 @@ export function Catalog({ products, categories, isLoading, isError, onPick }: Ca
           )}
         </div>
         {notFound && (
-          <p role="status" className="mt-2 text-sm text-[var(--color-text-secondary)]">
+          <p role="status" className="mt-2 flex flex-wrap items-center gap-x-3 text-sm text-[var(--color-text-secondary)]">
             Aucun produit pour « {notFound} ».
+            <button
+              type="button"
+              onClick={() => {
+                onCreate(notFound)
+                setNotFound(null)
+                setQuery('')
+              }}
+              className="h-11 font-medium text-[var(--color-accent)] underline-offset-4 hover:underline"
+            >
+              Créer ce produit
+            </button>
           </p>
         )}
       </form>
@@ -144,18 +159,36 @@ export function Catalog({ products, categories, isLoading, isError, onPick }: Ca
             title="Catalogue indisponible"
             text="La caisse n'a pas encore de copie du catalogue. Connectez-la à internet une première fois."
           />
-        ) : visible.length === 0 ? (
-          <Empty
-            title={query ? 'Aucun résultat' : 'Aucun produit'}
-            text={query ? 'Essayez un autre mot ou scannez le code-barres.' : 'Ajoutez des produits depuis le back-office.'}
-          />
+        ) : visible.length === 0 && query ? (
+          <Empty title="Aucun résultat" text="Appuyez sur Entrée pour créer ce produit, ou essayez un autre mot." />
         ) : (
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+            {!query && (
+              <li>
+                <button
+                  type="button"
+                  onClick={onCustom}
+                  className="flex h-full min-h-[112px] w-full flex-col items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] p-4 text-left transition-[transform,border-color] duration-150 hover:border-[var(--color-accent)] active:scale-[0.98]"
+                >
+                  <Plus size={20} aria-hidden className="text-[var(--color-accent)]" />
+                  <span>
+                    <span className="block text-[15px] font-semibold">Article libre</span>
+                    <span className="block text-sm text-[var(--color-text-secondary)]">Prix saisi à la main</span>
+                  </span>
+                </button>
+              </li>
+            )}
             {visible.map((p) => (
               <li key={p.id}>
                 <ProductTile product={p} onPick={() => onPick(p)} />
               </li>
             ))}
+            {products.length === 0 && (
+              <li className="col-span-full pt-2 text-sm text-[var(--color-text-secondary)]">
+                Catalogue vide : vendez avec « Article libre », scannez un code-barres pour créer un produit, ou importez votre
+                catalogue dans Paramètres, Données.
+              </li>
+            )}
           </ul>
         )}
       </div>

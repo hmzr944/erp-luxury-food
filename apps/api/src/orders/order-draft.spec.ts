@@ -116,4 +116,19 @@ describe('buildOrderDraft', () => {
     expect(d.pricing.total).toBe(250)
     expect(d.priceDifferences).toEqual(['Pull cachemire S / Noir : 250 (catalogue 290)'])
   })
+  it('article libre : nom, prix et taux saisis en caisse', () => {
+    const custom = { id: 'free', name: 'Article libre', price: 0, taxRate: 20, tracking: 'NONE', isCustom: true, variants: [] }
+    const d = buildOrderDraft(
+      base({
+        products: [pull, ring, custom],
+        items: [{ productId: 'free', quantity: 2, unitPrice: 15, taxRate: 10, customName: ' Retouche ourlet ' }],
+        payments: [{ code: 'CASH', amount: 30 }],
+      }),
+    )
+    expect(d.items[0]).toMatchObject({ name: 'Retouche ourlet', price: 15, taxRate: 10 })
+    expect(d.priceDifferences).toEqual([])
+    expect(() =>
+      buildOrderDraft(base({ products: [custom], items: [{ productId: 'free', quantity: 1, unitPrice: 5, taxRate: 20 }] })),
+    ).toThrow("Nom manquant pour l'article libre")
+  })
 })

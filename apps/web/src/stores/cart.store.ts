@@ -18,6 +18,7 @@ export interface CartLine {
   variantId?: string
   variantName?: string
   serialNumber?: string
+  customName?: string // article libre
   quantity: number
   discount: number // remise en euros sur la ligne
 }
@@ -26,6 +27,7 @@ interface AddOptions {
   variantId?: string
   variantName?: string
   serialNumber?: string
+  customName?: string
 }
 
 interface CartState {
@@ -41,8 +43,10 @@ interface CartState {
 }
 
 // Une pièce numérotée est toujours une ligne à part, en un exemplaire
-function lineKey(productId: string, options: AddOptions = {}) {
-  return [productId, options.variantId ?? '', options.serialNumber ?? ''].join(':')
+function lineKey(productId: string, options: AddOptions = {}, price?: number) {
+  // Un article libre se distingue par son nom et son prix
+  const custom = options.customName ? `${options.customName}@${price}` : ''
+  return [productId, options.variantId ?? '', options.serialNumber ?? '', custom].join(':')
 }
 
 export const useCartStore = create<CartState>()((set) => ({
@@ -51,7 +55,7 @@ export const useCartStore = create<CartState>()((set) => ({
   lastAddedKey: null,
 
   addProduct: (product, options = {}) => {
-    const key = lineKey(product.id, options)
+    const key = lineKey(product.id, options, product.price)
     set((state) => {
       const existing = state.lines.find((l) => l.key === key)
       if (existing && !options.serialNumber) {

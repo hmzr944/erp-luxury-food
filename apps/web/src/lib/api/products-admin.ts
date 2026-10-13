@@ -10,6 +10,7 @@ export interface CreateProductPayload {
   price: number
   taxRate?: number
   categoryId?: string
+  imageUrl?: string
   variants?: Array<{ name: string; price: number; barcode?: string }>
 }
 

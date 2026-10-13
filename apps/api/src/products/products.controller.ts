@@ -46,6 +46,16 @@ export class ProductsController {
     return this.products.findByBarcode(barcode, siteId)
   }
 
+  @Get('products/custom')
+  customProduct(@Param('siteId') siteId: string) {
+    return this.products.customProduct(siteId)
+  }
+
+  @Get('products/lookup/:code')
+  lookup(@Param('siteId') siteId: string, @Param('code') code: string) {
+    return this.products.lookup(siteId, code)
+  }
+
   @Post('products/variants/preview')
   @HttpCode(HttpStatus.OK)
   previewVariants(@Body() dto: PreviewVariantsDto) {

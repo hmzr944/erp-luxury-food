@@ -5,6 +5,7 @@ import { SECTOR_PRESETS, type Sector } from '@erp/types'
 import { buildVariantMatrix, variantLabel } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { validateAttributes } from './attributes'
+import { isBarcode, lookupBarcode } from './lookup'
 import type {
   CategoryDto,
   CreateProductDto,
@@ -32,7 +33,7 @@ export class ProductsService {
 
   findAll(siteId: string, includeInactive = false) {
     return this.prisma.product.findMany({
-      where: { siteId, ...(includeInactive ? {} : { isActive: true }) },
+      where: { siteId, isCustom: false, ...(includeInactive ? {} : { isActive: true }) },
       include: PRODUCT_INCLUDE,
       orderBy: [{ category: { position: 'asc' } }, { name: 'asc' }],
     })
@@ -159,6 +160,26 @@ export class ProductsService {
       data: { isActive: false },
       select: { id: true, name: true, isActive: true },
     })
+  }
+
+  // Produit technique « Article libre » du site, créé à la première demande
+  async customProduct(siteId: string) {
+    const existing = await this.prisma.product.findFirst({ where: { siteId, isCustom: true }, select: { id: true, taxRate: true } })
+    if (existing) return existing
+    const org = await this.organizationOf(siteId)
+    return this.prisma.product.create({
+      data: { siteId, name: 'Article libre', price: new Decimal(0), taxRate: new Decimal(org.defaultTaxRate), isCustom: true, isActive: false },
+      select: { id: true, taxRate: true },
+    })
+  }
+
+  // Code-barres scanné : produit déjà au catalogue, ou fiche proposée par les bases ouvertes
+  async lookup(siteId: string, code: string) {
+    const existing = await this.findByBarcode(code, siteId)
+    if (existing) return { existingProductId: existing.id, suggestion: null }
+    if (!isBarcode(code)) return { existingProductId: null, suggestion: null }
+    const suggestion = await lookupBarcode(code, (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(5000) }))
+    return { existingProductId: null, suggestion }
   }
 
   // Aperçu des variantes avant enregistrement (grille taille × couleur...)

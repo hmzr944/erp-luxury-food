@@ -192,6 +192,8 @@ model Product {
   options     ProductOption[]
   attributes  Json              @default("{}") // valeurs des AttributeDefinition, par clé
   tracking    TrackingMode      @default(NONE)
+  // Produit technique « Article libre » du site : nom et prix saisis en caisse
+  isCustom    Boolean           @default(false)
   lots        StockLot[]
   isActive    Boolean           @default(true)
   imageUrl    String?

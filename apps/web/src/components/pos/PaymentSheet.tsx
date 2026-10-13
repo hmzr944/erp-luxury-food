@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash } from '@phosphor-icons/react'
+import { CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import { PaymentKind } from '@erp/types'
 import type { PlatformConfig } from '@/lib/api/platform'
 import type { PaymentDevice } from '@/lib/api/payments'
+import { productsAdminApi } from '@/lib/api/products-admin'
 import { db } from '@/lib/offline/db'
 import type { RecordedSale } from '@/lib/terminal/terminal'
 import type { CartLine } from '@/stores/cart.store'
@@ -86,7 +87,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
     // pourrait payer sans que la vente soit enregistrée
     <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || partsLocked))}>
       {receipt ? (
-        <Receipt receipt={receipt} siteName={siteName} onNext={onClose} />
+        <Receipt receipt={receipt} siteId={siteId} siteName={siteName} onNext={onClose} />
       ) : terminal && device ? (
         <>
           {error && (
@@ -254,8 +255,9 @@ function SplitPayment({
 }
 
 // Le ticket sort de la caisse : il est signé et valable, réseau ou pas
-function Receipt({ receipt, siteName, onNext }: { receipt: ReceiptView; siteName: string; onNext: () => void }) {
+function Receipt({ receipt, siteId, siteName, onNext }: { receipt: ReceiptView; siteId: string; siteName: string; onNext: () => void }) {
   const synced = useSaleSynced(receipt.sale.clientId)
+  const customLines = receipt.lines.filter((l) => l.customName)
   const { sale } = receipt
   const signedAt = new Date(sale.receipt.signedAt)
 
@@ -305,6 +307,10 @@ function Receipt({ receipt, siteName, onNext }: { receipt: ReceiptView; siteName
         {synced ? 'Envoyée au serveur.' : 'Gardée sur la caisse, envoi dès que le réseau revient.'}
       </p>
 
+      {customLines.map((l) => (
+        <SaveToCatalog key={l.key} siteId={siteId} name={l.customName!} price={l.product.price} taxRate={l.product.taxRate} />
+      ))}
+
       <button
         type="button"
         data-autofocus
@@ -312,6 +318,43 @@ function Receipt({ receipt, siteName, onNext }: { receipt: ReceiptView; siteName
         className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)]"
       >
         Vente suivante
+      </button>
+    </div>
+  )
+}
+
+// « Burger du chef », « Retouche » : un article vendu à la volée devient un
+// produit du catalogue en un geste
+function SaveToCatalog({ siteId, name, price, taxRate }: { siteId: string; name: string; price: number; taxRate: number }) {
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  if (state === 'saved') {
+    return (
+      <p className="flex items-center gap-2 text-sm" role="status">
+        <CheckCircle size={18} weight="fill" aria-hidden className="text-[var(--color-accent)]" /> « {name} » ajouté au catalogue.
+      </p>
+    )
+  }
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-2">
+      <p className="min-w-0 text-sm">
+        Garder « <span className="font-medium">{name}</span> » à {formatPrice(price)} dans le catalogue ?
+        {state === 'error' && <span className="block text-[var(--color-text-secondary)]">Impossible pour le moment (réseau).</span>}
+      </p>
+      <button
+        type="button"
+        disabled={state === 'saving'}
+        onClick={async () => {
+          setState('saving')
+          try {
+            await productsAdminApi.create(siteId, { name, price, taxRate })
+            setState('saved')
+          } catch {
+            setState('error')
+          }
+        }}
+        className="h-11 shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-4 text-sm font-medium"
+      >
+        Ajouter
       </button>
     </div>
   )

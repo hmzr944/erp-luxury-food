@@ -6,6 +6,7 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
+  MaxLength,
   IsString,
   Min,
   ValidateNested,
@@ -34,6 +35,23 @@ export class CheckoutItemDto {
   @IsOptional()
   @IsString()
   serialNumber?: string
+
+  // Article libre uniquement : prix et taux saisis en caisse
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  unitPrice?: number
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  taxRate?: number
+
+  // Article libre : nom saisi en caisse
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customName?: string
 }
 
 export class CheckoutPaymentDto {

@@ -85,7 +85,7 @@ export class DataService {
   // Même format que l'import : un export peut être réimporté sur un autre site
   async productsCsv(siteId: string) {
     const products = await this.prisma.product.findMany({
-      where: { siteId },
+      where: { siteId, isCustom: false },
       include: {
         category: { select: { name: true } },
         options: { orderBy: { position: 'asc' } },
@@ -164,7 +164,7 @@ export class DataService {
       select: { organization: { select: { taxRates: { where: { isDefault: true }, select: { rate: true } } } } },
     })
     const [existingProducts, existingCategories] = await Promise.all([
-      this.prisma.product.findMany({ where: { siteId }, select: { name: true } }),
+      this.prisma.product.findMany({ where: { siteId, isCustom: false }, select: { name: true } }),
       this.prisma.category.findMany({ where: { siteId }, select: { id: true, name: true } }),
     ])
     const plan = planProductImport(parseCsv(csv), {
