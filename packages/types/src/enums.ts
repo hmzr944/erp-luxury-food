@@ -2,6 +2,7 @@ export enum Role {
   OWNER = 'OWNER',
   MANAGER = 'MANAGER',
   SELLER = 'SELLER',
+  PRODUCTION = 'PRODUCTION',
 }
 
 export enum Plan {

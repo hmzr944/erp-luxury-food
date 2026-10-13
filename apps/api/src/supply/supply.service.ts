@@ -227,7 +227,7 @@ export class SupplyService {
       })
       if (!sent) reminders.push({ supplierId: s.id, supplierName: s.name, deliveryDay: s.deliveryDay, cutoffAt: s.cutoffAt })
     }
-    return { toReceive: toReceive.map((o) => this.view(o)), reminders }
+    return { toReceive: toReceive.map((o) => this.view(o)), reminders, alerts: await this.alerts(siteId) }
   }
 
   async receive(siteId: string, orderId: string, userId: string, dto: { lines?: Array<{ lineId: string; received: number; issue?: string }>; note?: string }) {
@@ -409,6 +409,58 @@ export class SupplyService {
     }
     const rows = [...bySite.values()].map((r) => ({ ...r, amount: Math.round(r.amount * 100) / 100 }))
     return { month, rows, total: Math.round(rows.reduce((a, r) => a + r.amount, 0) * 100) / 100 }
+  }
+
+  // ---------- Alertes du labo à tout le réseau ----------
+
+  // « Pénurie de fraises : tartes aux fraises réduites de 50 % » en un geste
+  async createAlert(siteId: string, userId: string, dto: { cause?: string; productName?: string; reductionPct?: number; message?: string; day?: string }) {
+    const labo = await this.supplierSite(siteId)
+    const day = dto.day && DAY_RE.test(dto.day) ? dto.day : localDay(new Date(), labo.timezone)
+    const effect = dto.productName
+      ? dto.reductionPct === 100
+        ? `${dto.productName} non produit`
+        : `${dto.productName} réduit de ${dto.reductionPct ?? 50} %`
+      : null
+    const message = dto.message?.trim() || [dto.cause?.trim(), effect].filter(Boolean).join(' : ')
+    if (!message) throw new BadRequestException('Décrivez le problème ou choisissez un produit')
+    const alert = await this.prisma.supplyAlert.create({
+      data: {
+        organizationId: labo.organizationId,
+        siteId,
+        siteName: labo.name,
+        day: dayDate(day),
+        productName: dto.productName?.trim() || null,
+        reductionPct: dto.productName ? (dto.reductionPct ?? 50) : null,
+        message,
+        createdById: userId,
+      },
+    })
+    const sites = await this.prisma.site.findMany({ where: { organizationId: labo.organizationId }, select: { id: true } })
+    this.events.emit('supply.updated', { siteIds: sites.map((x) => x.id), orderId: alert.id, status: 'ALERT' })
+    return this.alertView(alert)
+  }
+
+  // Alertes en cours : celles du jour et des livraisons à venir
+  async alerts(siteId: string) {
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { organizationId: true, isSupplier: true, timezone: true } })
+    const today = localDay(new Date(), site.timezone)
+    const list = await this.prisma.supplyAlert.findMany({
+      where: { organizationId: site.organizationId, day: { gte: dayDate(today) }, ...(site.isSupplier ? { siteId } : {}) },
+      orderBy: [{ day: 'asc' }, { createdAt: 'desc' }],
+    })
+    return list.map((a) => this.alertView(a))
+  }
+
+  async deleteAlert(siteId: string, id: string) {
+    await this.supplierSite(siteId)
+    const r = await this.prisma.supplyAlert.deleteMany({ where: { id, siteId } })
+    if (!r.count) throw new NotFoundException('Alerte introuvable')
+    return { deleted: true }
+  }
+
+  private alertView(a: { id: string; siteId: string; siteName: string; day: Date; productName: string | null; reductionPct: number | null; message: string; createdAt: Date }) {
+    return { id: a.id, siteId: a.siteId, siteName: a.siteName, day: dayOf(a.day), productName: a.productName, reductionPct: a.reductionPct, message: a.message, createdAt: a.createdAt }
   }
 
   // ---------- Outils ----------

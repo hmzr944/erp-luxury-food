@@ -38,7 +38,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       // SentrySDK.captureException(exception)
     }
 
+    // Champs utiles à l'écran (ex. écart de caisse, numéro attendu) conservés
+    const body = exception instanceof HttpException ? exception.getResponse() : null
+    const extra =
+      body && typeof body === 'object'
+        ? Object.fromEntries(Object.entries(body).filter(([k]) => !['statusCode', 'message', 'error'].includes(k)))
+        : {}
+
     res.status(status).json({
+      ...extra,
       statusCode: status,
       message: Array.isArray(message) ? message : [message],
       path: req.url,

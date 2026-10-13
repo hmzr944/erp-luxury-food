@@ -9,9 +9,9 @@ export class SitesService {
     private config: ConfigService,
   ) {}
 
-  findByOrganization(organizationId: string) {
+  findByOrganization(organizationId: string, onlyForUserId?: string) {
     return this.prisma.site.findMany({
-      where: { organizationId },
+      where: { organizationId, ...(onlyForUserId ? { users: { some: { userId: onlyForUserId } } } : {}) },
       include: {
         _count: { select: { users: true } },
       },

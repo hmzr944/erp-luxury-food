@@ -14,8 +14,10 @@ export class SitesController {
   constructor(private sites: SitesService) {}
 
   @Get()
-  findAll(@CurrentUser() user: { organizationId: string }) {
-    return this.sites.findByOrganization(user.organizationId)
+  findAll(@CurrentUser() user: { id: string; organizationId: string; role: Role }) {
+    // Vendeur et atelier ne voient que les sites qui leur sont attribués
+    const restricted = user.role === Role.SELLER || user.role === Role.PRODUCTION
+    return this.sites.findByOrganization(user.organizationId, restricted ? user.id : undefined)
   }
 
   @Post()

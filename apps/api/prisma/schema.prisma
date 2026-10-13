@@ -96,6 +96,9 @@ model Site {
   // Heure limite (heure locale « HH:MM ») pour une livraison dans leadDays jours
   orderCutoff     String          @default("18:00")
   leadDays        Int             @default(1)
+  // Caisse : fond laissé dans le tiroir et écart toléré sans justification
+  cashFloat       Decimal         @default(150) @db.Decimal(10, 2)
+  cashTolerance   Decimal         @default(2) @db.Decimal(10, 2)
   supplyOrdersOut SupplyOrder[]   @relation("SupplyFrom")
   supplyOrdersIn  SupplyOrder[]   @relation("SupplyTo")
   users           UserSite[]
@@ -107,6 +110,7 @@ model Site {
   orders          Order[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  cashSessions    CashSession[]
 
   @@index([organizationId])
 }
@@ -120,10 +124,15 @@ model User {
   firstName      String
   lastName       String
   role           Role         @default(SELLER)
+  // Code vendeur à 4 chiffres : empreinte HMAC (clé serveur), unique dans
+  // l'organisation pour identifier la personne sans e-mail
+  pinLookup      String?
+  pinSetAt       DateTime?
   sites          UserSite[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  @@unique([organizationId, pinLookup])
   @@index([organizationId])
 }
 
@@ -384,6 +393,7 @@ enum Role {
   OWNER
   MANAGER
   SELLER
+  PRODUCTION // opérateur de labo, cuisine centrale ou dépôt
 }
 
 enum SubscriptionStatus {
@@ -837,4 +847,53 @@ model SupplyOrderLine {
   issue       String? // « 2 abîmées pendant le transport »
 
   @@unique([orderId, productId, variantId])
+}
+
+// Fond de caisse : une session par tiroir (caisse), de l'ouverture à la fermeture
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+model CashSession {
+  id               String            @id @default(cuid())
+  siteId           String
+  site             Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  terminalId       String
+  status           CashSessionStatus @default(OPEN)
+  openedAt         DateTime          @default(now())
+  openedById       String
+  // Fond annoncé par la fermeture précédente, et fond confirmé à l'ouverture
+  expectedOpening  Decimal?          @db.Decimal(10, 2)
+  openingFloat     Decimal           @db.Decimal(10, 2)
+  openingNote      String?
+  closedAt         DateTime?
+  closedById       String?
+  // Comptage : nombre de pièces et billets par valeur en centimes
+  denominations    Json?
+  counted          Decimal?          @db.Decimal(10, 2)
+  expectedCash     Decimal?          @db.Decimal(10, 2)
+  difference       Decimal?          @db.Decimal(10, 2)
+  differenceReason String?
+  keptFloat        Decimal?          @db.Decimal(10, 2)
+  deposit          Decimal?          @db.Decimal(10, 2)
+
+  @@index([siteId, openedAt])
+  @@index([terminalId, status])
+}
+
+// Message du labo à toutes les boutiques : « Pénurie de fraises, tartes réduites de 50 % aujourd'hui »
+model SupplyAlert {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String // labo ou dépôt émetteur
+  siteName       String
+  day            DateTime @db.Date // jour de livraison concerné
+  productName    String?
+  reductionPct   Int?
+  message        String
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, day])
 }

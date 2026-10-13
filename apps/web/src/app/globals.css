@@ -18,8 +18,10 @@
   color-scheme: light;
 }
 
+/* Sombre : réglage de l'appareil, ou imposé par un espace (atelier : lisible
+   à distance) via data-theme sur <html> */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --base-bg: #111214;
     --base-ink: #ECECE8;
     --base-accent: #93A5FF;
@@ -28,6 +30,16 @@
     --scrim: color-mix(in srgb, #08090A 65%, transparent);
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --base-bg: #111214;
+  --base-ink: #ECECE8;
+  --base-accent: #93A5FF;
+  --base-on-accent: #111214;
+  --base-surface: #1A1B1E;
+  --scrim: color-mix(in srgb, #08090A 65%, transparent);
+  color-scheme: dark;
 }
 
 @theme {
@@ -146,4 +158,25 @@
 .site-rise { animation: site-rise 0.7s cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--delay, 0ms); }
 @media (prefers-reduced-motion: reduce) {
   .site-rise { animation: none; }
+}
+
+/* Code vendeur refusé : petit mouvement latéral, sans couleur d'erreur */
+@keyframes pin-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="pin-shake"] { animation: none !important; }
+}
+
+/* Code vendeur refusé : léger mouvement latéral, sans couleur d'erreur */
+@keyframes pin-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+.pin-shake { animation: pin-shake 0.35s ease-in-out; }
+@media (prefers-reduced-motion: reduce) {
+  .pin-shake { animation: none; }
 }

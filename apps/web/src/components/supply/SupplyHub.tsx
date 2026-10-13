@@ -82,6 +82,14 @@ export function ShopSide({ siteId, onChange, surface }: { siteId: string; onChan
   const inbox = useQuery({ queryKey: ['supply', siteId, 'inbox'], queryFn: () => supplyApi.inbox(siteId), refetchInterval: 60_000 })
   return (
     <div className="space-y-6">
+      {inbox.data?.alerts.map((a) => (
+        <p key={a.id} role="status" className="rounded-[var(--radius-lg)] bg-[var(--color-text-primary)] p-4 text-[16px] font-medium text-[var(--color-bg-base)]">
+          <span className="block text-sm opacity-80">
+            {a.siteName}, livraison {deliveryLabel(a.day).toLowerCase()}
+          </span>
+          {a.message}
+        </p>
+      ))}
       {inbox.data?.toReceive.map((o) => <ReceiveForm key={o.id} siteId={siteId} order={o} onDone={onChange} />)}
       <ShopOrderForm siteId={siteId} onSent={onChange} surface={surface} />
     </div>

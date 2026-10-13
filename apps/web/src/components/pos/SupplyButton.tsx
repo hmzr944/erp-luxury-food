@@ -21,10 +21,17 @@ export function SupplyButton({ siteId }: { siteId: string }) {
   if (!suppliers.data?.some((s) => s.products > 0)) return null
 
   const arrived = inbox.data?.toReceive.length ?? 0
+  const alerts = inbox.data?.alerts.length ?? 0
   const reminder = inbox.data?.reminders[0]
   const until = reminder ? untilLabel(reminder.cutoffAt) : null // rappel : moins de 3 h avant la clôture
-  const alert = arrived > 0 || !!until
-  const label = arrived ? 'Livraison du labo arrivée' : until ? `Commande labo, clôture ${until}` : 'Commande labo'
+  const alert = arrived > 0 || !!until || alerts > 0
+  const label = arrived
+    ? 'Livraison du labo arrivée'
+    : alerts
+      ? `Message du labo : ${inbox.data!.alerts[0].message}`
+      : until
+        ? `Commande labo, clôture ${until}`
+        : 'Commande labo'
 
   return (
     <>
@@ -37,7 +44,7 @@ export function SupplyButton({ siteId }: { siteId: string }) {
         ].join(' ')}
       >
         <Truck size={18} aria-hidden />
-        <span className={alert ? 'hidden lg:inline' : 'hidden xl:inline'} aria-live="polite">
+        <span className={['max-w-72 truncate', alert ? 'hidden lg:inline' : 'hidden xl:inline'].join(' ')} aria-live="polite">
           {label}
         </span>
         <span className="sr-only lg:hidden">{label}</span>

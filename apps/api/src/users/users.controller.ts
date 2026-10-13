@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param,
+  Controller, Get, Post, Put, Patch, Delete, Body, Param,
   UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
@@ -38,6 +38,27 @@ export class UsersController {
     @Body() dto: { currentPassword: string; newPassword: string },
   ) {
     return this.users.updatePassword(user.id, dto.currentPassword, dto.newPassword)
+  }
+
+  // Code vendeur : le sien, ou celui d'un membre de l'équipe pour un gérant
+  @Put('me/pin')
+  setMyPin(@CurrentUser() user: { id: string; organizationId: string }, @Body('pin') pin?: string) {
+    return this.users.setPin(user.id, user.organizationId, pin)
+  }
+
+  @Put(':id/pin')
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER)
+  setPin(@CurrentUser() user: { organizationId: string }, @Param('id') id: string, @Body('pin') pin?: string) {
+    return this.users.setPin(id, user.organizationId, pin)
+  }
+
+  @Delete(':id/pin')
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER)
+  @HttpCode(HttpStatus.OK)
+  clearPin(@CurrentUser() user: { organizationId: string }, @Param('id') id: string) {
+    return this.users.clearPin(id, user.organizationId)
   }
 
   @Post()

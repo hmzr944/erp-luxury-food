@@ -3,6 +3,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
 import { RegisterDto } from './dto/register.dto'
 import { AuthService } from './auth.service'
 import { LoginDto } from './dto/login.dto'
+import { PinLoginDto } from './dto/pin-login.dto'
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard'
 
 // Limite les tentatives (mots de passe, inscriptions en masse)
@@ -16,6 +17,14 @@ export class AuthController {
   @Throttle({ auth: { limit: 20, ttl: 60_000 } })
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto)
+  }
+
+  // Code vendeur sur une caisse enregistrée
+  @Post('pin')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 20, ttl: 60_000 } })
+  pinLogin(@Body() dto: PinLoginDto) {
+    return this.auth.pinLogin(dto)
   }
 
   @Post('register')

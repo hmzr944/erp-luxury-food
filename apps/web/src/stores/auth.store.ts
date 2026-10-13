@@ -3,13 +3,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { apiClient } from '@/lib/api/client'
+import { signPinChallenge } from '@/lib/terminal/terminal'
 
 interface AuthUser {
   id: string
   email: string
   firstName: string
   lastName: string
-  role: 'OWNER' | 'MANAGER' | 'SELLER'
+  role: 'OWNER' | 'MANAGER' | 'SELLER' | 'PRODUCTION'
   organizationId: string
 }
 
@@ -30,6 +31,8 @@ interface AuthState {
   isLoading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<void>
+  // Code vendeur sur la caisse de cette boutique (change la personne connectée)
+  pinLogin: (siteId: string, pin: string) => Promise<void>
   register: (data: RegisterInput) => Promise<{ siteId: string }>
   logout: () => void
   clearError: () => void
@@ -75,6 +78,18 @@ export const useAuthStore = create<AuthState>()(
           })
           throw err
         }
+      },
+
+      pinLogin: async (siteId, pin) => {
+        const challenge = await signPinChallenge(siteId)
+        const data = await apiClient<{ accessToken: string; refreshToken: string; user: AuthUser }>('/auth/pin', {
+          method: 'POST',
+          body: JSON.stringify({ ...challenge, pin }),
+          skipAuth: true,
+        })
+        localStorage.setItem('access_token', data.accessToken)
+        localStorage.setItem('refresh_token', data.refreshToken)
+        set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true, error: null })
       },
 
       register: async (input) => {

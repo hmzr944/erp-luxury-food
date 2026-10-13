@@ -1,3 +1,6 @@
+import { CashModule } from './cash/cash.module'
+import { APP_INTERCEPTOR } from '@nestjs/core'
+import { WorkspaceInterceptor } from './common/access/workspace.interceptor'
 import { SupplyModule } from './supply/supply.module'
 import { BillingModule } from './billing/billing.module'
 import { Module } from '@nestjs/common'
@@ -76,6 +79,9 @@ import { HealthController } from './health/health.controller'
     TerminalsModule,
     DataModule,
     PaymentsModule,
+    CashModule,
   ],
+  // Espaces par rôle (vendeur, atelier, gérant), vérifiés sur chaque route
+  providers: [{ provide: APP_INTERCEPTOR, useClass: WorkspaceInterceptor }],
 })
 export class AppModule {}

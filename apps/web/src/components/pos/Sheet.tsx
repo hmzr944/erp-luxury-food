@@ -27,7 +27,9 @@ export function Sheet({ open, title, onClose, children, locked, width = 'md' }: 
     if (!open) return
     returnFocus.current = document.activeElement as HTMLElement | null
     const t = window.setTimeout(() => {
-      panel.current?.querySelector<HTMLElement>('[data-autofocus], button, input')?.focus()
+      // L'action principale marquée data-autofocus d'abord, sinon le premier champ
+      const el = panel.current?.querySelector<HTMLElement>('[data-autofocus]') ?? panel.current?.querySelector<HTMLElement>('input, button')
+      el?.focus()
     }, 30)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !locked) onClose()

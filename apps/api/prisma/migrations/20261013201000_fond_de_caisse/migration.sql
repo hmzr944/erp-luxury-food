@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Site" ADD COLUMN     "cashFloat" DECIMAL(10,2) NOT NULL DEFAULT 150,
+ADD COLUMN     "cashTolerance" DECIMAL(10,2) NOT NULL DEFAULT 2;
+

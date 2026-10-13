@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { Role } from '@erp/types'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
@@ -6,7 +6,7 @@ import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { SupplyService } from './supply.service'
-import { CatalogItemDto, ReceiveDto, SaveSupplyOrderDto, ShipDto, StartProductionDto, SupplySettingsDto } from './supply.dto'
+import { SupplyAlertDto, CatalogItemDto, ReceiveDto, SaveSupplyOrderDto, ShipDto, StartProductionDto, SupplySettingsDto } from './supply.dto'
 
 type AuthUser = { id: string }
 
@@ -85,5 +85,22 @@ export class SupplyController {
   @Get('statement')
   statement(@Param('siteId') siteId: string, @Query('month') month: string) {
     return this.supply.statement(siteId, month)
+  }
+
+  // --- Alertes du labo au réseau ---
+  @Get('alerts')
+  alerts(@Param('siteId') siteId: string) {
+    return this.supply.alerts(siteId)
+  }
+
+  @Post('alerts')
+  createAlert(@Param('siteId') siteId: string, @Body() dto: SupplyAlertDto, @CurrentUser() user: AuthUser) {
+    return this.supply.createAlert(siteId, user.id, dto)
+  }
+
+  @Delete('alerts/:id')
+  @HttpCode(HttpStatus.OK)
+  deleteAlert(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.supply.deleteAlert(siteId, id)
   }
 }

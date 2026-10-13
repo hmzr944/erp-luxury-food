@@ -99,6 +99,17 @@ export interface CatalogItem {
 const base = (siteId: string) => `/sites/${siteId}/supply`
 const json = (method: string, body: unknown) => ({ method, body: JSON.stringify(body) })
 
+export interface SupplyAlert {
+  id: string
+  siteId: string
+  siteName: string
+  day: string
+  productName: string | null
+  reductionPct: number | null
+  message: string
+  createdAt: string
+}
+
 export const supplyApi = {
   settings: (siteId: string, body: { isSupplier?: boolean; orderCutoff?: string; leadDays?: number }) =>
     apiClient(`${base(siteId)}/settings`, json('PATCH', body)),
@@ -111,7 +122,7 @@ export const supplyApi = {
   ) => apiClient<SupplyOrder>(`${base(siteId)}/orders`, json('PUT', body)),
   outgoing: (siteId: string) => apiClient<SupplyOrder[]>(`${base(siteId)}/orders`),
   inbox: (siteId: string) =>
-    apiClient<{ toReceive: SupplyOrder[]; reminders: Array<{ supplierId: string; supplierName: string; deliveryDay: string; cutoffAt: string }> }>(
+    apiClient<{ toReceive: SupplyOrder[]; reminders: Array<{ supplierId: string; supplierName: string; deliveryDay: string; cutoffAt: string }>; alerts: SupplyAlert[] }>(
       `${base(siteId)}/inbox`,
     ),
   receive: (siteId: string, id: string, body: { lines?: Array<{ lineId: string; received: number; issue?: string }>; note?: string }) =>
@@ -120,6 +131,10 @@ export const supplyApi = {
   start: (siteId: string, day: string) => apiClient<{ started: number }>(`${base(siteId)}/production/start`, json('POST', { day })),
   ship: (siteId: string, id: string, lines: Array<{ lineId: string; prepared: number }>) =>
     apiClient<SupplyOrder>(`${base(siteId)}/orders/${id}/ship`, json('POST', { lines })),
+  alerts: (siteId: string) => apiClient<SupplyAlert[]>(`${base(siteId)}/alerts`),
+  createAlert: (siteId: string, body: { cause?: string; productName?: string; reductionPct?: number; message?: string; day?: string }) =>
+    apiClient<SupplyAlert>(`${base(siteId)}/alerts`, json('POST', body)),
+  deleteAlert: (siteId: string, id: string) => apiClient(`${base(siteId)}/alerts/${id}`, { method: 'DELETE' }),
   catalog: (siteId: string) => apiClient<CatalogItem[]>(`${base(siteId)}/catalog`),
   updateCatalog: (siteId: string, productId: string, body: { orderable?: boolean; supplyPrice?: number | null; supplyUnit?: string | null }) =>
     apiClient(`${base(siteId)}/catalog/${productId}`, json('PATCH', body)),

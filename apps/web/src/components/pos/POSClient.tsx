@@ -21,6 +21,9 @@ import { useSaleQueue } from './useSaleQueue'
 import { CustomItemSheet, QuickProductSheet } from './QuickSheets'
 import type { PayLine } from './CreditPayment'
 import { ReturnFinder } from './ReturnFinder'
+import { CashCloseSheet, CashOpenSheet, useCashState } from './CashSheets'
+import { PinPad } from '@/components/auth/PinPad'
+import { useAuthStore } from '@/stores/auth.store'
 
 interface POSClientProps {
   siteId: string
@@ -33,6 +36,13 @@ export function POSClient({ siteId }: POSClientProps) {
   const { data: config } = usePlatformConfig()
   const queue = useSaleQueue(siteId)
   const [terminalName, setTerminalName] = useState<string>()
+  const [terminalId, setTerminalId] = useState<string>()
+  const cash = useCashState(siteId, terminalId, queue.online)
+  const [cashSheet, setCashSheet] = useState<'open' | 'close' | null>(null)
+  const [openDismissed, setOpenDismissed] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [pinError, setPinError] = useState<string | null>(null)
+  const { pinLogin } = useAuthStore()
   const [picking, setPicking] = useState<ApiProduct | null>(null)
   const [paying, setPaying] = useState(false)
   const [ticketOpen, setTicketOpen] = useState(false)
@@ -79,6 +89,7 @@ export function POSClient({ siteId }: POSClientProps) {
     ensureTerminal(siteId)
       .then((t) => {
         setTerminalName(t.name)
+        setTerminalId(t.terminalId)
         queue.flush()
       })
       .catch((e: TerminalNotRegisteredError) => toast.error(e.message))
@@ -164,7 +175,19 @@ export function POSClient({ siteId }: POSClientProps) {
   return (
     <MotionConfig reducedMotion="user">
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
-        <POSHeader siteName={siteName} siteId={siteId} terminalName={terminalName} queue={queue} onReturn={() => setReturning(true)} />
+        <POSHeader
+          siteName={siteName}
+          siteId={siteId}
+          terminalName={terminalName}
+          queue={queue}
+          onReturn={() => setReturning(true)}
+          cashOpen={cash.data ? !!cash.data.session : null}
+          onCash={() => setCashSheet(cash.data?.session ? 'close' : 'open')}
+          onSwitchUser={() => {
+            setPinError(null)
+            setSwitching(true)
+          }}
+        />
 
         <div className="flex min-h-0 flex-1">
           <Catalog
@@ -256,6 +279,47 @@ export function POSClient({ siteId }: POSClientProps) {
             toast.success(`${product.name} ajouté au catalogue`)
           }}
         />
+
+        {terminalId && (
+          <>
+            {/* Ouverture proposée d'office tant que le tiroir n'est pas ouvert */}
+            <CashOpenSheet
+              siteId={siteId}
+              terminalId={terminalId}
+              open={
+                cashSheet === 'open' ||
+                // Proposée d'office le matin, pas juste après la fermeture du soir
+                (!!cash.data &&
+                  !cash.data.session &&
+                  !openDismissed &&
+                  (!cash.data.lastClosedAt || new Date(cash.data.lastClosedAt).toDateString() !== new Date().toDateString()))
+              }
+              onClose={() => {
+                setOpenDismissed(true)
+                setCashSheet(null)
+              }}
+            />
+            <CashCloseSheet siteId={siteId} terminalId={terminalId} open={cashSheet === 'close'} pendingSales={queue.pending} onClose={() => setCashSheet(null)} />
+          </>
+        )}
+
+        <Sheet open={switching} title="Qui encaisse ?" onClose={() => setSwitching(false)}>
+          <div className="pb-4">
+            <PinPad
+              error={pinError}
+              onSubmit={async (pin) => {
+                try {
+                  await pinLogin(siteId, pin)
+                  setSwitching(false)
+                  toast.success(`Bonjour ${useAuthStore.getState().user?.firstName ?? ''}`)
+                } catch (e) {
+                  setPinError((e as Error).message)
+                  throw e
+                }
+              }}
+            />
+          </div>
+        </Sheet>
 
         <ReturnFinder
           siteId={siteId}

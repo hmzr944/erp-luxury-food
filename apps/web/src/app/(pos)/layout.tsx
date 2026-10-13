@@ -1,4 +1,6 @@
-// Layout dédié POS — plein écran, pas de sidebar
+import { WorkspaceGate } from '@/components/layout/WorkspaceGate'
+
+// Caisse : plein écran, pas de barre latérale
 export default function POSLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return <WorkspaceGate workspace="pos">{children}</WorkspaceGate>
 }

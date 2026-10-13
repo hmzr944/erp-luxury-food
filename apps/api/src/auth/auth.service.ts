@@ -1,5 +1,6 @@
 import { TRIAL_DAYS } from '@erp/types'
 import {
+  BadRequestException,
   Injectable,
   UnauthorizedException,
   ConflictException,
@@ -10,6 +11,7 @@ import * as bcrypt from 'bcrypt'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { randomBytes } from 'node:crypto'
 import { PlatformService } from '../platform/platform.service'
+import { PIN_RE, PinAttempts, pinChallenge, pinLookup, randomPin, verifyTerminalSignature } from './pin'
 import type { LoginDto } from './dto/login.dto'
 import type { RegisterDto } from './dto/register.dto'
 
@@ -102,6 +104,70 @@ export class AuthService {
     const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId }
     const accessToken = this.jwt.sign(payload)
     return { accessToken }
+  }
+
+  private pinAttempts = new PinAttempts()
+
+  private get pinSecret() {
+    return this.config.get<string>('PIN_SECRET') ?? this.config.getOrThrow<string>('JWT_SECRET')
+  }
+
+  // Connexion par code vendeur sur une caisse enregistrée. La caisse signe
+  // « pin-login:<caisse>:<heure> » ; le code identifie la personne.
+  async pinLogin(dto: { terminalId: string; signedAt: string; signature: string; pin: string }) {
+    const locked = this.pinAttempts.lockedFor(dto.terminalId)
+    if (locked) throw new UnauthorizedException(`Trop d'essais : caisse bloquée ${locked} min`)
+    const terminal = await this.prisma.terminal.findUnique({
+      where: { id: dto.terminalId },
+      select: { id: true, siteId: true, publicKey: true, isActive: true, site: { select: { organizationId: true } } },
+    })
+    const age = Math.abs(Date.now() - new Date(dto.signedAt).getTime())
+    if (
+      !terminal ||
+      !terminal.isActive ||
+      !(age < 2 * 60_000) ||
+      !(await verifyTerminalSignature(JSON.parse(terminal.publicKey), pinChallenge(terminal.id, dto.signedAt), dto.signature)) ||
+      !this.pinAttempts.firstUse(dto.signature)
+    ) {
+      throw new UnauthorizedException("Cette caisse n'est pas reconnue : connectez-vous avec un e-mail")
+    }
+    const user = PIN_RE.test(dto.pin)
+      ? await this.prisma.user.findUnique({
+          where: { organizationId_pinLookup: { organizationId: terminal.site.organizationId, pinLookup: pinLookup(this.pinSecret, terminal.site.organizationId, dto.pin) } },
+          select: { id: true, email: true, firstName: true, lastName: true, role: true, organizationId: true, sites: { where: { siteId: terminal.siteId }, select: { siteId: true } } },
+        })
+      : null
+    const allowed = user && (user.role === 'OWNER' || user.role === 'MANAGER' || user.sites.length > 0)
+    if (!user || !allowed) {
+      this.pinAttempts.fail(terminal.id)
+      throw new UnauthorizedException(user ? "Ce code n'a pas accès à cette boutique" : 'Code inconnu')
+    }
+    this.pinAttempts.succeed(terminal.id)
+    const { sites: _, ...safeUser } = user
+    return { ...this.issue(safeUser), user: safeUser, siteId: terminal.siteId }
+  }
+
+  // Attribue un code (choisi ou tiré au hasard), unique dans l'organisation
+  async setPin(userId: string, organizationId: string, wanted?: string) {
+    if (wanted !== undefined && !PIN_RE.test(wanted)) throw new BadRequestException('Le code fait 4 chiffres')
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const pin = wanted ?? randomPin()
+      try {
+        await this.prisma.user.update({
+          where: { id: userId, organizationId },
+          data: { pinLookup: pinLookup(this.pinSecret, organizationId, pin), pinSetAt: new Date() },
+        })
+        return { pin }
+      } catch (e) {
+        if ((e as { code?: string }).code !== 'P2002') throw e
+        if (wanted) throw new ConflictException('Ce code est déjà pris dans votre équipe')
+      }
+    }
+    throw new ConflictException('Plus de code libre : retirez ceux des anciens comptes')
+  }
+
+  async clearPin(userId: string, organizationId: string) {
+    await this.prisma.user.update({ where: { id: userId, organizationId }, data: { pinLookup: null, pinSetAt: null } })
   }
 
   async hashPassword(password: string): Promise<string> {

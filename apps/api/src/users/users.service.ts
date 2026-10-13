@@ -15,11 +15,19 @@ export class UsersService {
       where: { organizationId },
       select: {
         id: true, email: true, firstName: true,
-        lastName: true, role: true, createdAt: true,
+        lastName: true, role: true, createdAt: true, pinSetAt: true,
         sites: { select: { siteId: true } },
       },
       orderBy: { firstName: 'asc' },
     })
+  }
+
+  setPin(id: string, organizationId: string, pin?: string) {
+    return this.auth.setPin(id, organizationId, pin)
+  }
+
+  clearPin(id: string, organizationId: string) {
+    return this.auth.clearPin(id, organizationId)
   }
 
   async findMe(userId: string) {

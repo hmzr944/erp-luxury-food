@@ -1,5 +1,16 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
+// Erreur de l'API avec son statut et les champs utiles (ex. écart de caisse)
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: Record<string, unknown>,
+  ) {
+    super(message)
+  }
+}
+
 interface FetchOptions extends RequestInit {
   skipAuth?: boolean
 }
@@ -36,7 +47,7 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message
-    throw new Error(message ?? `HTTP ${res.status}`)
+    throw new ApiError(message ?? `HTTP ${res.status}`, res.status, body ?? {})
   }
 
   // Certaines routes renvoient « rien » (null) : corps vide

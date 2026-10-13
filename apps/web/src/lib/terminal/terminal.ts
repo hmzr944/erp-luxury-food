@@ -195,3 +195,24 @@ export function countSales(siteId: string) {
     db.sales.where('[siteId+status]').equals([siteId, 'rejected']).count(),
   ]).then(([pending, rejected]) => ({ pending, rejected }))
 }
+
+// Connexion par code vendeur : la caisse signe la demande avec sa clé,
+// le serveur sait ainsi que le code est tapé sur une caisse enregistrée
+export async function signPinChallenge(siteId: string) {
+  const terminal = await db.terminals.get(siteId)
+  if (!terminal) throw new TerminalNotRegisteredError()
+  const signedAt = new Date().toISOString()
+  const sig = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    terminal.privateKey,
+    new TextEncoder().encode(`pin-login:${terminal.terminalId}:${signedAt}`),
+  )
+  let b = ''
+  for (const x of new Uint8Array(sig)) b += String.fromCharCode(x)
+  return { terminalId: terminal.terminalId, signedAt, signature: btoa(b) }
+}
+
+// Caisses enregistrées sur cet appareil (une par boutique)
+export async function localTerminals() {
+  return (await db.terminals.toArray()).map((t) => ({ siteId: t.siteId, terminalId: t.terminalId, name: t.name }))
+}

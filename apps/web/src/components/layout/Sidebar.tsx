@@ -81,8 +81,18 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Caisse CTA */}
-      {currentSite && (
+      {/* Passer d'un espace à l'autre en un geste : caisse ou atelier */}
+      {currentSite && sites.find((s) => s.id === currentSite.id) && loaded.data?.find((s) => s.id === currentSite.id)?.isSupplier ? (
+        <div className="px-3 pt-3 pb-1">
+          <Link
+            href={`/atelier/${currentSite.id}`}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-bg-hover)] transition-colors"
+          >
+            <Truck size={14} weight="regular" />
+            <span className="font-body text-[13px]">Ouvrir l&apos;atelier</span>
+          </Link>
+        </div>
+      ) : currentSite && (
         <div className="px-3 pt-3 pb-1">
           <Link
             href={`/pos/${currentSite.id}`}

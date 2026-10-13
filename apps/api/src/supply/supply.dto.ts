@@ -53,3 +53,11 @@ export class ReceiveDto {
 export class StartProductionDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/) day!: string
 }
+
+export class SupplyAlertDto {
+  @IsOptional() @IsString() @MaxLength(80) cause?: string
+  @IsOptional() @IsString() @MaxLength(120) productName?: string
+  @IsOptional() @IsInt() @Min(10) @Max(100) reductionPct?: number
+  @IsOptional() @IsString() @MaxLength(240) message?: string
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) day?: string
+}

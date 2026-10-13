@@ -7,6 +7,8 @@ export interface ApiSite {
   isSupplier?: boolean
   orderCutoff?: string
   leadDays?: number
+  cashFloat?: string | number
+  cashTolerance?: string | number
 }
 
 export const sitesApi = {
