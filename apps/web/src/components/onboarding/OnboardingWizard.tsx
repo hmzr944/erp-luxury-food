@@ -1,221 +1,237 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle, Storefront, Users, Printer, ArrowRight } from '@phosphor-icons/react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { CheckCircle, Plus, Trash } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { apiClient } from '@/lib/api/client'
-import { useSiteStore } from '@/stores/site.store'
+import { SECTOR_PRESETS, type Sector } from '@erp/types'
 import { useAuthStore } from '@/stores/auth.store'
+import { usePlatformConfig } from '@/lib/api/platform'
+import { sitesApi } from '@/lib/api/sites'
+import { productsApi } from '@/lib/api/products'
+import { productsAdminApi } from '@/lib/api/products-admin'
+import { paymentsApi } from '@/lib/api/payments'
 
-const STEPS = [
-  { id: 1, title: 'Votre boutique',   icon: Storefront, description: 'Configurez votre premier point de vente' },
-  { id: 2, title: 'Votre équipe',     icon: Users,      description: 'Invitez vos collaborateurs (optionnel)' },
-  { id: 3, title: 'Impression',       icon: Printer,    description: 'Connectez votre imprimante ticket (optionnel)' },
-  { id: 4, title: "C'est parti !",    icon: CheckCircle, description: 'Votre espace est prêt' },
-]
+// Sans largeur : chaque champ précise la sienne (deux largeurs se contredisent)
+const fieldCls =
+  'h-12 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none'
 
-const inputCls = 'w-full h-10 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 focus:ring-1 focus:ring-[var(--color-accent)]/20 transition-colors'
-
+// Après l'inscription : trois choses à faire, dans l'ordre qu'on veut,
+// chacune facultative. La caisse est utilisable dès maintenant.
 export function OnboardingWizard() {
   const router = useRouter()
-  const { setSites, selectSite } = useSiteStore()
+  const params = useSearchParams()
   const { user } = useAuthStore()
+  const { data: config } = usePlatformConfig()
+  const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.getAll })
+  const siteId = params.get('site') ?? sites[0]?.id ?? ''
+  const sector = config?.sector as Sector | undefined
 
-  const [step, setStep] = useState(1)
-  const [loading, setLoading] = useState(false)
+  return (
+    <main className="min-h-[100dvh] bg-[var(--color-bg-base)] px-4 py-10 text-[var(--color-text-primary)]">
+      <div className="mx-auto max-w-2xl space-y-8">
+        <header className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Bienvenue{user?.firstName ? `, ${user.firstName}` : ''}. Votre caisse est prête.
+          </h1>
+          <p className="text-[15px] text-[var(--color-text-secondary)]">
+            {sector ? `Réglages ${SECTOR_PRESETS[sector].label.toLowerCase()} appliqués : TVA, moyens de paiement et fiches produit. ` : ''}
+            Tout se modifie ensuite dans les paramètres.
+          </p>
+        </header>
 
-  const [siteData, setSiteData] = useState({ name: '', address: '' })
-  const [createdSiteId, setCreatedSiteId] = useState<string | null>(null)
+        {siteId && <ProductsStep siteId={siteId} defaultRate={Number(config?.taxRates.find((t) => t.isDefault)?.rate ?? 20)} />}
+        {siteId && <PaymentStep siteId={siteId} />}
 
-  const handleCreateSite = async () => {
-    if (!siteData.name.trim()) { toast.error('Nommez votre boutique'); return }
-    setLoading(true)
+        <section className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5">
+          <h2 className="text-lg font-semibold">3. Ouvrir la caisse</h2>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Sur la tablette ou le téléphone de la boutique, connectez-vous avec ce compte : l&apos;appareil devient une caisse.
+          </p>
+          <button
+            type="button"
+            disabled={!siteId}
+            onClick={() => {
+              localStorage.setItem('erp-onboarded', 'true')
+              router.push(`/pos/${siteId}`)
+            }}
+            className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-50"
+          >
+            Ouvrir la caisse
+          </button>
+          <Link href="/dashboard" className="block h-11 content-center text-center text-sm font-medium text-[var(--color-text-secondary)]">
+            Aller au back-office
+          </Link>
+        </section>
+      </div>
+    </main>
+  )
+}
+
+function ProductsStep({ siteId, defaultRate }: { siteId: string; defaultRate: number }) {
+  const qc = useQueryClient()
+  const products = useQuery({ queryKey: ['products', siteId], queryFn: () => productsApi.getAll(siteId) })
+  const [rows, setRows] = useState([
+    { name: '', price: '' },
+    { name: '', price: '' },
+    { name: '', price: '' },
+  ])
+  const [saving, setSaving] = useState(false)
+  const count = products.data?.length ?? 0
+  const ready = rows.filter((r) => r.name.trim() && Number(r.price.replace(',', '.')) > 0)
+
+  const save = async () => {
+    setSaving(true)
     try {
-      const site = await apiClient<{ id: string; name: string }>('/sites', {
-        method: 'POST',
-        body: JSON.stringify(siteData),
-      })
-      setCreatedSiteId(site.id)
-      setSites([{ id: site.id, name: site.name, timezone: 'Europe/Paris' }])
-      selectSite({ id: site.id, name: site.name, timezone: 'Europe/Paris' })
-      setStep(2)
-    } catch (err: any) {
-      toast.error(err.message ?? 'Erreur lors de la création')
+      for (const r of ready) {
+        await productsAdminApi.create(siteId, { name: r.name.trim(), price: Number(r.price.replace(',', '.')), taxRate: defaultRate })
+      }
+      toast.success(`${ready.length} ${ready.length > 1 ? 'produits ajoutés' : 'produit ajouté'}`)
+      setRows([{ name: '', price: '' }])
+      await qc.invalidateQueries({ queryKey: ['products', siteId] })
+    } catch (e) {
+      toast.error((e as Error).message)
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleFinish = () => {
-    localStorage.setItem('erp-onboarded', 'true')
-    if (createdSiteId) {
-      router.push(`/pos/${createdSiteId}`)
-    } else {
-      router.push('/dashboard')
+      setSaving(false)
     }
   }
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-[var(--color-bg-base)] px-4">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md"
+    <section className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="text-lg font-semibold">1. Vos produits</h2>
+        {count > 0 && (
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <CheckCircle size={18} weight="fill" aria-hidden className="text-[var(--color-accent)]" />
+            {count} au catalogue
+          </p>
+        )}
+      </div>
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        Saisissez vos meilleures ventes, un nom et un prix suffisent. Le reste viendra en caisse : scannez un code-barres pour
+        créer un produit, ou vendez en « Article libre ».
+      </p>
+      <form
+        className="space-y-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (ready.length) void save()
+        }}
       >
-        {/* Brand */}
-        <p className="font-display text-2xl text-center text-[var(--color-text-primary)] mb-2">
-          Bienvenue{user?.firstName ? `, ${user.firstName}` : ''}
-        </p>
-        <p className="font-body text-sm text-center text-[var(--color-text-muted)] mb-8">
-          Configurez votre espace en quelques minutes
-        </p>
-
-        {/* Progress */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {STEPS.map((s) => (
-            <div key={s.id} className="flex items-center gap-2">
-              <div
-                className={[
-                  'w-6 h-6 rounded-full flex items-center justify-center font-data text-[10px] transition-all',
-                  s.id < step
-                    ? 'bg-[var(--color-success)] text-[var(--color-on-accent)]'
-                    : s.id === step
-                    ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
-                    : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] border border-[var(--color-border)]',
-                ].join(' ')}
+        {rows.map((r, i) => (
+          <div key={i} className="flex gap-2">
+            <label className="sr-only" htmlFor={`p-name-${i}`}>
+              Produit {i + 1}
+            </label>
+            <input
+              id={`p-name-${i}`}
+              placeholder="Nom"
+              value={r.name}
+              onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+              className={fieldCls + ' min-w-0 flex-1'}
+            />
+            <label className="sr-only" htmlFor={`p-price-${i}`}>
+              Prix du produit {i + 1}
+            </label>
+            <input
+              id={`p-price-${i}`}
+              placeholder="Prix"
+              inputMode="decimal"
+              value={r.price}
+              onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))}
+              className={fieldCls + ' tabular w-24 shrink-0 text-right'}
+            />
+            {rows.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setRows(rows.filter((_, j) => j !== i))}
+                aria-label={`Retirer la ligne ${i + 1}`}
+                className="grid size-12 shrink-0 place-items-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]"
               >
-                {s.id < step ? <CheckCircle size={12} weight="bold" /> : s.id}
-              </div>
-              {s.id < STEPS.length && (
-                <div className={['w-8 h-px', s.id < step ? 'bg-[var(--color-success)]' : 'bg-[var(--color-border)]'].join(' ')} />
-              )}
-            </div>
-          ))}
+                <Trash size={18} />
+              </button>
+            )}
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button
+            type="button"
+            onClick={() => setRows([...rows, { name: '', price: '' }])}
+            className="flex h-11 items-center gap-1.5 text-sm font-medium text-[var(--color-accent)]"
+          >
+            <Plus size={16} aria-hidden /> Une ligne
+          </button>
+          <button
+            type="submit"
+            disabled={!ready.length || saving}
+            className="ml-auto h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:opacity-40"
+          >
+            {saving ? 'Ajout...' : ready.length > 1 ? `Ajouter ces ${ready.length} produits` : 'Ajouter ce produit'}
+          </button>
         </div>
+      </form>
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        Un catalogue existant (Excel, autre caisse)&nbsp;?{' '}
+        <Link href="/settings/data" className="font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
+          Importez-le en une fois
+        </Link>
+        , tailles et couleurs comprises.
+      </p>
+    </section>
+  )
+}
 
-        <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-xl)] p-6">
-          <AnimatePresence mode="wait">
-            {step === 1 && (
-              <motion.div
-                key="step1"
-                initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
-                className="space-y-4"
-              >
-                <p className="font-body text-base font-semibold text-[var(--color-text-primary)]">
-                  Votre boutique
-                </p>
-                <div className="space-y-3">
-                  <input
-                    value={siteData.name}
-                    onChange={(e) => setSiteData({ ...siteData, name: e.target.value })}
-                    className={inputCls} placeholder="ex. Boutique Chocolat Paris 8e"
-                    onKeyDown={(e) => e.key === 'Enter' && handleCreateSite()}
-                    autoFocus
-                  />
-                  <input
-                    value={siteData.address}
-                    onChange={(e) => setSiteData({ ...siteData, address: e.target.value })}
-                    className={inputCls} placeholder="Adresse (optionnel)"
-                  />
-                </div>
-                <motion.button
-                  onClick={handleCreateSite}
-                  disabled={loading || !siteData.name.trim()}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
-                >
-                  {loading ? 'Création...' : <>Continuer <ArrowRight size={14} weight="bold" /></>}
-                </motion.button>
-              </motion.div>
-            )}
+function PaymentStep({ siteId }: { siteId: string }) {
+  const qc = useQueryClient()
+  const devices = useQuery({ queryKey: ['payment-devices', siteId], queryFn: () => paymentsApi.devices(siteId) })
+  const [adding, setAdding] = useState(false)
+  const linked = devices.data ?? []
 
-            {step === 2 && (
-              <motion.div
-                key="step2"
-                initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
-                className="space-y-4"
-              >
-                <p className="font-body text-base font-semibold text-[var(--color-text-primary)]">
-                  Votre équipe
-                </p>
-                <p className="font-body text-sm text-[var(--color-text-muted)]">
-                  Vous pouvez inviter vos vendeurs depuis Paramètres / Équipe à tout moment.
-                </p>
-                <motion.button
-                  onClick={() => setStep(3)}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] flex items-center justify-center gap-2 transition-all"
-                >
-                  Continuer <ArrowRight size={14} weight="bold" />
-                </motion.button>
-              </motion.div>
-            )}
-
-            {step === 3 && (
-              <motion.div
-                key="step3"
-                initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
-                className="space-y-4"
-              >
-                <p className="font-body text-base font-semibold text-[var(--color-text-primary)]">
-                  Impression thermique
-                </p>
-                <p className="font-body text-sm text-[var(--color-text-muted)]">
-                  Connectez une imprimante Epson ou Star via PrintNode. Cette étape peut être
-                  configurée plus tard dans Paramètres / Impression.
-                </p>
-                <motion.button
-                  onClick={() => setStep(4)}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] flex items-center justify-center gap-2 transition-all"
-                >
-                  Continuer <ArrowRight size={14} weight="bold" />
-                </motion.button>
-              </motion.div>
-            )}
-
-            {step === 4 && (
-              <motion.div
-                key="step4"
-                initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center gap-4 py-4"
-              >
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.1 }}
-                >
-                  <CheckCircle size={48} weight="fill" className="text-[var(--color-success)]" />
-                </motion.div>
-
-                <div className="text-center space-y-1">
-                  <p className="font-body text-base font-semibold text-[var(--color-text-primary)]">
-                    Votre espace est prêt
-                  </p>
-                  <p className="font-body text-sm text-[var(--color-text-muted)]">
-                    Ouvrez la caisse pour commencer à vendre.
-                  </p>
-                </div>
-
-                <motion.button
-                  onClick={handleFinish}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
-                >
-                  Ouvrir la caisse
-                </motion.button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <p className="text-center mt-4 font-body text-xs text-[var(--color-text-muted)]">
-          Étape {step} sur {STEPS.length}
-        </p>
-      </motion.div>
-    </div>
+  return (
+    <section className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="text-lg font-semibold">2. Paiement par carte</h2>
+        {linked.length > 0 && (
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <CheckCircle size={18} weight="fill" aria-hidden className="text-[var(--color-accent)]" />
+            {linked.map((d) => d.name).join(', ')}
+          </p>
+        )}
+      </div>
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        Avec un TPE relié, la caisse lui envoie le montant et la vente se ferme seule. Sans TPE relié, encaissez sur votre TPE
+        habituel puis touchez « Carte ».
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {!linked.some((d) => d.provider === 'SIMULATOR') && (
+          <button
+            type="button"
+            disabled={adding}
+            onClick={async () => {
+              setAdding(true)
+              try {
+                await paymentsApi.pair(siteId, { provider: 'SIMULATOR', name: 'TPE virtuel' })
+                await qc.invalidateQueries({ queryKey: ['payment-devices', siteId] })
+              } catch (e) {
+                toast.error((e as Error).message)
+              } finally {
+                setAdding(false)
+              }
+            }}
+            className="h-12 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-4 text-[15px] font-medium hover:border-[var(--color-accent)]"
+          >
+            Essayer avec un TPE virtuel
+          </button>
+        )}
+        <Link
+          href="/settings/payments"
+          className="h-12 content-center rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-4 text-[15px] font-medium hover:border-[var(--color-accent)]"
+        >
+          Relier mon TPE (SumUp, Stripe)
+        </Link>
+      </div>
+    </section>
   )
 }

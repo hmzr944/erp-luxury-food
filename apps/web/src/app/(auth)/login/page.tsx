@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeSlash, Warning } from '@phosphor-icons/react'
 import { useAuthStore } from '@/stores/auth.store'
@@ -148,6 +149,13 @@ export default function LoginPage() {
             </motion.button>
           </form>
         </motion.div>
+
+        <p className="mt-6 text-center text-sm text-[var(--color-text-secondary)]">
+          Nouveau commerce&nbsp;?{' '}
+          <Link href="/inscription" className="font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
+            Créer mon espace
+          </Link>
+        </p>
 
       </motion.div>
     </div>

@@ -13,6 +13,16 @@ interface AuthUser {
   organizationId: string
 }
 
+export interface RegisterInput {
+  sector: string
+  businessName: string
+  siteName?: string
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+}
+
 interface AuthState {
   user: AuthUser | null
   accessToken: string | null
@@ -20,6 +30,7 @@ interface AuthState {
   isLoading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<void>
+  register: (data: RegisterInput) => Promise<{ siteId: string }>
   logout: () => void
   clearError: () => void
 }
@@ -62,6 +73,23 @@ export const useAuthStore = create<AuthState>()(
             error: err instanceof Error ? err.message : 'Identifiants invalides',
             isLoading: false,
           })
+          throw err
+        }
+      },
+
+      register: async (input) => {
+        set({ isLoading: true, error: null })
+        try {
+          const data = await apiClient<{ accessToken: string; refreshToken: string; user: AuthUser; siteId: string }>(
+            '/auth/register',
+            { method: 'POST', body: JSON.stringify(input), skipAuth: true },
+          )
+          localStorage.setItem('access_token', data.accessToken)
+          localStorage.setItem('refresh_token', data.refreshToken)
+          set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true, isLoading: false })
+          return { siteId: data.siteId }
+        } catch (err) {
+          set({ error: err instanceof Error ? err.message : 'Inscription impossible', isLoading: false })
           throw err
         }
       },

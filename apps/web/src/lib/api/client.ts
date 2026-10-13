@@ -18,7 +18,8 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
     },
   })
 
-  if (res.status === 401) {
+  // Connexion, inscription : un 401 veut dire « identifiants refusés », pas « session expirée »
+  if (res.status === 401 && !skipAuth) {
     // Tentative de refresh automatique
     const refreshed = await tryRefresh()
     if (refreshed) {

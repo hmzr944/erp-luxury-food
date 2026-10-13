@@ -1,10 +1,13 @@
 import { Controller, Post, Body, UseGuards, Req, HttpCode, HttpStatus } from '@nestjs/common'
-import { Throttle } from '@nestjs/throttler'
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler'
+import { RegisterDto } from './dto/register.dto'
 import { AuthService } from './auth.service'
 import { LoginDto } from './dto/login.dto'
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard'
 
+// Limite les tentatives (mots de passe, inscriptions en masse)
 @Controller('auth')
+@UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(private auth: AuthService) {}
 
@@ -13,6 +16,12 @@ export class AuthController {
   @Throttle({ auth: { limit: 20, ttl: 60_000 } })
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto)
+  }
+
+  @Post('register')
+  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
+  register(@Body() dto: RegisterDto) {
+    return this.auth.register(dto)
   }
 
   @Post('refresh')
