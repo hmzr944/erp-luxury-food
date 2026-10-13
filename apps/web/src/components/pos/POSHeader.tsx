@@ -6,15 +6,17 @@ import { useRouter } from 'next/navigation'
 import { ArrowUUpLeft, CaretLeft, CloudCheck, CloudSlash, WarningCircle, SignOut } from '@phosphor-icons/react'
 import { useAuthStore } from '@/stores/auth.store'
 import type { SaleQueueState } from './useSaleQueue'
+import { SupplyButton } from './SupplyButton'
 
 interface POSHeaderProps {
   siteName: string
   terminalName?: string
+  siteId: string
   queue: SaleQueueState
   onReturn: () => void
 }
 
-export function POSHeader({ siteName, terminalName, queue, onReturn }: POSHeaderProps) {
+export function POSHeader({ siteName, siteId, terminalName, queue, onReturn }: POSHeaderProps) {
   const { user, logout } = useAuthStore()
   const router = useRouter()
   const time = useClock()
@@ -38,6 +40,8 @@ export function POSHeader({ siteName, terminalName, queue, onReturn }: POSHeader
       </div>
 
       <SyncStatus queue={queue} />
+
+      {queue.online && <SupplyButton siteId={siteId} />}
 
       <button
         type="button"

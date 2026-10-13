@@ -11,6 +11,7 @@ import chocolats from '../../../public/site/chocolats.jpg'
 import bijoux from '../../../public/site/bijoux.jpg'
 import cave from '../../../public/site/cave.jpg'
 import fleuriste from '../../../public/site/fleuriste.jpg'
+import labo from '../../../public/site/labo.webp'
 
 const h2 = 'text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-[1.05] tracking-[-0.03em]'
 const lead = 'text-[17px] leading-relaxed text-[var(--color-text-secondary)]'
@@ -181,6 +182,57 @@ export function Payment() {
   )
 }
 
+const SUPPLY = [
+  {
+    title: 'La boutique commande depuis la caisse',
+    text: "Le bon arrive pré-rempli : les ventes des quatre derniers mêmes jours de semaine, une marge de 10 %, moins le stock. On ajuste au pouce, on envoie.",
+  },
+  {
+    title: 'Le labo voit le total à produire',
+    text: 'Toutes les boutiques additionnées, avec le détail de chacune, et la liste de celles qui n’ont pas encore commandé avant la clôture.',
+  },
+  {
+    title: 'Un manque est annoncé avant le camion',
+    text: '100 croissants préparés au lieu de 120 : la boutique le lit sur sa caisse. À l’arrivée, « Tout réceptionné » crédite son stock.',
+  },
+]
+
+export function Supply() {
+  return (
+    <section aria-labelledby="appro-title" className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
+      <div className="max-w-2xl">
+        <h2 id="appro-title" className={h2}>
+          Les boutiques commandent au labo depuis la caisse.
+        </h2>
+        <p className={`mt-4 ${lead}`}>
+          Pâtisseries qui se fournissent à leur laboratoire, magasins réassortis par leur dépôt : la commande interne quitte les e-mails, les
+          tableurs et les appels pendant le coup de feu. Inclus dans Tempo.
+        </p>
+      </div>
+      <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] lg:items-start lg:gap-14">
+        <ol className="border-t border-[var(--color-border-strong)]">
+          {SUPPLY.map((s, i) => (
+            <li key={s.title} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-5">
+              <span className="tabular text-xl font-semibold text-[var(--color-accent)]">{i + 1}</span>
+              <div>
+                <h3 className="text-xl font-semibold tracking-tight">{s.title}</h3>
+                <p className="mt-1.5 text-[16px] leading-relaxed text-[var(--color-text-secondary)]">{s.text}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <Image
+          src={labo}
+          alt="Écran du laboratoire : 220 croissants, 7,5 kg de pâte à choux et 34 tartes citron à produire, avec le détail par boutique et la préparation des colis."
+          placeholder="blur"
+          sizes="(min-width: 1152px) 640px, (min-width: 1024px) 58vw, 100vw"
+          className="w-full rounded-[var(--radius-xl)] border border-[var(--color-border)] shadow-[0_30px_80px_-40px_color-mix(in_srgb,var(--base-ink)_45%,transparent)]"
+        />
+      </div>
+    </section>
+  )
+}
+
 const START = [
   { title: 'Créez votre compte', text: "Trois questions : votre métier, le nom de votre commerce, votre e-mail. La caisse est prête à l'écran suivant." },
   { title: 'Ajoutez vos produits', text: 'Un nom et un prix suffisent. Ou importez votre catalogue en CSV, ou scannez les codes-barres en caisse au fil des ventes.' },
@@ -240,7 +292,7 @@ export function Pricing() {
               ].join(' ')}
             >
               <h3 className="text-2xl font-semibold tracking-tight">{p.name}</h3>
-              <p className="mt-1 text-[16px] text-[var(--color-text-secondary)]">{p.summary}</p>
+              <p className="mt-1 text-[16px] text-[var(--color-text-secondary)] md:min-h-12">{p.summary}</p>
               <p className="mt-6 flex items-baseline gap-2">
                 <span className="tabular text-5xl font-semibold tracking-tight">{p.monthlyPrice} €</span>
                 <span className="text-[15px] text-[var(--color-text-secondary)]">HT par boutique et par mois</span>

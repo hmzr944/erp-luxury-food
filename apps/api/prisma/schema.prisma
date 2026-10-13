@@ -84,21 +84,29 @@ model InvoiceSequence {
 }
 
 model Site {
-  id             String          @id @default(cuid())
-  organizationId String
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name           String
-  address        String?
-  timezone       String          @default("Europe/Paris")
-  users          UserSite[]
-  receiptChains  ReceiptChain[]
-  terminals      Terminal[]
-  paymentDevices PaymentDevice[]
-  categories     Category[]
-  products       Product[]
-  orders         Order[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id              String          @id @default(cuid())
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  address         String?
+  timezone        String          @default("Europe/Paris")
+  // Approvisionnement interne : un labo, une cuisine centrale ou un dépôt
+  // fournit les autres sites de l'organisation
+  isSupplier      Boolean         @default(false)
+  // Heure limite (heure locale « HH:MM ») pour une livraison dans leadDays jours
+  orderCutoff     String          @default("18:00")
+  leadDays        Int             @default(1)
+  supplyOrdersOut SupplyOrder[]   @relation("SupplyFrom")
+  supplyOrdersIn  SupplyOrder[]   @relation("SupplyTo")
+  users           UserSite[]
+  receiptChains   ReceiptChain[]
+  terminals       Terminal[]
+  paymentDevices  PaymentDevice[]
+  categories      Category[]
+  products        Product[]
+  orders          Order[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@index([organizationId])
 }
@@ -201,6 +209,10 @@ model Product {
   tracking    TrackingMode      @default(NONE)
   // Produit technique « Article libre » du site : nom et prix saisis en caisse
   isCustom    Boolean           @default(false)
+  // Produit d'un labo ou d'un dépôt proposé aux boutiques, à son prix de cession
+  orderable   Boolean           @default(false)
+  supplyPrice Decimal?          @db.Decimal(10, 2)
+  supplyUnit  String? // « pièce », « kg », « bac de 12 »
   lots        StockLot[]
   isActive    Boolean           @default(true)
   imageUrl    String?
@@ -766,4 +778,63 @@ model StoreCreditRedemption {
   createdAt DateTime    @default(now())
 
   @@index([creditId])
+}
+
+// ============================================================
+// Approvisionnement interne : boutique → labo / dépôt
+// ============================================================
+
+enum SupplyStatus {
+  DRAFT // préparée par la boutique, pas encore envoyée
+  SENT // reçue par le labo, modifiable par la boutique jusqu'à la clôture
+  IN_PRODUCTION
+  SHIPPED // colis prêts, quantités préparées connues
+  RECEIVED
+  CANCELLED
+}
+
+// Une commande par boutique, par fournisseur et par jour de livraison
+model SupplyOrder {
+  id             String            @id @default(cuid())
+  organizationId String
+  number         Int // numéro lisible, par organisation
+  fromSiteId     String // boutique qui commande
+  fromSite       Site              @relation("SupplyFrom", fields: [fromSiteId], references: [id])
+  toSiteId       String // labo ou dépôt
+  toSite         Site              @relation("SupplyTo", fields: [toSiteId], references: [id])
+  deliveryDate   DateTime          @db.Date
+  status         SupplyStatus      @default(DRAFT)
+  note           String?
+  receiptNote    String?
+  sentAt         DateTime?
+  productionAt   DateTime?
+  shippedAt      DateTime?
+  receivedAt     DateTime?
+  createdById    String?
+  lines          SupplyOrderLine[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([fromSiteId, toSiteId, deliveryDate])
+  @@unique([organizationId, number])
+  @@index([toSiteId, deliveryDate])
+}
+
+model SupplyOrderLine {
+  id          String      @id @default(cuid())
+  orderId     String
+  order       SupplyOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String // produit du labo
+  variantId   String?
+  name        String
+  variantName String?
+  unit        String?
+  unitPrice   Decimal?    @db.Decimal(10, 2) // prix de cession au moment de la commande
+  suggested   Decimal?    @db.Decimal(10, 3)
+  ordered     Decimal     @db.Decimal(10, 3)
+  prepared    Decimal?    @db.Decimal(10, 3)
+  received    Decimal?    @db.Decimal(10, 3)
+  issue       String? // « 2 abîmées pendant le transport »
+
+  @@unique([orderId, productId, variantId])
 }

@@ -17,7 +17,7 @@ export interface PlanOffer {
 export const PLAN_OFFERS: PlanOffer[] = [
   {
     code: 'STARTER',
-    name: 'Boutique',
+    name: 'Pulse',
     monthlyPrice: 29,
     summary: 'Tout pour vendre et suivre une boutique.',
     features: [
@@ -31,12 +31,14 @@ export const PLAN_OFFERS: PlanOffer[] = [
   },
   {
     code: 'PRO',
-    name: 'Réseau',
+    name: 'Tempo',
     monthlyPrice: 59,
-    summary: 'Pour plusieurs boutiques et la vente aux professionnels.',
+    summary: 'Pour plusieurs boutiques, un labo ou un dépôt, et la vente aux professionnels.',
     features: [
-      'Tout ce que contient Boutique',
+      'Tout ce que contient Pulse',
       'Plusieurs boutiques dans un seul compte',
+      'Commandes internes à un labo, une cuisine centrale ou un dépôt',
+      'Cessions internes au prix de cession, mois par mois',
       'Clients professionnels et factures',
       'Accès API et webhooks',
     ],

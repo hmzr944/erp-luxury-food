@@ -14,6 +14,7 @@ import {
   Buildings,
   Gear,
   ArrowsLeftRight,
+  Truck,
 } from '@phosphor-icons/react'
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
@@ -25,6 +26,7 @@ import { useBilling } from '@/lib/api/billing'
 const NAV = [
   { href: '/dashboard',  icon: ChartLine,   label: 'Dashboard' },
   { href: '/orders',     icon: ListChecks,  label: 'Commandes' },
+  { href: '/supply',     icon: Truck,       label: 'Approvisionnement' },
   { href: '/invoices',   icon: Receipt,     label: 'Factures' },
   { href: '/clients',    icon: Buildings,   label: 'Clients B2B' },
   { href: '/products',   icon: Package,     label: 'Catalogue' },
@@ -52,7 +54,7 @@ export function Sidebar() {
       {/* Brand + site selector */}
       <div className="px-4 py-4 border-b border-[var(--color-border)]">
         <p className="font-display text-sm text-[var(--color-text-primary)] leading-tight mb-2 truncate">
-          {currentSite?.name ?? 'Comptoir'}
+          {currentSite?.name ?? 'FLŌW'}
         </p>
 
         {sites.length > 1 && (

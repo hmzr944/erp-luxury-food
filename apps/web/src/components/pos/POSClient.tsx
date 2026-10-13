@@ -164,7 +164,7 @@ export function POSClient({ siteId }: POSClientProps) {
   return (
     <MotionConfig reducedMotion="user">
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
-        <POSHeader siteName={siteName} terminalName={terminalName} queue={queue} onReturn={() => setReturning(true)} />
+        <POSHeader siteName={siteName} siteId={siteId} terminalName={terminalName} queue={queue} onReturn={() => setReturning(true)} />
 
         <div className="flex min-h-0 flex-1">
           <Catalog

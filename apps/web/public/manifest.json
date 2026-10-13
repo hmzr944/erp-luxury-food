@@ -1,6 +1,6 @@
 {
-  "name": "Comptoir",
-  "short_name": "Comptoir",
+  "name": "FLŌW",
+  "short_name": "FLŌW",
   "description": "Caisse et gestion pour les commerces",
   "start_url": "/login",
   "display": "standalone",

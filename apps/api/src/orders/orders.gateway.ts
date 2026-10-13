@@ -57,4 +57,10 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   emitOrderUpdated(payload: { siteId: string; order: unknown }) {
     this.server.to(payload.siteId).emit('order:updated', payload.order)
   }
+
+  // Approvisionnement interne : la boutique et le labo voient le changement
+  @OnEvent('supply.updated')
+  emitSupplyUpdated(payload: { siteIds: string[]; orderId: string; status: string }) {
+    for (const siteId of payload.siteIds) this.server.to(siteId).emit('supply:updated', payload)
+  }
 }

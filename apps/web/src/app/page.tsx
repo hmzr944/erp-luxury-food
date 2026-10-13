@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { SiteHeader } from '@/components/site/SiteHeader'
 import { GesturesDemo } from '@/components/site/GesturesDemo'
-import { Choices, Faq, FinalCall, Hero, Payment, Pricing, Sectors, SiteFooter, Start } from '@/components/site/Sections'
+import { Choices, Faq, FinalCall, Hero, Payment, Pricing, Sectors, SiteFooter, Start, Supply } from '@/components/site/Sections'
 import { BRAND } from '@/lib/brand'
 
 export const metadata: Metadata = {
@@ -27,6 +27,7 @@ export default function HomePage() {
         <Choices />
         <Payment />
         <Sectors />
+        <Supply />
         <Start />
         <Pricing />
         <Faq />

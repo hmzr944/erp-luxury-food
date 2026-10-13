@@ -1,3 +1,4 @@
+import { SupplyModule } from './supply/supply.module'
 import { BillingModule } from './billing/billing.module'
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
@@ -70,6 +71,7 @@ import { HealthController } from './health/health.controller'
     WebhooksModule,
     InvoicesModule,
     BillingModule,
+    SupplyModule,
     PlatformModule,
     TerminalsModule,
     DataModule,
