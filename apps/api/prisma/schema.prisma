@@ -84,6 +84,7 @@ model Site {
   timezone       String         @default("Europe/Paris")
   users          UserSite[]
   receiptChains  ReceiptChain[]
+  terminals      Terminal[]
   categories     Category[]
   products       Product[]
   orders         Order[]
@@ -125,18 +126,29 @@ model UserSite {
 // ============================================================
 
 model ReceiptChain {
-  id           String   @id @default(cuid())
-  siteId       String
-  site         Site     @relation(fields: [siteId], references: [id])
-  counter      Int
-  hash         String // SHA-256(previousHash|total|signedAt|counter)
-  previousHash String // "0"×64 pour le premier ticket
-  total        Decimal  @db.Decimal(10, 2) // calculé serveur uniquement
-  signedAt     DateTime @default(now())
+  id                   String    @id @default(cuid())
+  siteId               String
+  site                 Site      @relation(fields: [siteId], references: [id])
+  counter              Int
+  hash                 String // SHA-256(previousHash|total|signedAt|counter)
+  previousHash         String // "0"×64 pour le premier ticket
+  total                Decimal   @db.Decimal(10, 2) // calculé serveur uniquement
+  signedAt             DateTime  @default(now())
   // Lien vers la commande (FK sur Order — pas sur ReceiptChain)
-  order        Order?
+  order                Order?
+  // Ticket signé par la caisse au moment de la vente (en ligne ou non).
+  // La chaîne du site est prolongée à la synchronisation ; la chaîne de la
+  // caisse est vérifiée puis conservée telle quelle.
+  terminalId           String?
+  terminal             Terminal? @relation(fields: [terminalId], references: [id], onDelete: Restrict)
+  terminalCounter      Int?
+  terminalHash         String?
+  terminalPreviousHash String?
+  terminalSignature    String? // ECDSA P-256 (r||s) en base64
+  terminalSignedAt     DateTime?
 
   @@unique([siteId, counter])
+  @@unique([terminalId, terminalCounter])
   @@index([siteId])
 }
 
@@ -238,6 +250,12 @@ model Order {
   invoicedAt     DateTime?
   receiptChainId String?        @unique
   receiptChain   ReceiptChain?  @relation(fields: [receiptChainId], references: [id])
+  // Identifiant généré par la caisse : une vente renvoyée deux fois
+  // (coupure réseau pendant l'envoi) n'est enregistrée qu'une fois
+  clientId       String?        @unique
+  // Heure réelle de la vente (diffère de createdAt pour une vente hors
+  // ligne synchronisée après la clôture du jour)
+  soldAt         DateTime?
   // Paiements détaillés (paiement fractionné, moyens configurables)
   payments       OrderPayment[]
   createdAt      DateTime       @default(now())
@@ -596,4 +614,24 @@ model OrderPayment {
   createdAt DateTime    @default(now())
 
   @@index([orderId])
+}
+
+// ============================================================
+// CAISSES — signature locale des tickets (hors ligne inclus)
+// ============================================================
+
+model Terminal {
+  id         String         @id @default(cuid())
+  siteId     String
+  site       Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name       String
+  // Clé publique ECDSA P-256 (JWK) ; la clé privée ne quitte jamais l'appareil
+  publicKey  String
+  isActive   Boolean        @default(true)
+  createdBy  String?
+  createdAt  DateTime       @default(now())
+  lastSeenAt DateTime?
+  receipts   ReceiptChain[]
+
+  @@index([siteId])
 }

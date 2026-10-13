@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { POSHeader } from './POSHeader'
@@ -10,6 +10,7 @@ import { Cart } from './Cart'
 import { CheckoutModal } from './CheckoutModal'
 import { productsApi, type ApiProduct } from '@/lib/api/products'
 import { useCartStore } from '@/stores/cart.store'
+import { ensureTerminal, flushSales } from '@/lib/terminal/terminal'
 
 interface POSClientProps {
   siteId: string
@@ -21,6 +22,21 @@ export function POSClient({ siteId, siteName }: POSClientProps) {
   const [checkoutOpen, setCheckoutOpen] = useState(false)
 
   const { addProduct } = useCartStore()
+
+  // Enregistre cet appareil comme caisse, puis envoie les ventes en attente
+  // au démarrage, au retour du réseau et toutes les 30 secondes
+  useEffect(() => {
+    ensureTerminal(siteId)
+      .then(() => flushSales(siteId))
+      .catch((e: Error) => toast.error(e.message))
+    const flush = () => void flushSales(siteId).catch(() => {})
+    window.addEventListener('online', flush)
+    const timer = window.setInterval(flush, 30_000)
+    return () => {
+      window.removeEventListener('online', flush)
+      window.clearInterval(timer)
+    }
+  }, [siteId])
 
   const { data: products = [], isLoading: loadingProducts } = useQuery({
     queryKey: ['products', siteId],

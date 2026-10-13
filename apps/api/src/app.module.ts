@@ -20,6 +20,7 @@ import { ApiTokensModule } from './api-tokens/api-tokens.module'
 import { WebhooksModule } from './webhooks/webhooks.module'
 import { InvoicesModule } from './invoices/invoices.module'
 import { PlatformModule } from './platform/platform.module'
+import { TerminalsModule } from './terminals/terminals.module'
 import { HealthController } from './health/health.controller'
 
 @Module({
@@ -66,6 +67,7 @@ import { HealthController } from './health/health.controller'
     WebhooksModule,
     InvoicesModule,
     PlatformModule,
+    TerminalsModule,
   ],
 })
 export class AppModule {}

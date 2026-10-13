@@ -105,4 +105,15 @@ describe('buildOrderDraft', () => {
       buildOrderDraft(base({ items: [{ productId: 'pull', variantId: 'pull-s', quantity: 1 }], paymentMode: 'TICKET_RESTO' })),
     ).toThrow('Moyen de paiement inconnu')
   })
+  it('vente signée : garde le prix du ticket et signale l\'écart avec le catalogue', () => {
+    const d = buildOrderDraft(
+      base({
+        useSignedPrices: true,
+        items: [{ productId: 'pull', variantId: 'pull-s', quantity: 1, unitPrice: 250, taxRate: 20 }],
+        payments: [{ code: 'CASH', amount: 250 }],
+      }),
+    )
+    expect(d.pricing.total).toBe(250)
+    expect(d.priceDifferences).toEqual(['Pull cachemire S / Noir : 250 (catalogue 290)'])
+  })
 })

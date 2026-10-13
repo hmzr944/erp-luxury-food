@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, CreditCard, Money, Ticket, Invoice, CheckCircle, Warning } from '@phosphor-icons/react'
-import { formatPrice, formatDate } from '@erp/utils'
-import { useCartStore } from '@/stores/cart.store'
-import { ordersApi, buildCheckoutPayload, type ApiOrder } from '@/lib/api/orders'
-import { dispatchPOSCommand } from '@/lib/offline/queue'
-import { PaymentMode } from '@erp/types'
+import { formatPrice } from '@erp/utils'
+import { useCartStore, computeCartTotals } from '@/stores/cart.store'
+import { usePlatformConfig } from '@/lib/api/platform'
+import { recordSale, type RecordedSale } from '@/lib/terminal/terminal'
+import { PaymentKind } from '@erp/types'
 import { toast } from 'sonner'
 
 interface CheckoutModalProps {
@@ -16,26 +16,26 @@ interface CheckoutModalProps {
   onClose: () => void
 }
 
-const PAYMENT_MODES: Array<{
-  mode: PaymentMode
-  label: string
-  icon: React.ElementType
-  iconWeight: 'regular' | 'fill'
-}> = [
-  { mode: PaymentMode.CARD, label: 'Carte bancaire', icon: CreditCard, iconWeight: 'regular' },
-  { mode: PaymentMode.CASH, label: 'Espèces', icon: Money, iconWeight: 'regular' },
-  { mode: PaymentMode.TICKET_RESTO, label: 'Ticket resto', icon: Ticket, iconWeight: 'regular' },
-  { mode: PaymentMode.INVOICE, label: 'Facturation', icon: Invoice, iconWeight: 'regular' },
-]
+const KIND_ICON: Record<PaymentKind, React.ElementType> = {
+  [PaymentKind.CARD]: CreditCard,
+  [PaymentKind.CASH]: Money,
+  [PaymentKind.VOUCHER]: Ticket,
+  [PaymentKind.TRANSFER]: Invoice,
+  [PaymentKind.OTHER]: Invoice,
+}
 
 type Step = 'payment' | 'loading' | 'success' | 'error'
 
 export function CheckoutModal({ siteId, isOpen, onClose }: CheckoutModalProps) {
-  const { lines, total, clearCart } = useCartStore()
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>(PaymentMode.CARD)
+  const { lines, orderDiscount, clearCart } = useCartStore()
+  const { data: config } = usePlatformConfig()
+  const priceIncludesTax = config?.priceIncludesTax ?? true
+  const { total } = computeCartTotals(lines, orderDiscount, priceIncludesTax)
+  const methods = (config?.paymentMethods ?? []).filter((m) => m.isActive)
+  const [paymentCode, setPaymentCode] = useState('CARD')
   const [email, setEmail] = useState('')
   const [step, setStep] = useState<Step>('payment')
-  const [order, setOrder] = useState<ApiOrder | null>(null)
+  const [order, setOrder] = useState<RecordedSale | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
   const handleClose = () => {
@@ -51,15 +51,23 @@ export function CheckoutModal({ siteId, isOpen, onClose }: CheckoutModalProps) {
 
     setStep('loading')
 
-    const payload = buildCheckoutPayload(lines, {
-      paymentMode,
-      customerEmail: email.trim() || undefined,
-    })
-
     try {
-      await dispatchPOSCommand({ type: 'CHECKOUT', payload: { ...payload, siteId } as any })
-
-      const result = await ordersApi.checkout(siteId, payload)
+      // Ticket signé par cette caisse : valable tout de suite, même sans réseau.
+      // L'envoi au serveur se fait en arrière-plan.
+      const result = await recordSale(siteId, {
+        items: lines.map((l) => ({
+          productId: l.product.id,
+          variantId: l.variantId,
+          quantity: l.quantity,
+          unitPrice: l.product.price,
+          taxRate: l.product.taxRate,
+          ...(l.discount > 0 ? { discount: l.discount } : {}),
+        })),
+        payments: [{ code: paymentCode, amount: total }],
+        orderDiscount: orderDiscount || undefined,
+        customerEmail: email.trim() || undefined,
+        priceIncludesTax,
+      })
       setOrder(result)
       setStep('success')
       clearCart()
@@ -140,12 +148,13 @@ export function CheckoutModal({ siteId, isOpen, onClose }: CheckoutModalProps) {
                         Mode de paiement
                       </p>
                       <div className="grid grid-cols-2 gap-2">
-                        {PAYMENT_MODES.map(({ mode, label, icon: Icon, iconWeight }) => {
-                          const active = paymentMode === mode
+                        {methods.map(({ code, label, kind }) => {
+                          const active = paymentCode === code
+                          const Icon = KIND_ICON[kind]
                           return (
                             <button
-                              key={mode}
-                              onClick={() => setPaymentMode(mode)}
+                              key={code}
+                              onClick={() => setPaymentCode(code)}
                               className={[
                                 'flex items-center gap-3 px-3 py-3 rounded-[var(--radius-md)] border text-left transition-all',
                                 active
@@ -153,7 +162,7 @@ export function CheckoutModal({ siteId, isOpen, onClose }: CheckoutModalProps) {
                                   : 'border-[var(--color-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]',
                               ].join(' ')}
                             >
-                              <Icon size={16} weight={active ? 'fill' : iconWeight} />
+                              <Icon size={16} weight={active ? 'fill' : 'regular'} />
                               <span className="font-body text-sm leading-tight">{label}</span>
                             </button>
                           )
@@ -199,7 +208,7 @@ export function CheckoutModal({ siteId, isOpen, onClose }: CheckoutModalProps) {
                       className="w-10 h-10 rounded-full border-2 border-[var(--color-border-strong)] border-t-[var(--color-accent)]"
                     />
                     <p className="font-body text-sm text-[var(--color-text-muted)]">
-                      Signature NF525 en cours...
+                      Signature du ticket...
                     </p>
                   </motion.div>
                 )}
@@ -221,22 +230,22 @@ export function CheckoutModal({ siteId, isOpen, onClose }: CheckoutModalProps) {
 
                     <div className="text-center space-y-1">
                       <p className="font-data text-2xl text-[var(--color-text-primary)]">
-                        {formatPrice(Number(order.total))}
+                        {formatPrice(order.pricing.total)}
                       </p>
                       <p className="font-body text-xs text-[var(--color-text-muted)]">
-                        {PAYMENT_MODES.find((m) => m.mode === order.paymentMode)?.label}
+                        {methods.find((m) => m.code === paymentCode)?.label}
                       </p>
                     </div>
 
                     {/* NF525 info */}
-                    {order.receiptChain && (
+                    {order.receipt && (
                       <div className="w-full bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] p-3 space-y-1">
                         <div className="flex justify-between">
                           <span className="font-data text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide">
                             Ticket
                           </span>
                           <span className="font-data text-[11px] text-[var(--color-accent)]">
-                            #{order.receiptChain.counter}
+                            {order.terminalName} · n° {order.receipt.counter}
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -244,7 +253,7 @@ export function CheckoutModal({ siteId, isOpen, onClose }: CheckoutModalProps) {
                             NF525
                           </span>
                           <span className="font-data text-[10px] text-[var(--color-text-muted)]">
-                            {order.receiptChain.hash.substring(0, 16)}...
+                            {order.receipt.hash.substring(0, 16)}...
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -252,7 +261,7 @@ export function CheckoutModal({ siteId, isOpen, onClose }: CheckoutModalProps) {
                             Signé
                           </span>
                           <span className="font-data text-[10px] text-[var(--color-text-muted)]">
-                            {new Date(order.receiptChain.signedAt).toLocaleTimeString('fr-FR')}
+                            {new Date(order.receipt.signedAt).toLocaleTimeString('fr-FR')}
                           </span>
                         </div>
                       </div>

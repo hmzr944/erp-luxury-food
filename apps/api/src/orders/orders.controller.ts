@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
 import { OrdersService } from './orders.service'
 import { CheckoutDto } from './dto/checkout.dto'
+import { SyncSaleDto } from './dto/sync-sale.dto'
 import { PrismaService } from '../common/prisma/prisma.service'
 
 // Route publique pour la page click & collect client
@@ -49,6 +50,13 @@ export class OrdersController {
   @HttpCode(HttpStatus.CREATED)
   checkout(@Param('siteId') siteId: string, @Body() dto: CheckoutDto) {
     return this.orders.checkout(siteId, dto)
+  }
+
+  // Vente signée par une caisse ; idempotent sur clientId
+  @Post('sync')
+  @HttpCode(HttpStatus.OK)
+  sync(@Param('siteId') siteId: string, @Body() dto: SyncSaleDto) {
+    return this.orders.syncSignedSale(siteId, dto)
   }
 
   @Get()

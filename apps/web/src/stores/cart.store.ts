@@ -1,12 +1,13 @@
 'use client'
 
 import { create } from 'zustand'
+import { priceOrder } from '@erp/utils'
 
 export interface CartProduct {
   id: string
   name: string
   subtitle?: string
-  price: number
+  price: number // prix de la variante choisie s'il y en a une
   taxRate: number
   categoryId?: string
 }
@@ -29,11 +30,6 @@ interface CartState {
   setLineDiscount: (productId: string, discount: number, variantId?: string) => void
   setOrderDiscount: (discount: number) => void
   clearCart: () => void
-  // Computed
-  itemCount: number
-  subtotal: number
-  taxAmount: number
-  total: number
 }
 
 function lineKey(productId: string, variantId?: string) {
@@ -105,27 +101,14 @@ export const useCartStore = create<CartState>()((set, get) => ({
 
   setOrderDiscount: (discount) => set({ orderDiscount: Math.max(0, discount) }),
   clearCart: () => set({ lines: [], orderDiscount: 0 }),
-
-  get itemCount() {
-    return get().lines.reduce((sum, l) => sum + l.quantity, 0)
-  },
-
-  get subtotal() {
-    return get().lines.reduce((sum, l) => {
-      const lineHT = l.product.price * l.quantity - l.discount
-      return sum + lineHT
-    }, 0)
-  },
-
-  get taxAmount() {
-    return get().lines.reduce((sum, l) => {
-      const lineHT = l.product.price * l.quantity - l.discount
-      return sum + lineHT * (l.product.taxRate / 100)
-    }, 0)
-  },
-
-  get total() {
-    const { subtotal, taxAmount, orderDiscount } = get()
-    return Math.max(0, subtotal + taxAmount - orderDiscount)
-  },
 }))
+
+// Totaux calculés avec la même fonction que le serveur : le montant affiché
+// est exactement celui qui sera signé sur le ticket
+export function computeCartTotals(lines: CartLine[], orderDiscount: number, priceIncludesTax: boolean) {
+  const pricing = priceOrder(
+    lines.map((l) => ({ unitPrice: l.product.price, quantity: l.quantity, discount: l.discount, taxRate: l.product.taxRate })),
+    { priceIncludesTax, orderDiscount },
+  )
+  return { ...pricing, itemCount: lines.reduce((sum, l) => sum + l.quantity, 0) }
+}

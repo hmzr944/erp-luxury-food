@@ -24,6 +24,36 @@ interface CachedCategory extends ApiCategory {
   _cachedAt: number
 }
 
+// Caisse enregistrée sur cet appareil pour un site. La clé privée est
+// stockée comme CryptoKey non exportable : elle ne peut pas être lue,
+// seulement utilisée pour signer.
+export interface TerminalRecord {
+  siteId: string
+  terminalId: string
+  name: string
+  privateKey: CryptoKey
+  counter: number
+  lastHash: string
+}
+
+export type SaleStatus = 'pending' | 'synced' | 'rejected'
+
+// Vente signée, conservée jusqu'à ce que le serveur l'ait enregistrée
+export interface SaleRecord {
+  id?: number
+  clientId: string
+  siteId: string
+  terminalId: string
+  counter: number
+  status: SaleStatus
+  payload: unknown // corps envoyé à POST /orders/sync
+  total: number
+  createdAt: number
+  attempts: number
+  error?: string
+  orderId?: string
+}
+
 interface SyncMeta {
   id?: number
   key: string
@@ -35,6 +65,9 @@ class ERPDatabase extends Dexie {
   products!: Table<CachedProduct>
   categories!: Table<CachedCategory>
   syncMeta!: Table<SyncMeta>
+  terminals!: Table<TerminalRecord, string>
+  sales!: Table<SaleRecord, number>
+  config!: Table<{ key: string; value: unknown; cachedAt: number }, string>
 
   constructor() {
     super('erp-db')
@@ -49,6 +82,17 @@ class ERPDatabase extends Dexie {
       products: 'id, siteId, categoryId, barcode',
       categories: 'id, siteId',
       syncMeta: '++id, key',
+    })
+
+    // Signature locale des tickets et file de synchronisation des ventes
+    this.version(3).stores({
+      pendingCommands: '++id, synced, createdAt',
+      products: 'id, siteId, categoryId, barcode',
+      categories: 'id, siteId',
+      syncMeta: '++id, key',
+      terminals: 'siteId',
+      sales: '++id, &clientId, [siteId+status], [terminalId+counter]',
+      config: 'key',
     })
   }
 }

@@ -3,7 +3,8 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { ShoppingCart, Trash } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
-import { useCartStore } from '@/stores/cart.store'
+import { useCartStore, computeCartTotals } from '@/stores/cart.store'
+import { usePlatformConfig } from '@/lib/api/platform'
 import { CartItem } from './CartItem'
 
 interface CartProps {
@@ -11,8 +12,13 @@ interface CartProps {
 }
 
 export function Cart({ onCheckout }: CartProps) {
-  const { lines, subtotal, taxAmount, total, orderDiscount, clearCart, itemCount } =
-    useCartStore()
+  const { lines, orderDiscount, clearCart } = useCartStore()
+  const { data: config } = usePlatformConfig()
+  const { subtotal, taxAmount, total, itemCount } = computeCartTotals(
+    lines,
+    orderDiscount,
+    config?.priceIncludesTax ?? true,
+  )
 
   return (
     <aside className="flex flex-col w-72 shrink-0 border-l border-[var(--color-border)] bg-[var(--color-bg-surface)]">

@@ -23,6 +23,4 @@ export interface UpdateStatusPayload {
   status: string
 }
 
-export type POSCommand =
-  | { type: 'CHECKOUT'; payload: CheckoutPayload }
-  | { type: 'UPDATE_ORDER_STATUS'; payload: UpdateStatusPayload }
+export type POSCommand = { type: 'UPDATE_ORDER_STATUS'; payload: UpdateStatusPayload }

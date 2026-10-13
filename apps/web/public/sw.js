@@ -1,8 +1,9 @@
 // Service Worker ERP — Offline-first POS
 // Sprint 4 : cache produits + queuing des commandes
 
-const CACHE_NAME = 'erp-v1'
-const API_CACHE  = 'erp-api-v1'
+const CACHE_NAME = 'erp-v2'
+const API_CACHE  = 'erp-api-v2'
+const STATIC_CACHE = 'erp-static-v2'
 const CACHE_DURATION_MS = 60 * 60 * 1000 // 1h
 
 // Assets statiques à précacher
@@ -27,7 +28,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== CACHE_NAME && k !== API_CACHE)
+          .filter((k) => ![CACHE_NAME, API_CACHE, STATIC_CACHE].includes(k))
           .map((k) => caches.delete(k)),
       ),
     ).then(() => self.clients.claim()),
@@ -38,12 +39,22 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
 
-  // Produits & catégories — stale-while-revalidate
-  const isProductsAPI = url.pathname.includes('/api/sites/') &&
-    (url.pathname.includes('/products') || url.pathname.includes('/categories'))
+  // Fichiers de l'application (noms versionnés, jamais modifiés) — cache d'abord :
+  // la caisse se recharge sans réseau après une première visite
+  if (url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(cacheFirst(event.request))
+    return
+  }
 
-  if (isProductsAPI && event.request.method === 'GET') {
-    event.respondWith(staleWhileRevalidate(event.request))
+  // Catalogue et configuration — réseau d'abord (prix à jour), cache si hors ligne
+  const isCatalogAPI = url.pathname.includes('/api/') && (
+    (url.pathname.includes('/api/sites/') &&
+      (url.pathname.includes('/products') || url.pathname.includes('/categories'))) ||
+    url.pathname.endsWith('/organizations/me/platform')
+  )
+
+  if (isCatalogAPI && event.request.method === 'GET') {
+    event.respondWith(networkFirst(event.request, API_CACHE))
     return
   }
 
@@ -57,41 +68,27 @@ self.addEventListener('fetch', (event) => {
 })
 
 // ── Stratégies ────────────────────────────────────────────────
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(API_CACHE)
-  const cached = await cache.match(request)
-
-  // Revalidation en arrière-plan
-  const fetchPromise = fetch(request)
-    .then((response) => {
-      if (response.ok) {
-        cache.put(request, response.clone())
-      }
-      return response
-    })
-    .catch(() => null)
-
-  // Retourne le cache immédiatement si disponible
-  if (cached) {
-    fetchPromise // fire & forget
-    return cached
+async function cacheFirst(request) {
+  const cached = await caches.match(request)
+  if (cached) return cached
+  const response = await fetch(request)
+  if (response.ok) {
+    const cache = await caches.open(STATIC_CACHE)
+    cache.put(request, response.clone())
   }
-
-  // Pas de cache — attend le réseau
-  const response = await fetchPromise
-  if (response) return response
-
-  return new Response(JSON.stringify({ error: 'offline', cached: false }), {
-    status: 503,
-    headers: { 'Content-Type': 'application/json' },
-  })
+  return response
 }
 
-async function networkFirst(request) {
+// Réseau d'abord, mais pas plus de 4 s : sur un réseau qui rame, la caisse
+// repart sur sa copie locale au lieu de rester bloquée
+async function networkFirst(request, cacheName = CACHE_NAME) {
   try {
-    const response = await fetch(request)
+    const response = await Promise.race([
+      fetch(request),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+    ])
     if (response.ok) {
-      const cache = await caches.open(CACHE_NAME)
+      const cache = await caches.open(cacheName)
       cache.put(request, response.clone())
     }
     return response

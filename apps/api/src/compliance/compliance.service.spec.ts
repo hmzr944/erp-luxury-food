@@ -17,6 +17,7 @@ describe('ComplianceService', () => {
   beforeEach(() => {
     service = new ComplianceService({} as any)
     mockTx = {
+      $executeRaw: vi.fn(),
       receiptChain: {
         findFirst: vi.fn(),
         create: vi.fn(),

@@ -17,13 +17,9 @@ function applyOptimisticUpdate(_cmd: POSCommand): void {
 async function executeCommand(cmd: POSCommand): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
+  // Les ventes ne passent plus par cette file : elles sont signées par la
+  // caisse et synchronisées par lib/terminal (sans risque de doublon)
   switch (cmd.type) {
-    case 'CHECKOUT':
-      await fetchApi(`${baseUrl}/api/orders/checkout`, {
-        method: 'POST',
-        body: JSON.stringify(cmd.payload),
-      })
-      break
     case 'UPDATE_ORDER_STATUS':
       await fetchApi(`${baseUrl}/api/orders/${cmd.payload.orderId}/status`, {
         method: 'PATCH',

@@ -40,6 +40,24 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
   return res.json()
 }
 
+// Requête authentifiée qui renvoie la réponse brute, sans jamais rediriger
+// vers la connexion : utilisée par la synchronisation en arrière-plan, qui ne
+// doit pas interrompre une vente en cours
+export async function authorizedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const send = () =>
+    fetch(`${BASE}/api${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('access_token') ?? ''}`,
+        ...init.headers,
+      },
+    })
+  const res = await send()
+  if (res.status === 401 && (await tryRefresh())) return send()
+  return res
+}
+
 async function tryRefresh(): Promise<boolean> {
   try {
     const refreshToken = localStorage.getItem('refresh_token')

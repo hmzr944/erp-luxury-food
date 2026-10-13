@@ -14,7 +14,20 @@ export class ComplianceService {
     tx: Prisma.TransactionClient,
     siteId: string,
     serverTotal: Decimal,
+    // Ticket déjà signé par la caisse : rattaché au maillon du site
+    terminal?: {
+      terminalId: string
+      terminalCounter: number
+      terminalHash: string
+      terminalPreviousHash: string
+      terminalSignature: string
+      terminalSignedAt: Date
+    },
   ): Promise<SignedReceipt> {
+    // Verrou par site jusqu'à la fin de la transaction : les ventes simultanées
+    // prennent leur numéro l'une après l'autre (compteur sans trou ni doublon)
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'receipt:' + siteId}))`
+
     const last = await tx.receiptChain.findFirst({
       where: { siteId },
       orderBy: { counter: 'desc' },
@@ -35,7 +48,7 @@ export class ComplianceService {
     const hash = createHash('sha256').update(data).digest('hex')
 
     const receipt = await tx.receiptChain.create({
-      data: { siteId, counter, hash, previousHash, total: serverTotal, signedAt },
+      data: { siteId, counter, hash, previousHash, total: serverTotal, signedAt, ...terminal },
     })
 
     return { id: receipt.id, counter, hash, previousHash, signedAt }

@@ -46,3 +46,4 @@ coverage
 # Docker
 .docker-data
 *.tsbuildinfo
+dump.rdb

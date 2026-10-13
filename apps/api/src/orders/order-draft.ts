@@ -19,6 +19,9 @@ export interface DraftItemInput {
   quantity: number
   discount?: number
   serialNumber?: string
+  // Vente signée par une caisse : prix et taux réellement appliqués
+  unitPrice?: number
+  taxRate?: number
 }
 
 export interface DraftPaymentMethod {
@@ -36,6 +39,9 @@ export interface DraftInput {
   payments?: Array<{ code: string; amount: number }>
   // Ancien format : un seul moyen de paiement pour tout le montant
   paymentMode?: string
+  // Vente signée par une caisse : le ticket fait foi, on garde ses prix
+  // (le catalogue a pu changer entre la vente hors ligne et la synchro)
+  useSignedPrices?: boolean
 }
 
 export interface OrderDraft {
@@ -53,6 +59,8 @@ export interface OrderDraft {
   pricing: PricedOrder
   payments: Array<DraftPaymentMethod & { amount: number }>
   paymentMode: string
+  // Lignes dont le prix signé diffère du catalogue actuel
+  priceDifferences: string[]
 }
 
 export class OrderDraftError extends Error {}
@@ -64,6 +72,7 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
   const missing = [...new Set(input.items.map((i) => i.productId))].filter((id) => !byId.has(id))
   if (missing.length) throw new OrderDraftError(`Produits introuvables : ${missing.join(', ')}`)
 
+  const priceDifferences: string[] = []
   const items = input.items.map((item) => {
     const product = byId.get(item.productId)!
     const variant = item.variantId ? product.variants.find((v) => v.id === item.variantId) : undefined
@@ -77,14 +86,27 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
       if (!item.serialNumber) throw new OrderDraftError(`Numéro de série requis pour ${product.name}`)
       if (item.quantity !== 1) throw new OrderDraftError(`Un numéro de série par ligne pour ${product.name}`)
     }
+    const catalogPrice = variant?.price ?? product.price
+    let price = catalogPrice
+    let taxRate = product.taxRate
+    if (input.useSignedPrices) {
+      if (item.unitPrice === undefined || item.taxRate === undefined) {
+        throw new OrderDraftError(`Prix signé manquant pour ${product.name}`)
+      }
+      price = item.unitPrice
+      taxRate = item.taxRate
+      if (price !== catalogPrice || taxRate !== product.taxRate) {
+        priceDifferences.push(`${product.name}${variant ? ` ${variant.name}` : ''} : ${price} (catalogue ${catalogPrice})`)
+      }
+    }
     return {
       productId: product.id,
       variantId: variant?.id ?? null,
       name: product.name,
       variantName: variant?.name ?? null,
       serialNumber: item.serialNumber ?? null,
-      price: variant?.price ?? product.price,
-      taxRate: product.taxRate,
+      price,
+      taxRate,
       quantity: item.quantity,
       discount: item.discount ?? 0,
     }
@@ -122,5 +144,5 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
   const single = payments.length === 1 ? payments[0].code : null
   const paymentMode = single && LEGACY_MODES.includes(single) ? single : 'MIXED'
 
-  return { items, pricing, payments, paymentMode }
+  return { items, pricing, payments, paymentMode, priceDifferences }
 }
