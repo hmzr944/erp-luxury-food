@@ -12,6 +12,7 @@ import type { RecordedSale } from '@/lib/terminal/terminal'
 import type { CartLine } from '@/stores/cart.store'
 import { EASE, Sheet } from './Sheet'
 import { TerminalWait } from './TerminalWait'
+import { PartsPayment } from './PartsPayment'
 
 const KIND_ICON: Record<PaymentKind, React.ElementType> = {
   [PaymentKind.CARD]: CreditCard,
@@ -47,6 +48,8 @@ interface PaymentSheetProps {
 export function PaymentSheet({ open, siteId, device, total, methods, siteName, receipt, busy, error, onPay, onClose }: PaymentSheetProps) {
   const [split, setSplit] = useState(false)
   const [terminal, setTerminal] = useState<Method | null>(null)
+  const [parts, setParts] = useState(false)
+  const [partsLocked, setPartsLocked] = useState(false)
   const [email, setEmail] = useState('')
   const [showEmail, setShowEmail] = useState(false)
 
@@ -54,6 +57,8 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
     if (!open) {
       setSplit(false)
       setTerminal(null)
+      setParts(false)
+      setPartsLocked(false)
       setEmail('')
       setShowEmail(false)
     }
@@ -63,7 +68,9 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
     ? 'Vente enregistrée'
     : terminal
       ? 'Paiement sur le TPE'
-      : split
+      : parts
+        ? 'Diviser la note'
+        : split
         ? 'Paiement en plusieurs fois'
         : `Encaisser ${formatPrice(total)}`
 
@@ -77,7 +84,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
   return (
     // Pendant l'attente du TPE, on ne ferme qu'en annulant : sinon le client
     // pourrait payer sans que la vente soit enregistrée
-    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!!terminal && !receipt)}>
+    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || partsLocked))}>
       {receipt ? (
         <Receipt receipt={receipt} siteName={siteName} onNext={onClose} />
       ) : terminal && device ? (
@@ -97,6 +104,17 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
             onBack={() => setTerminal(null)}
           />
         </>
+      ) : parts ? (
+        <PartsPayment
+          siteId={siteId}
+          device={device}
+          total={total}
+          methods={methods}
+          busy={busy}
+          onLock={setPartsLocked}
+          onPay={(p, clientId) => onPay(p, mail, clientId)}
+          onBack={() => setParts(false)}
+        />
       ) : split ? (
         <SplitPayment total={total} methods={methods} busy={busy} onPay={(p) => onPay(p, mail)} onBack={() => setSplit(false)} />
       ) : (
@@ -128,6 +146,9 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
           )}
 
           <div className="flex flex-wrap gap-x-4">
+            <button type="button" onClick={() => setParts(true)} className="h-11 text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
+              Diviser la note
+            </button>
             {methods.length > 1 && (
               <button type="button" onClick={() => setSplit(true)} className="h-11 text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
                 Payer avec plusieurs moyens

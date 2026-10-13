@@ -11,6 +11,8 @@ interface TerminalWaitProps {
   siteId: string
   device: PaymentDevice
   amount: number // euros
+  // Vente déjà commencée (note divisée) : les parts gardent le même identifiant
+  clientSaleId?: string
   onApproved: (clientSaleId: string) => void
   onPaidElsewhere: () => void
   onBack: () => void
@@ -23,10 +25,10 @@ type View =
 
 // Le montant part au TPE, la caisse attend la réponse de la banque et ferme
 // la vente d'elle-même : rien à retaper sur le TPE, aucun écart de caisse
-export function TerminalWait({ siteId, device, amount, onApproved, onPaidElsewhere, onBack }: TerminalWaitProps) {
+export function TerminalWait({ siteId, device, amount, clientSaleId: saleId, onApproved, onPaidElsewhere, onBack }: TerminalWaitProps) {
   const [view, setView] = useState<View>({ kind: 'sending' })
   const [attempt, setAttempt] = useState({ n: 0, force: false })
-  const clientSaleId = useRef(crypto.randomUUID())
+  const clientSaleId = useRef(saleId ?? crypto.randomUUID())
   const done = useRef(false)
 
   useEffect(() => {
