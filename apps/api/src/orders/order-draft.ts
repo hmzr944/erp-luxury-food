@@ -1,0 +1,126 @@
+import { priceOrder, type PricedOrder } from '@erp/utils'
+
+// Construit le contenu d'une vente à partir des données en base.
+// Fonction pure : utilisée à l'encaissement en ligne et pour vérifier les
+// tickets signés hors ligne par une caisse.
+
+export interface DraftProduct {
+  id: string
+  name: string
+  price: number
+  taxRate: number
+  tracking: string
+  variants: Array<{ id: string; name: string; price: number }>
+}
+
+export interface DraftItemInput {
+  productId: string
+  variantId?: string
+  quantity: number
+  discount?: number
+  serialNumber?: string
+}
+
+export interface DraftPaymentMethod {
+  code: string
+  label: string
+  kind: string
+}
+
+export interface DraftInput {
+  items: DraftItemInput[]
+  products: DraftProduct[]
+  priceIncludesTax: boolean
+  orderDiscount?: number
+  paymentMethods: DraftPaymentMethod[]
+  payments?: Array<{ code: string; amount: number }>
+  // Ancien format : un seul moyen de paiement pour tout le montant
+  paymentMode?: string
+}
+
+export interface OrderDraft {
+  items: Array<{
+    productId: string
+    variantId: string | null
+    name: string
+    variantName: string | null
+    serialNumber: string | null
+    price: number
+    taxRate: number
+    quantity: number
+    discount: number
+  }>
+  pricing: PricedOrder
+  payments: Array<DraftPaymentMethod & { amount: number }>
+  paymentMode: string
+}
+
+export class OrderDraftError extends Error {}
+
+const LEGACY_MODES = ['CARD', 'CASH', 'INVOICE', 'TICKET_RESTO']
+
+export function buildOrderDraft(input: DraftInput): OrderDraft {
+  const byId = new Map(input.products.map((p) => [p.id, p]))
+  const missing = [...new Set(input.items.map((i) => i.productId))].filter((id) => !byId.has(id))
+  if (missing.length) throw new OrderDraftError(`Produits introuvables : ${missing.join(', ')}`)
+
+  const items = input.items.map((item) => {
+    const product = byId.get(item.productId)!
+    const variant = item.variantId ? product.variants.find((v) => v.id === item.variantId) : undefined
+    if (item.variantId && !variant) {
+      throw new OrderDraftError(`Variante introuvable pour ${product.name}`)
+    }
+    if (!item.variantId && product.variants.length > 0) {
+      throw new OrderDraftError(`Choisissez une variante pour ${product.name}`)
+    }
+    if (product.tracking === 'SERIAL') {
+      if (!item.serialNumber) throw new OrderDraftError(`Numéro de série requis pour ${product.name}`)
+      if (item.quantity !== 1) throw new OrderDraftError(`Un numéro de série par ligne pour ${product.name}`)
+    }
+    return {
+      productId: product.id,
+      variantId: variant?.id ?? null,
+      name: product.name,
+      variantName: variant?.name ?? null,
+      serialNumber: item.serialNumber ?? null,
+      price: variant?.price ?? product.price,
+      taxRate: product.taxRate,
+      quantity: item.quantity,
+      discount: item.discount ?? 0,
+    }
+  })
+
+  const serials = items.filter((i) => i.serialNumber).map((i) => `${i.productId}:${i.serialNumber}`)
+  if (new Set(serials).size !== serials.length) {
+    throw new OrderDraftError('Le même numéro de série apparaît deux fois')
+  }
+
+  const pricing = priceOrder(
+    items.map((i) => ({ unitPrice: i.price, quantity: i.quantity, discount: i.discount, taxRate: i.taxRate })),
+    { priceIncludesTax: input.priceIncludesTax, orderDiscount: input.orderDiscount },
+  )
+
+  const methods = new Map(input.paymentMethods.map((m) => [m.code, m]))
+  const requested =
+    input.payments ?? [{ code: input.paymentMode ?? 'CARD', amount: pricing.total }]
+  if (!requested.length) throw new OrderDraftError('Aucun paiement')
+
+  const payments = requested.map((p) => {
+    const method = methods.get(p.code)
+    if (!method) throw new OrderDraftError(`Moyen de paiement inconnu ou désactivé : ${p.code}`)
+    return { ...method, amount: p.amount }
+  })
+
+  const paidCents = payments.reduce((a, p) => a + Math.round(p.amount * 100), 0)
+  if (paidCents !== Math.round(pricing.total * 100)) {
+    throw new OrderDraftError(
+      `Les paiements (${(paidCents / 100).toFixed(2)}) ne correspondent pas au total (${pricing.total.toFixed(2)})`,
+    )
+  }
+
+  // Colonne historique Order.paymentMode ; le détail fait foi dans OrderPayment
+  const single = payments.length === 1 ? payments[0].code : null
+  const paymentMode = single && LEGACY_MODES.includes(single) ? single : 'MIXED'
+
+  return { items, pricing, payments, paymentMode }
+}

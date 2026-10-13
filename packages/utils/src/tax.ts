@@ -16,7 +16,7 @@ export const computeTaxFromTTC = (priceTTC: number, taxRate: number): TaxBreakdo
   return { ht, tax, ttc: priceTTC }
 }
 
-// French VAT rates for food
+// Taux de TVA français (les taux proposés par organisation sont en base, cf. TaxRate)
 export const VAT_RATES = {
   FOOD_STANDARD: 5.5,     // produits alimentaires standard
   FOOD_PREPARED: 10,      // restauration / traiteur / consommation sur place

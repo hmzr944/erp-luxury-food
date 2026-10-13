@@ -41,3 +41,48 @@ export enum MovementType {
   TRANSFER = 'TRANSFER',
   LOSS = 'LOSS',
 }
+
+// ── Cœur multi-secteurs ─────────────────────────────────────
+
+export enum Sector {
+  GENERAL = 'GENERAL',
+  FOOD = 'FOOD',
+  FASHION = 'FASHION',
+  BEAUTY = 'BEAUTY',
+  JEWELRY = 'JEWELRY',
+  WINE = 'WINE',
+  HOME = 'HOME',
+  SERVICES = 'SERVICES',
+}
+
+export enum Pack {
+  FOOD = 'FOOD',
+  FASHION = 'FASHION',
+  BEAUTY = 'BEAUTY',
+  JEWELRY = 'JEWELRY',
+  WINE = 'WINE',
+  SERVICES = 'SERVICES',
+}
+
+export enum TrackingMode {
+  NONE = 'NONE',
+  LOT = 'LOT',
+  LOT_EXPIRY = 'LOT_EXPIRY',
+  SERIAL = 'SERIAL',
+}
+
+export enum AttributeType {
+  TEXT = 'TEXT',
+  NUMBER = 'NUMBER',
+  BOOLEAN = 'BOOLEAN',
+  SELECT = 'SELECT',
+  DATE = 'DATE',
+}
+
+export enum PaymentKind {
+  CARD = 'CARD',
+  CASH = 'CASH',
+  VOUCHER = 'VOUCHER',
+  TRANSFER = 'TRANSFER',
+  OTHER = 'OTHER',
+}

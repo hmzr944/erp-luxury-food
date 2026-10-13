@@ -19,6 +19,7 @@ import { B2BModule } from './b2b/b2b.module'
 import { ApiTokensModule } from './api-tokens/api-tokens.module'
 import { WebhooksModule } from './webhooks/webhooks.module'
 import { InvoicesModule } from './invoices/invoices.module'
+import { PlatformModule } from './platform/platform.module'
 import { HealthController } from './health/health.controller'
 
 @Module({
@@ -64,6 +65,7 @@ import { HealthController } from './health/health.controller'
     ApiTokensModule,
     WebhooksModule,
     InvoicesModule,
+    PlatformModule,
   ],
 })
 export class AppModule {}

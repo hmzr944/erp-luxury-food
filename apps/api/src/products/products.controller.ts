@@ -4,7 +4,27 @@ import {
 } from '@nestjs/common'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
-import { ProductsService, type CreateProductDto, type UpdateProductDto } from './products.service'
+import { ProductsService } from './products.service'
+import {
+  CategoryDto,
+  CreateProductDto,
+  ProductOptionDto,
+  UpdateCategoryDto,
+  UpdateProductDto,
+} from './dto/product.dto'
+import { IsArray, IsNumber, Min, ValidateNested } from 'class-validator'
+import { Type } from 'class-transformer'
+
+class PreviewVariantsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductOptionDto)
+  options!: ProductOptionDto[]
+
+  @IsNumber()
+  @Min(0)
+  price!: number
+}
 
 @Controller('sites/:siteId')
 @UseGuards(JwtAuthGuard, SiteGuard)
@@ -24,6 +44,12 @@ export class ProductsController {
   @Get('products/barcode/:barcode')
   findByBarcode(@Param('siteId') siteId: string, @Param('barcode') barcode: string) {
     return this.products.findByBarcode(barcode, siteId)
+  }
+
+  @Post('products/variants/preview')
+  @HttpCode(HttpStatus.OK)
+  previewVariants(@Body() dto: PreviewVariantsDto) {
+    return this.products.previewVariants(dto.options, dto.price)
   }
 
   @Get('products/:id')
@@ -61,7 +87,7 @@ export class ProductsController {
   @Post('categories')
   createCategory(
     @Param('siteId') siteId: string,
-    @Body() dto: { name: string; color?: string; position?: number },
+    @Body() dto: CategoryDto,
   ) {
     return this.products.createCategory(siteId, dto)
   }
@@ -70,7 +96,7 @@ export class ProductsController {
   updateCategory(
     @Param('siteId') siteId: string,
     @Param('id') id: string,
-    @Body() dto: { name?: string; color?: string; position?: number },
+    @Body() dto: UpdateCategoryDto,
   ) {
     return this.products.updateCategory(id, siteId, dto)
   }

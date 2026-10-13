@@ -1,6 +1,9 @@
 import { Controller, Get, Put, Body, Param, UseGuards } from '@nestjs/common'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
+import { PackGuard } from '../common/guards/pack.guard'
+import { RequirePack } from '../common/decorators/require-pack.decorator'
+import { Pack } from '@erp/types'
 import { AllergensService } from './allergens.service'
 
 @Controller('allergens')
@@ -15,7 +18,8 @@ export class AllergensPublicController {
 }
 
 @Controller('sites/:siteId/allergens')
-@UseGuards(JwtAuthGuard, SiteGuard)
+@UseGuards(JwtAuthGuard, SiteGuard, PackGuard)
+@RequirePack(Pack.FOOD)
 export class AllergensController {
   constructor(private allergens: AllergensService) {}
 

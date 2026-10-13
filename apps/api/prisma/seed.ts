@@ -1,7 +1,29 @@
 import { PrismaClient } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
+import { PACK_ATTRIBUTES, SECTOR_PRESETS, Sector } from '@erp/types'
+import { buildVariantMatrix, variantLabel } from '@erp/utils'
 
 const prisma = new PrismaClient()
+
+// Applique les préréglages d'un secteur (même logique que PlatformService)
+async function applySectorPreset(organizationId: string, sector: Sector) {
+  const preset = SECTOR_PRESETS[sector]
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: { sector, packs: preset.packs, priceIncludesTax: preset.priceIncludesTax },
+  })
+  await prisma.taxRate.createMany({
+    data: preset.taxRates.map((t) => ({ organizationId, label: t.label, rate: t.rate, isDefault: !!t.isDefault })),
+  })
+  await prisma.paymentMethod.createMany({
+    data: preset.paymentMethods.map((m, position) => ({ organizationId, ...m, position })),
+  })
+  await prisma.attributeDefinition.createMany({
+    data: preset.packs.flatMap((p) => PACK_ATTRIBUTES[p]).map((a, position) => ({
+      organizationId, key: a.key, label: a.label, type: a.type, options: a.options ?? [], pack: a.pack, position,
+    })),
+  })
+}
 const BCRYPT_ROUNDS = 12
 
 async function main() {
@@ -27,6 +49,7 @@ async function main() {
   const org = await prisma.organization.create({
     data: { name: 'Maison Artisane', slug: 'maison-artisane', plan: 'PRO' },
   })
+  await applySectorPreset(org.id, Sector.FOOD)
 
   const siteChocolat = await prisma.site.create({
     data: {
@@ -268,6 +291,8 @@ async function main() {
   }))
   await prisma.stockItem.createMany({ data: stockData, skipDuplicates: true })
 
+  const fashion = await seedFashion(ownerHash)
+
   console.log(`✓ Organisation: ${org.name}`)
   console.log(`✓ Sites: ${siteChocolat.name} | ${siteCafe.name}`)
   console.log(`✓ Catégories: 4 | Produits: ${productsData.length}`)
@@ -277,6 +302,99 @@ async function main() {
   console.log(`  - ${owner.email} [OWNER] — Owner1234!`)
   console.log(`  - ${manager.email} [MANAGER] — Manager1234!`)
   console.log(`  - ${seller.email} [SELLER] — Seller1234!`)
+  console.log(`✓ Organisation mode: ${fashion.name} — ${fashion.email} [OWNER] — Owner1234!`)
+}
+
+// ── Deuxième organisation : prêt-à-porter (tailles × couleurs) ──
+async function seedFashion(ownerHash: string) {
+  const org = await prisma.organization.create({
+    data: { name: 'Atelier Sauvage', slug: 'atelier-sauvage', plan: 'PRO' },
+  })
+  await applySectorPreset(org.id, Sector.FASHION)
+
+  const site = await prisma.site.create({
+    data: { organizationId: org.id, name: 'Boutique Marais', address: '18 rue Vieille-du-Temple, 75004 Paris' },
+  })
+  const owner = await prisma.user.create({
+    data: {
+      organizationId: org.id,
+      email: 'owner@atelier-sauvage.fr',
+      passwordHash: ownerHash,
+      firstName: 'Inès',
+      lastName: 'Garnier',
+      role: 'OWNER',
+    },
+  })
+
+  const [maille, chemises, accessoires] = await Promise.all(
+    [
+      { name: 'Maille', color: '#57534e' },
+      { name: 'Chemises', color: '#1e3a5f' },
+      { name: 'Accessoires', color: '#7c2d12' },
+    ].map((c, position) => prisma.category.create({ data: { siteId: site.id, ...c, position } })),
+  )
+
+  const catalogue = [
+    {
+      categoryId: maille.id, name: 'Pull col rond', subtitle: 'Cachemire', price: 290,
+      attributes: { material: 'Cachemire', season: 'Automne-hiver', care: 'Lavage main' },
+      options: [{ name: 'Taille', values: ['S', 'M', 'L'] }, { name: 'Couleur', values: ['Écru', 'Marine'] }],
+    },
+    {
+      categoryId: maille.id, name: 'Cardigan long', subtitle: 'Laine mérinos', price: 245,
+      attributes: { material: 'Laine mérinos', season: 'Automne-hiver' },
+      options: [{ name: 'Taille', values: ['S', 'M', 'L'] }, { name: 'Couleur', values: ['Camel', 'Gris'] }],
+    },
+    {
+      categoryId: chemises.id, name: 'Chemise popeline', subtitle: 'Coton', price: 145,
+      attributes: { material: 'Coton', season: 'Permanent' },
+      options: [{ name: 'Taille', values: ['XS', 'S', 'M', 'L', 'XL'] }, { name: 'Couleur', values: ['Blanc', 'Ciel'] }],
+    },
+    {
+      categoryId: accessoires.id, name: 'Sac cabas', subtitle: 'Cuir pleine fleur', price: 420,
+      attributes: { material: 'Cuir de veau', season: 'Permanent' },
+      options: [{ name: 'Couleur', values: ['Noir', 'Cognac'] }],
+    },
+    {
+      categoryId: accessoires.id, name: 'Écharpe', subtitle: 'Cachemire et soie', price: 120,
+      attributes: { material: 'Cachemire et soie', season: 'Automne-hiver' },
+      options: [],
+    },
+  ]
+
+  for (const item of catalogue) {
+    const combos = buildVariantMatrix(item.options)
+    const product = await prisma.product.create({
+      data: {
+        siteId: site.id,
+        categoryId: item.categoryId,
+        name: item.name,
+        subtitle: item.subtitle,
+        price: item.price,
+        taxRate: 20,
+        attributes: item.attributes,
+        options: { create: item.options.map((o, position) => ({ ...o, position })) },
+        variants: {
+          create: combos.map((options, position) => ({
+            name: variantLabel(options, item.options),
+            price: item.price,
+            options,
+            position,
+          })),
+        },
+      },
+      include: { variants: true },
+    })
+    if (product.variants.length) {
+      await prisma.variantStock.createMany({
+        data: product.variants.map((v, i) => ({ variantId: v.id, siteId: site.id, quantity: (i * 7) % 6 + 1, alertAt: 1 })),
+      })
+    } else {
+      await prisma.stockItem.create({ data: { productId: product.id, siteId: site.id, quantity: 8, alertAt: 2 } })
+    }
+  }
+
+  return { name: org.name, email: owner.email }
 }
 
 main()

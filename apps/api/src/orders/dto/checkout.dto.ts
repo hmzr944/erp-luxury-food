@@ -1,4 +1,5 @@
 import {
+  ArrayMinSize,
   IsArray,
   IsEmail,
   IsEnum,
@@ -28,16 +29,40 @@ export class CheckoutItemDto {
   @IsNumber()
   @Min(0)
   discount?: number
+
+  // Obligatoire pour un produit suivi par numéro de série
+  @IsOptional()
+  @IsString()
+  serialNumber?: string
+}
+
+export class CheckoutPaymentDto {
+  @IsString()
+  code!: string
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  amount!: number
 }
 
 export class CheckoutDto {
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => CheckoutItemDto)
   items!: CheckoutItemDto[]
 
+  // Paiements détaillés (codes des moyens de paiement de l'organisation).
+  // Absent : un seul paiement du montant total avec paymentMode.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CheckoutPaymentDto)
+  payments?: CheckoutPaymentDto[]
+
+  @IsOptional()
   @IsEnum(PaymentMode)
-  paymentMode!: PaymentMode
+  paymentMode?: PaymentMode
 
   @IsOptional()
   @IsEnum(Channel)

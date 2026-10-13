@@ -15,16 +15,26 @@ datasource db {
 // ============================================================
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  plan      Plan     @default(STARTER)
-  sites     Site[]
-  users     User[]
-  settings  OrganizationSettings?
-  invoiceSequences InvoiceSequence[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String                @id @default(cuid())
+  name                 String
+  slug                 String                @unique
+  plan                 Plan                  @default(STARTER)
+  // Plateforme multi-secteurs : le secteur pré-remplit les packs, la TVA et les
+  // moyens de paiement ; les packs activent les fonctions métier
+  sector               Sector                @default(GENERAL)
+  packs                Pack[]                @default([])
+  // Commerce de détail : prix saisis TTC. B2B pur : prix HT.
+  priceIncludesTax     Boolean               @default(true)
+  currency             String                @default("EUR")
+  taxRates             TaxRate[]
+  paymentMethods       PaymentMethod[]
+  attributeDefinitions AttributeDefinition[]
+  sites                Site[]
+  users                User[]
+  settings             OrganizationSettings?
+  invoiceSequences     InvoiceSequence[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 }
 
 // ============================================================
@@ -37,18 +47,18 @@ model OrganizationSettings {
   organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   // Identité légale
-  siret          String?      // 14 chiffres
-  vatNumber      String?      // FR + 11 chiffres
-  legalForm      String?      // SAS, SARL, SA...
+  siret          String? // 14 chiffres
+  vatNumber      String? // FR + 11 chiffres
+  legalForm      String? // SAS, SARL, SA...
   capital        Decimal?     @db.Decimal(15, 2)
-  rcs            String?      // Tribunal de commerce
+  rcs            String? // Tribunal de commerce
   legalAddress   String?
   legalCity      String?
   legalZipCode   String?
   // E-invoicing Plateforme Agréée (sept. 2026)
-  pdpName        String?      // ex. "Chorus Pro", "Yooz", "Pennylane"
-  pdpEndpoint    String?      // URL endpoint PDP
-  pdpApiKey      String?      // Clé API chiffrée (at-rest)
+  pdpName        String? // ex. "Chorus Pro", "Yooz", "Pennylane"
+  pdpEndpoint    String? // URL endpoint PDP
+  pdpApiKey      String? // Clé API chiffrée (at-rest)
   pdpEnabled     Boolean      @default(false)
   updatedAt      DateTime     @updatedAt
 }
@@ -119,8 +129,8 @@ model ReceiptChain {
   siteId       String
   site         Site     @relation(fields: [siteId], references: [id])
   counter      Int
-  hash         String   // SHA-256(previousHash|total|signedAt|counter)
-  previousHash String   // "0"×64 pour le premier ticket
+  hash         String // SHA-256(previousHash|total|signedAt|counter)
+  previousHash String // "0"×64 pour le premier ticket
   total        Decimal  @db.Decimal(10, 2) // calculé serveur uniquement
   signedAt     DateTime @default(now())
   // Lien vers la commande (FK sur Order — pas sur ReceiptChain)
@@ -139,7 +149,7 @@ model Category {
   siteId   String
   site     Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
   name     String
-  color    String?   // hex — pour l'indicateur couleur dans la grille POS
+  color    String? // hex — pour l'indicateur couleur dans la grille POS
   position Int       @default(0)
   products Product[]
 
@@ -147,27 +157,32 @@ model Category {
 }
 
 model Product {
-  id          String      @id @default(cuid())
+  id          String            @id @default(cuid())
   siteId      String
-  site        Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  site        Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
   name        String
-  subtitle    String?     // ex. "Origine Ghana 72%"
+  subtitle    String? // ex. "Origine Ghana 72%"
   description String?
   sku         String?
   barcode     String?
-  price       Decimal     @db.Decimal(10, 2)
-  taxRate     Decimal     @default(5.5)  @db.Decimal(5, 2)
+  price       Decimal           @db.Decimal(10, 2)
+  taxRate     Decimal           @default(5.5) @db.Decimal(5, 2)
   categoryId  String?
-  category    Category?   @relation(fields: [categoryId], references: [id])
+  category    Category?         @relation(fields: [categoryId], references: [id])
   variants    Variant[]
   orderItems  OrderItem[]
   // Back-relations Sprint 4 — ajoutées via migration additive
   stockItem   StockItem?
   allergens   ProductAllergen[]
-  isActive    Boolean     @default(true)
+  // Cœur multi-secteurs
+  options     ProductOption[]
+  attributes  Json              @default("{}") // valeurs des AttributeDefinition, par clé
+  tracking    TrackingMode      @default(NONE)
+  lots        StockLot[]
+  isActive    Boolean           @default(true)
   imageUrl    String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   @@index([siteId])
   @@index([siteId, isActive])
@@ -175,14 +190,22 @@ model Product {
 }
 
 model Variant {
-  id        String  @id @default(cuid())
+  id        String        @id @default(cuid())
   productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name      String  // ex. "150g", "Coffret 6 pièces"
-  price     Decimal @db.Decimal(10, 2)
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String // ex. "150g", "Coffret 6 pièces", "M / Noir"
+  price     Decimal       @db.Decimal(10, 2)
   barcode   String?
+  sku       String?
+  // Combinaison d'options, ex. {"Taille": "M", "Couleur": "Noir"}
+  options   Json          @default("{}")
+  position  Int           @default(0)
+  isActive  Boolean       @default(true)
+  stock     VariantStock?
+  lots      StockLot[]
 
   @@index([productId])
+  @@index([barcode])
 }
 
 // ============================================================
@@ -190,33 +213,35 @@ model Variant {
 // ============================================================
 
 model Order {
-  id             String        @id @default(cuid())
+  id             String         @id @default(cuid())
   siteId         String
-  site           Site          @relation(fields: [siteId], references: [id])
-  channel        Channel       @default(IN_STORE)
-  status         OrderStatus   @default(COMPLETED)
+  site           Site           @relation(fields: [siteId], references: [id])
+  channel        Channel        @default(IN_STORE)
+  status         OrderStatus    @default(COMPLETED)
   items          OrderItem[]
-  subtotal       Decimal       @db.Decimal(10, 2)
-  taxAmount      Decimal       @db.Decimal(10, 2)
-  total          Decimal       @db.Decimal(10, 2) // calculé serveur
-  discount       Decimal       @default(0) @db.Decimal(10, 2)
-  paymentMode    PaymentMode   @default(CARD)
+  subtotal       Decimal        @db.Decimal(10, 2)
+  taxAmount      Decimal        @db.Decimal(10, 2)
+  total          Decimal        @db.Decimal(10, 2) // calculé serveur
+  discount       Decimal        @default(0) @db.Decimal(10, 2)
+  paymentMode    PaymentMode    @default(CARD)
   customerEmail  String?
-  customerName   String?   // click & collect — nom du client
+  customerName   String? // click & collect — nom du client
   note           String?
   // Click & collect — Sprint 3
-  pickupCode     String?   @unique
+  pickupCode     String?        @unique
   scheduledAt    DateTime?
   // B2B — Sprint 7
   b2bClientId    String?
-  b2bClient      B2BClient? @relation(fields: [b2bClientId], references: [id])
-  paymentTerms   Int?        // jours de paiement B2B (30, 60, 90)
-  invoiceNumber  String?     @unique
+  b2bClient      B2BClient?     @relation(fields: [b2bClientId], references: [id])
+  paymentTerms   Int? // jours de paiement B2B (30, 60, 90)
+  invoiceNumber  String?        @unique
   invoicedAt     DateTime?
-  receiptChainId String?   @unique
-  receiptChain   ReceiptChain? @relation(fields: [receiptChainId], references: [id])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  receiptChainId String?        @unique
+  receiptChain   ReceiptChain?  @relation(fields: [receiptChainId], references: [id])
+  // Paiements détaillés (paiement fractionné, moyens configurables)
+  payments       OrderPayment[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([siteId, createdAt])
   @@index([siteId, status])
@@ -224,18 +249,21 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  variantId String?
+  id           String  @id @default(cuid())
+  orderId      String
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product @relation(fields: [productId], references: [id])
+  variantId    String?
   // Snapshot immuable au moment de la vente
-  name      String
-  price     Decimal @db.Decimal(10, 2)
-  taxRate   Decimal @db.Decimal(5, 2)
-  quantity  Int
-  discount  Decimal @default(0) @db.Decimal(10, 2)
+  name         String
+  variantName  String?
+  lotId        String?
+  serialNumber String?
+  price        Decimal @db.Decimal(10, 2)
+  taxRate      Decimal @db.Decimal(5, 2)
+  quantity     Int
+  discount     Decimal @default(0) @db.Decimal(10, 2)
 }
 
 // ============================================================
@@ -250,9 +278,9 @@ model OrderItem {
 model B2BClient {
   id             String   @id @default(cuid())
   organizationId String
-  name           String   // Raison sociale
+  name           String // Raison sociale
   siret          String?
-  vatNumber      String?  // Numéro TVA intracommunautaire
+  vatNumber      String? // Numéro TVA intracommunautaire
   email          String?
   phone          String?
   address        String?
@@ -260,7 +288,7 @@ model B2BClient {
   zipCode        String?
   country        String   @default("FR")
   discount       Decimal? @db.Decimal(5, 2) // Remise habituelle en %
-  paymentTerms   Int      @default(30)       // Délai de paiement en jours
+  paymentTerms   Int      @default(30) // Délai de paiement en jours
   notes          String?
   orders         Order[]
   createdAt      DateTime @default(now())
@@ -275,9 +303,9 @@ model ApiToken {
   userId         String
   organizationId String
   name           String
-  tokenHash      String    @unique  // SHA-256 du token en clair
-  prefix         String             // 8 premiers chars pour identification
-  scopes         String[]           // ["orders:read", "products:read", ...]
+  tokenHash      String    @unique // SHA-256 du token en clair
+  prefix         String // 8 premiers chars pour identification
+  scopes         String[] // ["orders:read", "products:read", ...]
   lastUsedAt     DateTime?
   expiresAt      DateTime?
   isRevoked      Boolean   @default(false)
@@ -289,16 +317,16 @@ model ApiToken {
 
 // Endpoint webhook
 model Webhook {
-  id             String    @id @default(cuid())
-  organizationId String
-  url            String
-  events         String[]  // ["order.created", "order.completed", ...]
-  secret         String    // HMAC-SHA256 signing secret
-  isActive       Boolean   @default(true)
-  failureCount   Int       @default(0)
+  id              String    @id @default(cuid())
+  organizationId  String
+  url             String
+  events          String[] // ["order.created", "order.completed", ...]
+  secret          String // HMAC-SHA256 signing secret
+  isActive        Boolean   @default(true)
+  failureCount    Int       @default(0)
   lastTriggeredAt DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([organizationId])
 }
@@ -338,10 +366,12 @@ model StockMovement {
   id        String       @id @default(cuid())
   siteId    String
   productId String
+  variantId String?
+  lotId     String?
   type      MovementType
   quantity  Decimal      @db.Decimal(10, 3)
   reason    String?
-  orderId   String?      // renseigné pour les ventes
+  orderId   String? // renseigné pour les ventes
   userId    String?
   createdAt DateTime     @default(now())
 
@@ -351,10 +381,10 @@ model StockMovement {
 
 // 14 allergènes INCO — seedés en base, non modifiables par les users
 model Allergen {
-  id       String           @id @default(cuid())
-  name     String           @unique
-  code     String           @unique // "GLUTEN", "LAIT", etc.
-  isInco   Boolean          @default(true)
+  id       String            @id @default(cuid())
+  name     String            @unique
+  code     String            @unique // "GLUTEN", "LAIT", etc.
+  isInco   Boolean           @default(true)
   products ProductAllergen[]
 }
 
@@ -371,15 +401,15 @@ model ProductAllergen {
 
 // NF525 — Clôture journalière (ticket Z)
 model DayClosure {
-  id           String   @id @default(cuid())
-  siteId       String
-  date         DateTime // jour de clôture (minuit UTC)
-  totalOrders  Int
-  totalAmount  Decimal  @db.Decimal(10, 2)
-  lastCounter  Int      // dernier counter NF525 de la journée
-  hash         String   // SHA-256 de la clôture
-  closedAt     DateTime @default(now())
-  closedBy     String?
+  id          String   @id @default(cuid())
+  siteId      String
+  date        DateTime // jour de clôture (minuit UTC)
+  totalOrders Int
+  totalAmount Decimal  @db.Decimal(10, 2)
+  lastCounter Int // dernier counter NF525 de la journée
+  hash        String // SHA-256 de la clôture
+  closedAt    DateTime @default(now())
+  closedBy    String?
 
   @@unique([siteId, date])
   @@index([siteId])
@@ -414,4 +444,156 @@ enum PaymentMode {
   MIXED
   INVOICE
   TICKET_RESTO
+}
+
+// ============================================================
+// CŒUR MULTI-SECTEURS — secteurs, packs, configuration
+// ============================================================
+
+enum Sector {
+  GENERAL
+  FOOD // chocolaterie, pâtisserie, épicerie fine, traiteur
+  FASHION // prêt-à-porter, maroquinerie, chaussures
+  BEAUTY // parfumerie, cosmétique
+  JEWELRY // joaillerie, horlogerie
+  WINE // cave, spiritueux
+  HOME // décoration, art de vivre
+  SERVICES // prestations, ateliers
+}
+
+// Fonctions métier activables par organisation
+enum Pack {
+  FOOD // allergènes, DLUO/DLC, titres-restaurant
+  FASHION // grille tailles × couleurs, collections, saisons
+  BEAUTY // lots, dates d'expiration, testeurs
+  JEWELRY // numéros de série, certificats, garanties
+  WINE // millésimes, appellations
+  SERVICES // prestations, durées
+}
+
+enum TrackingMode {
+  NONE
+  LOT // numéro de lot
+  LOT_EXPIRY // numéro de lot + date limite
+  SERIAL // un numéro de série par pièce
+}
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  SELECT
+  DATE
+}
+
+enum PaymentKind {
+  CARD
+  CASH
+  VOUCHER // titres-restaurant, chèques cadeaux, avoirs
+  TRANSFER
+  OTHER
+}
+
+// Taux de TVA proposés à la saisie produit
+model TaxRate {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  label          String // ex. "Taux normal"
+  rate           Decimal      @db.Decimal(5, 2)
+  isDefault      Boolean      @default(false)
+
+  @@unique([organizationId, rate])
+  @@index([organizationId])
+}
+
+// Moyens de paiement proposés en caisse
+model PaymentMethod {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String // ex. "CARD", "CASH", "TICKET_RESTO", "GIFT_CARD"
+  label          String
+  kind           PaymentKind
+  isActive       Boolean      @default(true)
+  position       Int          @default(0)
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+}
+
+// Champs produit définis par l'organisation (matière, origine, millésime...)
+model AttributeDefinition {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key            String // clé dans Product.attributes
+  label          String
+  type           AttributeType
+  options        String[]      @default([]) // valeurs possibles pour SELECT
+  pack           Pack? // null = champ créé par l'organisation
+  required       Boolean       @default(false)
+  position       Int           @default(0)
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+}
+
+// Axe de variation d'un produit, ex. Taille : [S, M, L]
+model ProductOption {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  values    String[]
+  position  Int      @default(0)
+
+  @@unique([productId, name])
+  @@index([productId])
+}
+
+// Stock par variante (le StockItem reste le stock du produit sans variante)
+model VariantStock {
+  id        String   @id @default(cuid())
+  variantId String   @unique
+  variant   Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  siteId    String
+  quantity  Decimal  @db.Decimal(10, 3)
+  alertAt   Decimal? @db.Decimal(10, 3)
+  updatedAt DateTime @updatedAt
+
+  @@index([siteId])
+}
+
+// Lots, dates limites et numéros de série
+model StockLot {
+  id           String    @id @default(cuid())
+  siteId       String
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId    String?
+  variant      Variant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  lotNumber    String?
+  serialNumber String?
+  expiresAt    DateTime?
+  quantity     Decimal   @db.Decimal(10, 3)
+  receivedAt   DateTime  @default(now())
+
+  @@unique([productId, serialNumber])
+  @@index([siteId, productId])
+  @@index([expiresAt])
+}
+
+// Ligne de paiement d'une commande
+model OrderPayment {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  code      String // snapshot du PaymentMethod.code
+  label     String
+  kind      PaymentKind
+  amount    Decimal     @db.Decimal(10, 2)
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
 }
