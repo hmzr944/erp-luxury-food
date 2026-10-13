@@ -2,16 +2,17 @@ import type { Metadata, Viewport } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { Providers } from '@/lib/providers'
+import { BRAND } from '@/lib/brand'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: { default: 'ERP', template: '%s | ERP' },
-  description: 'Caisse et gestion pour boutiques et maisons de commerce',
+  title: { default: BRAND, template: `%s | ${BRAND}` },
+  description: 'Caisse et gestion pour les commerces',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'ERP',
+    title: BRAND,
   },
 }
 

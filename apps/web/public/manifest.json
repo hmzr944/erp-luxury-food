@@ -1,14 +1,17 @@
 {
-  "name": "ERP Luxury Food",
-  "short_name": "ERP",
-  "description": "Caisse et gestion pour manufactures et boutiques luxury food",
-  "start_url": "/",
+  "name": "Comptoir",
+  "short_name": "Comptoir",
+  "description": "Caisse et gestion pour les commerces",
+  "start_url": "/login",
   "display": "standalone",
-  "orientation": "landscape",
-  "background_color": "#0A0A0A",
-  "theme_color": "#0A0A0A",
+  "orientation": "any",
+  "background_color": "#F5F5F3",
+  "theme_color": "#F5F5F3",
   "lang": "fr",
-  "categories": ["business", "productivity"],
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -36,7 +39,12 @@
     {
       "name": "Ouvrir la caisse",
       "url": "/dashboard",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

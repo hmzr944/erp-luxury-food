@@ -20,6 +20,7 @@ import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useSiteStore } from '@/stores/site.store'
 import { sitesApi } from '@/lib/api/sites'
+import { useBilling } from '@/lib/api/billing'
 
 const NAV = [
   { href: '/dashboard',  icon: ChartLine,   label: 'Dashboard' },
@@ -51,7 +52,7 @@ export function Sidebar() {
       {/* Brand + site selector */}
       <div className="px-4 py-4 border-b border-[var(--color-border)]">
         <p className="font-display text-sm text-[var(--color-text-primary)] leading-tight mb-2 truncate">
-          {currentSite?.name ?? 'ERP'}
+          {currentSite?.name ?? 'Comptoir'}
         </p>
 
         {sites.length > 1 && (
@@ -122,6 +123,7 @@ export function Sidebar() {
 
       {/* Navigation bas */}
       <div className="px-3 pb-4 space-y-0.5 border-t border-[var(--color-border)] pt-3">
+        <BillingNotice />
         {NAV_BOTTOM.map(({ href, icon: Icon, label }) => {
           const active = isActive(href)
           return (
@@ -142,5 +144,27 @@ export function Sidebar() {
         })}
       </div>
     </nav>
+  )
+}
+
+// Essai ou paiement en attente : visible sans être bloquant
+function BillingNotice() {
+  const { data } = useBilling()
+  if (!data || data.status === 'ACTIVE') return null
+  const text =
+    data.status === 'TRIALING'
+      ? data.trialDaysLeft
+        ? `Essai : ${data.trialDaysLeft} ${data.trialDaysLeft > 1 ? 'jours' : 'jour'}`
+        : 'Essai terminé'
+      : data.status === 'PAST_DUE'
+        ? 'Paiement en attente'
+        : 'Abonnement arrêté'
+  return (
+    <Link
+      href="/settings/billing"
+      className="mb-1 block rounded-[var(--radius-md)] px-3 py-2 text-[13px] font-medium text-[var(--color-accent)] hover:bg-[var(--color-bg-hover)]"
+    >
+      {text}
+    </Link>
   )
 }

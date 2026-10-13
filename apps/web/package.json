@@ -13,6 +13,7 @@
   "dependencies": {
     "@erp/types": "workspace:*",
     "@erp/utils": "workspace:*",
+    "@gsap/react": "2.1.2",
     "@hookform/resolvers": "^5.0.1",
     "@phosphor-icons/react": "^2.1.7",
     "@tanstack/react-query": "^5.80.2",
@@ -21,6 +22,7 @@
     "dexie": "^4.0.11",
     "framer-motion": "^12.15.0",
     "geist": "^1.7.2",
+    "gsap": "3.13.0",
     "next": "^15.3.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

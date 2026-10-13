@@ -7,7 +7,10 @@ import { AppModule } from './app.module'
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule)
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    // Corps brut conservé pour vérifier la signature des webhooks Stripe
+    rawBody: true,
+  })
   // Import de catalogue : un fichier CSV de quelques milliers de lignes
   app.useBodyParser('json', { limit: '3mb' })
 

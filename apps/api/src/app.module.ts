@@ -1,3 +1,4 @@
+import { BillingModule } from './billing/billing.module'
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { ThrottlerModule } from '@nestjs/throttler'
@@ -68,6 +69,7 @@ import { HealthController } from './health/health.controller'
     ApiTokensModule,
     WebhooksModule,
     InvoicesModule,
+    BillingModule,
     PlatformModule,
     TerminalsModule,
     DataModule,

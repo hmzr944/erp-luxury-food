@@ -1,3 +1,4 @@
+import { TRIAL_DAYS } from '@erp/types'
 import {
   Injectable,
   UnauthorizedException,
@@ -37,7 +38,9 @@ export class AuthService {
       : base
 
     const { org, site, user } = await this.prisma.$transaction(async (tx) => {
-      const org = await tx.organization.create({ data: { name: dto.businessName.trim(), slug } })
+      const org = await tx.organization.create({
+        data: { name: dto.businessName.trim(), slug, trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) },
+      })
       const site = await tx.site.create({ data: { organizationId: org.id, name: (dto.siteName || dto.businessName).trim() } })
       const user = await tx.user.create({
         data: {

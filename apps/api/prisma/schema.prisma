@@ -19,6 +19,12 @@ model Organization {
   name                 String
   slug                 String                @unique
   plan                 Plan                  @default(STARTER)
+  // Abonnement : essai sans carte, puis Stripe Billing si configuré
+  subscriptionStatus   SubscriptionStatus    @default(TRIALING)
+  trialEndsAt          DateTime?
+  stripeCustomerId     String?               @unique
+  stripeSubscriptionId String?               @unique
+  currentPeriodEnd     DateTime?
   // Plateforme multi-secteurs : le secteur pré-remplit les packs, la TVA et les
   // moyens de paiement ; les packs activent les fonctions métier
   sector               Sector                @default(GENERAL)
@@ -366,6 +372,13 @@ enum Role {
   OWNER
   MANAGER
   SELLER
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }
 
 enum Plan {
