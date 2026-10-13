@@ -21,6 +21,7 @@ import { WebhooksModule } from './webhooks/webhooks.module'
 import { InvoicesModule } from './invoices/invoices.module'
 import { PlatformModule } from './platform/platform.module'
 import { TerminalsModule } from './terminals/terminals.module'
+import { DataModule } from './data/data.module'
 import { HealthController } from './health/health.controller'
 
 @Module({
@@ -68,6 +69,7 @@ import { HealthController } from './health/health.controller'
     InvoicesModule,
     PlatformModule,
     TerminalsModule,
+    DataModule,
   ],
 })
 export class AppModule {}

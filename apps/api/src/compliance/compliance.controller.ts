@@ -52,7 +52,7 @@ export class ComplianceController {
       ].join(';'))
       .join('\n')
 
-    const csv = '﻿' + header + rows // BOM UTF-8 pour Excel
+    const csv = '\uFEFF' + header + rows // BOM UTF-8 pour Excel
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
     res.setHeader('Content-Disposition', `attachment; filename="NF525_export_${now}.csv"`)
