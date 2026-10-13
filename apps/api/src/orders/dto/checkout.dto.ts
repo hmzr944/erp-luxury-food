@@ -61,6 +61,12 @@ export class CheckoutPaymentDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   amount!: number
+
+  // Avoir : son code ; TPE : référence du prestataire
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  reference?: string
 }
 
 export class CheckoutDto {

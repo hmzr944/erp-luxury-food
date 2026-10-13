@@ -59,6 +59,8 @@ const BASE_PAYMENTS: PaymentMethodPreset[] = [
   { code: 'CARD', label: 'Carte', kind: PaymentKind.CARD },
   { code: 'CASH', label: 'Espèces', kind: PaymentKind.CASH },
   { code: 'GIFT_CARD', label: 'Carte cadeau', kind: PaymentKind.VOUCHER },
+  // Avoir émis lors d'un retour, utilisable sur une prochaine vente
+  { code: 'CREDIT', label: 'Avoir', kind: PaymentKind.VOUCHER },
 ]
 
 export const PACK_ATTRIBUTES: Record<Pack, AttributePreset[]> = {

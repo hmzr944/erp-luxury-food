@@ -14,6 +14,7 @@ import type { CartLine } from '@/stores/cart.store'
 import { EASE, Sheet } from './Sheet'
 import { TerminalWait } from './TerminalWait'
 import { PartsPayment } from './PartsPayment'
+import { CreditPayment, type PayLine } from './CreditPayment'
 
 const KIND_ICON: Record<PaymentKind, React.ElementType> = {
   [PaymentKind.CARD]: CreditCard,
@@ -42,15 +43,20 @@ interface PaymentSheetProps {
   receipt: ReceiptView | null
   busy: boolean
   error: string | null
-  onPay: (payments: Array<{ code: string; amount: number }>, email?: string, clientId?: string) => void
+  // Code d'avoir apporté par un échange (écran Commandes)
+  creditCode?: string
+  onPay: (payments: PayLine[], email?: string, clientId?: string) => void
   onClose: () => void
 }
 
-export function PaymentSheet({ open, siteId, device, total, methods, siteName, receipt, busy, error, onPay, onClose }: PaymentSheetProps) {
+export function PaymentSheet({ open, siteId, device, total, methods, siteName, receipt, busy, error, creditCode, onPay, onClose }: PaymentSheetProps) {
   const [split, setSplit] = useState(false)
   const [terminal, setTerminal] = useState<Method | null>(null)
   const [parts, setParts] = useState(false)
   const [partsLocked, setPartsLocked] = useState(false)
+  const [credit, setCredit] = useState(false)
+  // L'avoir demande un code : il a son propre écran, pas sa place dans les partages
+  const plain = methods.filter((m) => m.code !== 'CREDIT')
   const [email, setEmail] = useState('')
   const [showEmail, setShowEmail] = useState(false)
 
@@ -60,6 +66,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
       setTerminal(null)
       setParts(false)
       setPartsLocked(false)
+      setCredit(false)
       setEmail('')
       setShowEmail(false)
     }
@@ -69,7 +76,9 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
     ? 'Vente enregistrée'
     : terminal
       ? 'Paiement sur le TPE'
-      : parts
+      : credit
+        ? `Payer ${formatPrice(total)} par avoir`
+        : parts
         ? 'Diviser la note'
         : split
         ? 'Paiement en plusieurs fois'
@@ -77,6 +86,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
 
   // Carte + TPE connecté + réseau : le montant part au TPE. Sinon, TPE autonome.
   const choose = (m: Method) => {
+    if (m.code === 'CREDIT') return setCredit(true)
     if (m.kind === PaymentKind.CARD && device && navigator.onLine) return setTerminal(m)
     onPay([{ code: m.code, amount: total }], mail)
   }
@@ -105,19 +115,31 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
             onBack={() => setTerminal(null)}
           />
         </>
+      ) : credit ? (
+        <CreditPayment
+          siteId={siteId}
+          device={device}
+          total={total}
+          methods={plain}
+          busy={busy}
+          initialCode={creditCode}
+          onLock={setPartsLocked}
+          onPay={(p, clientId) => onPay(p, mail, clientId)}
+          onBack={() => setCredit(false)}
+        />
       ) : parts ? (
         <PartsPayment
           siteId={siteId}
           device={device}
           total={total}
-          methods={methods}
+          methods={plain}
           busy={busy}
           onLock={setPartsLocked}
           onPay={(p, clientId) => onPay(p, mail, clientId)}
           onBack={() => setParts(false)}
         />
       ) : split ? (
-        <SplitPayment total={total} methods={methods} busy={busy} onPay={(p) => onPay(p, mail)} onBack={() => setSplit(false)} />
+        <SplitPayment total={total} methods={plain} busy={busy} onPay={(p) => onPay(p, mail)} onBack={() => setSplit(false)} />
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-[var(--color-text-secondary)]">Touchez le moyen de paiement pour valider.</p>
@@ -150,7 +172,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
             <button type="button" onClick={() => setParts(true)} className="h-11 text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
               Diviser la note
             </button>
-            {methods.length > 1 && (
+            {plain.length > 1 && (
               <button type="button" onClick={() => setSplit(true)} className="h-11 text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
                 Payer avec plusieurs moyens
               </button>

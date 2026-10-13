@@ -11,7 +11,7 @@ import { useAuthStore } from '@/stores/auth.store'
 const ROLE_LABELS = { OWNER: 'Propriétaire', MANAGER: 'Responsable', SELLER: 'Vendeur' }
 const ROLE_COLORS = {
   OWNER:   'bg-[var(--color-accent)]/15 text-[var(--color-accent)] border-[var(--color-accent)]/20',
-  MANAGER: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  MANAGER: 'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   SELLER:  'bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-[var(--color-border)]',
 }
 

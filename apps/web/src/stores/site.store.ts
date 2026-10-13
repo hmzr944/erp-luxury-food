@@ -24,7 +24,8 @@ export const useSiteStore = create<SiteState>()(
       setSites: (sites) =>
         set((state) => ({
           sites,
-          currentSite: state.currentSite ?? sites[0] ?? null,
+          // Site mémorisé encore valable pour ce compte, sinon le premier
+          currentSite: sites.find((x) => x.id === state.currentSite?.id) ?? sites[0] ?? null,
         })),
       selectSite: (site) => set({ currentSite: site }),
     }),

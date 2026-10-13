@@ -16,9 +16,24 @@ export interface CheckoutPayload {
   printerId?: number
 }
 
+export interface ApiOrderPayment {
+  code: string
+  label: string
+  kind: string
+  amount: number | string
+  reference: string | null
+}
+
 export interface ApiOrder {
   id: string
   siteId: string
+  kind?: 'SALE' | 'REFUND'
+  refundOfId?: string | null
+  refundReason?: string | null
+  note?: string | null
+  payments?: ApiOrderPayment[]
+  refunds?: Array<{ id: string; total: number | string; createdAt: string }>
+  refundOf?: { id: string; receiptChain: { counter: number } | null } | null
   status: string
   channel: string
   subtotal: number
@@ -40,6 +55,9 @@ export interface ApiOrder {
 export interface ApiOrderItem {
   id: string
   name: string
+  variantName?: string | null
+  serialNumber?: string | null
+  refundOfItemId?: string | null
   price: number
   taxRate: number
   quantity: number
@@ -74,19 +92,54 @@ export const ordersApi = {
       body: JSON.stringify(payload),
     }),
 
-  getAll: (siteId: string, params?: { limit?: number; status?: string }) => {
+  getAll: (
+    siteId: string,
+    params?: { limit?: number; status?: string; q?: string; kind?: 'SALE' | 'REFUND'; from?: string; before?: string },
+  ) => {
     const qs = new URLSearchParams()
-    if (params?.limit) qs.set('limit', String(params.limit))
-    if (params?.status) qs.set('status', params.status)
+    for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined && v !== '') qs.set(k, String(v))
     return apiClient<ApiOrder[]>(`/sites/${siteId}/orders?${qs}`)
   },
 
   getById: (siteId: string, id: string) =>
-    apiClient<ApiOrder>(`/sites/${siteId}/orders/${id}`),
+    apiClient<ApiOrderDetail>(`/sites/${siteId}/orders/${id}`),
+
+  refund: (siteId: string, id: string, body: RefundPayload) =>
+    apiClient<ApiOrder & { credit: StoreCreditView | null }>(`/sites/${siteId}/orders/${id}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  credit: (siteId: string, code: string) =>
+    apiClient<StoreCreditView & { initialAmount: number; expired: boolean }>(
+      `/sites/${siteId}/credits/${encodeURIComponent(code.trim())}`,
+    ),
 
   updateStatus: (siteId: string, id: string, status: string) =>
     apiClient<ApiOrder>(`/sites/${siteId}/orders/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+}
+
+export interface ApiOrderDetail extends Omit<ApiOrder, 'refunds'> {
+  site?: { name: string }
+  refunds: Array<ApiOrder>
+}
+
+export type RefundTo = 'ORIGINAL' | 'CASH' | 'CREDIT'
+
+export interface RefundPayload {
+  lines: Array<{ orderItemId: string; quantity: number }>
+  refundTo: RefundTo
+  restock: boolean
+  reason?: string
+  customerEmail?: string
+  creditMonths?: number
+}
+
+export interface StoreCreditView {
+  code: string
+  balance: number
+  expiresAt: string | null
 }

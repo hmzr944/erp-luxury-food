@@ -19,6 +19,8 @@ import { PaymentSheet, type ReceiptView } from './PaymentSheet'
 import { Sheet, EASE } from './Sheet'
 import { useSaleQueue } from './useSaleQueue'
 import { CustomItemSheet, QuickProductSheet } from './QuickSheets'
+import type { PayLine } from './CreditPayment'
+import { ReturnFinder } from './ReturnFinder'
 
 interface POSClientProps {
   siteId: string
@@ -39,6 +41,16 @@ export function POSClient({ siteId }: POSClientProps) {
   const [receipt, setReceipt] = useState<ReceiptView | null>(null)
   const [customOpen, setCustomOpen] = useState(false)
   const [createSeed, setCreateSeed] = useState<string | null>(null)
+  const [returning, setReturning] = useState(false)
+  // Échange : l'écran de retour renvoie ici avec le code de l'avoir
+  const [creditCode, setCreditCode] = useState<string>()
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('avoir')
+    if (code) {
+      setCreditCode(code)
+      toast(`Avoir ${code} prêt : ajoutez les articles, puis Encaisser et Avoir.`)
+    }
+  }, [])
 
   const products = useQuery({
     queryKey: ['products', siteId],
@@ -102,7 +114,7 @@ export function POSClient({ siteId }: POSClientProps) {
     add(product)
   }
 
-  const pay = async (payments: Array<{ code: string; amount: number }>, email?: string, clientId?: string) => {
+  const pay = async (payments: PayLine[], email?: string, clientId?: string) => {
     setBusy(true)
     setPayError(null)
     const sold = [...lines]
@@ -132,6 +144,10 @@ export function POSClient({ siteId }: POSClientProps) {
       })
       clearCart()
       setTicketOpen(false)
+      if (payments.some((p) => p.code === 'CREDIT')) {
+        setCreditCode(undefined)
+        window.history.replaceState(null, '', window.location.pathname)
+      }
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "La vente n'a pas pu être enregistrée")
     } finally {
@@ -148,7 +164,7 @@ export function POSClient({ siteId }: POSClientProps) {
   return (
     <MotionConfig reducedMotion="user">
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
-        <POSHeader siteName={siteName} terminalName={terminalName} queue={queue} />
+        <POSHeader siteName={siteName} terminalName={terminalName} queue={queue} onReturn={() => setReturning(true)} />
 
         <div className="flex min-h-0 flex-1">
           <Catalog
@@ -241,6 +257,17 @@ export function POSClient({ siteId }: POSClientProps) {
           }}
         />
 
+        <ReturnFinder
+          siteId={siteId}
+          open={returning}
+          onUseCredit={(code) => {
+            setReturning(false)
+            setCreditCode(code)
+            toast(`Avoir ${code} prêt : ajoutez les articles, puis Encaisser et Avoir.`)
+          }}
+          onClose={() => setReturning(false)}
+        />
+
         <PaymentSheet
           open={paying}
           siteId={siteId}
@@ -251,6 +278,7 @@ export function POSClient({ siteId }: POSClientProps) {
           receipt={receipt}
           busy={busy}
           error={payError}
+          creditCode={creditCode}
           onPay={pay}
           onClose={closePayment}
         />

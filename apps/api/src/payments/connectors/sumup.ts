@@ -90,6 +90,22 @@ export const sumupConnector: PaymentConnector = {
     }
   },
 
+  // Le remboursement se fait sur l'identifiant de transaction SumUp, retrouvé
+  // à partir de l'identifiant donné à l'encaissement
+  async refund(ctx, input) {
+    const tx = await call<{ id?: string }>(
+      ctx,
+      'GET',
+      `/v2.1/merchants/${merchant(ctx)}/transactions?client_transaction_id=${encodeURIComponent(input.providerRef)}`,
+    )
+    if (tx.status === 404 || !tx.data.id) throw new ConnectorError('Transaction SumUp introuvable')
+    const r = await call(ctx, 'POST', `/v1.0/merchants/${merchant(ctx)}/payments/${encodeURIComponent(tx.data.id)}/refunds`, {
+      amount: input.amount / 100,
+    })
+    if (r.status === 404) throw new ConnectorError('Transaction SumUp introuvable')
+    return { refundRef: tx.data.id }
+  },
+
   async cancel(ctx, input) {
     await call(ctx, 'POST', `/v0.1/merchants/${merchant(ctx)}/readers/${encodeURIComponent(input.readerId)}/terminate`).catch(() => {})
   },

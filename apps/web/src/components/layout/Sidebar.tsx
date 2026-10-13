@@ -15,8 +15,11 @@ import {
   Gear,
   ArrowsLeftRight,
 } from '@phosphor-icons/react'
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useQuery } from '@tanstack/react-query'
 import { useSiteStore } from '@/stores/site.store'
+import { sitesApi } from '@/lib/api/sites'
 
 const NAV = [
   { href: '/dashboard',  icon: ChartLine,   label: 'Dashboard' },
@@ -35,7 +38,11 @@ const NAV_BOTTOM = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { currentSite, sites, selectSite } = useSiteStore()
+  const { currentSite, sites, selectSite, setSites } = useSiteStore()
+  const loaded = useQuery({ queryKey: ['sites'], queryFn: sitesApi.getAll, staleTime: 5 * 60_000 })
+  useEffect(() => {
+    if (loaded.data) setSites(loaded.data.map((s) => ({ id: s.id, name: s.name, timezone: 'Europe/Paris' })))
+  }, [loaded.data, setSites])
 
   const isActive = (href: string) => pathname.startsWith(href)
 

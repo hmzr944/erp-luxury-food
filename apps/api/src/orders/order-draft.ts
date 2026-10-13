@@ -39,7 +39,7 @@ export interface DraftInput {
   priceIncludesTax: boolean
   orderDiscount?: number
   paymentMethods: DraftPaymentMethod[]
-  payments?: Array<{ code: string; amount: number }>
+  payments?: Array<{ code: string; amount: number; reference?: string | null }>
   // Ancien format : un seul moyen de paiement pour tout le montant
   paymentMode?: string
   // Vente signée par une caisse : le ticket fait foi, on garde ses prix
@@ -145,7 +145,9 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
   const payments = requested.map((p) => {
     const method = methods.get(p.code)
     if (!method) throw new OrderDraftError(`Moyen de paiement inconnu ou désactivé : ${p.code}`)
-    return { ...method, amount: p.amount }
+    // Seul le code d'avoir vient de la caisse ; la référence d'un paiement
+    // carte est rattachée par le serveur à partir du TPE connecté
+    return { ...method, amount: p.amount, ...(p.code === 'CREDIT' && p.reference ? { reference: p.reference } : {}) }
   })
 
   const paidCents = payments.reduce((a, p) => a + Math.round(p.amount * 100), 0)

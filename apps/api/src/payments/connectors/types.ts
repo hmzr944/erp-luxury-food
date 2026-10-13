@@ -32,6 +32,8 @@ export interface PaymentConnector {
     input: { readerId: string; providerRef: string },
   ): Promise<{ status: RemoteStatus; failureReason?: string }>
   cancel(ctx: ConnectorContext, input: { readerId: string; providerRef: string }): Promise<void>
+  // Rembourse tout ou partie d'un paiement accepté (montant en centimes)
+  refund(ctx: ConnectorContext, input: { providerRef: string; amount: number }): Promise<{ refundRef: string }>
   // Mode test uniquement : simule le passage d'une carte
   simulate?(ctx: ConnectorContext, input: { readerId: string; providerRef: string; approve: boolean }): Promise<void>
 }

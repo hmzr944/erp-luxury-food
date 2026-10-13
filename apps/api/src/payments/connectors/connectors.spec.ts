@@ -77,6 +77,13 @@ describe('Stripe Terminal', () => {
     expect(new URLSearchParams(calls[1].body).get('location')).toBe('tml_new')
   })
 
+  it('rembourse une partie du paiement', async () => {
+    const { http, calls } = fakeHttp([[/POST .*\/refunds$/, 200, { id: 're_1', status: 'succeeded' }]])
+    expect(await stripeConnector.refund({ credentials, http }, { providerRef: 'pi_1', amount: 9000 })).toEqual({ refundRef: 're_1' })
+    const body = new URLSearchParams(calls[0].body)
+    expect([body.get('payment_intent'), body.get('amount')]).toEqual(['pi_1', '9000'])
+  })
+
   it('refuse une clé qui n\'est pas une clé secrète', async () => {
     await expect(stripeConnector.verify({ credentials: { secretKey: 'pk_test_x' }, http: fakeHttp([]).http })).rejects.toThrow('Clé secrète')
   })
@@ -101,6 +108,15 @@ describe('SumUp Solo', () => {
     expect((await sumupConnector.status({ credentials, http: paid.http }, { readerId: 'rdr_1', providerRef: 'ctx-1' })).status).toBe('SUCCEEDED')
     const failed = fakeHttp([[/GET .*transactions/, 200, { status: 'FAILED' }]])
     expect((await sumupConnector.status({ credentials, http: failed.http }, { readerId: 'rdr_1', providerRef: 'ctx-1' })).status).toBe('FAILED')
+  })
+
+  it('rembourse via l\'identifiant de transaction, en euros', async () => {
+    const { http, calls } = fakeHttp([
+      [/GET .*transactions\?client_transaction_id=ctx-1/, 200, { id: 'tx-uuid', status: 'SUCCESSFUL' }],
+      [/POST .*\/v1.0\/merchants\/M1234\/payments\/tx-uuid\/refunds/, 200, {}],
+    ])
+    expect(await sumupConnector.refund({ credentials, http }, { providerRef: 'ctx-1', amount: 1550 })).toEqual({ refundRef: 'tx-uuid' })
+    expect(JSON.parse(calls[1].body!)).toEqual({ amount: 15.5 })
   })
 
   it('appaire avec le code en majuscules et signale un code expiré', async () => {

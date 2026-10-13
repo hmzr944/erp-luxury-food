@@ -102,6 +102,15 @@ export const stripeConnector: PaymentConnector = {
     await call(ctx, 'POST', `/payment_intents/${input.providerRef}/cancel`, {}).catch(() => {})
   },
 
+  async refund(ctx, input) {
+    const refund = await call<{ id: string; status: string }>(ctx, 'POST', '/refunds', {
+      payment_intent: input.providerRef,
+      amount: input.amount,
+    })
+    if (refund.status === 'failed' || refund.status === 'canceled') throw new ConnectorError('Remboursement refusé par Stripe')
+    return { refundRef: refund.id }
+  },
+
   // Lecteur simulé Stripe (mode test) : carte acceptée ou refusée
   async simulate(ctx, input) {
     await call(ctx, 'POST', `/test_helpers/terminal/readers/${input.readerId}/present_payment_method`, {

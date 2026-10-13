@@ -12,9 +12,9 @@ import { OrderStatus } from '@erp/types'
 
 const STATUS_TABS: Array<{ key: OrderStatus | 'ALL'; label: string; color: string }> = [
   { key: 'ALL',       label: 'Toutes',          color: 'text-[var(--color-text-secondary)]' },
-  { key: OrderStatus.PENDING,   label: 'En attente',      color: 'text-yellow-400' },
-  { key: OrderStatus.PREPARING, label: 'En préparation',  color: 'text-blue-400' },
-  { key: OrderStatus.READY,     label: 'Prêtes',          color: 'text-green-400' },
+  { key: OrderStatus.PENDING,   label: 'En attente',      color: 'text-[var(--color-text-primary)]' },
+  { key: OrderStatus.PREPARING, label: 'En préparation',  color: 'text-[var(--color-text-primary)]' },
+  { key: OrderStatus.READY,     label: 'Prêtes',          color: 'text-[var(--color-text-primary)]' },
   { key: OrderStatus.COMPLETED, label: 'Servies',         color: 'text-[var(--color-text-muted)]' },
 ]
 
@@ -75,18 +75,19 @@ export function OrdersHub({ siteId }: OrdersHubProps) {
     [siteId, queryClient],
   )
 
-  const filtered = activeTab === 'ALL' ? orders : orders.filter((o) => o.status === activeTab)
+  // Les retours vivent dans l'historique, pas sur le tableau de préparation
+  const board = orders.filter((o) => o.kind !== 'REFUND')
+  const filtered = activeTab === 'ALL' ? board : board.filter((o) => o.status === activeTab)
 
   const countByStatus = (status: OrderStatus | 'ALL') =>
-    status === 'ALL' ? orders.length : orders.filter((o) => o.status === status).length
+    status === 'ALL' ? board.length : board.filter((o) => o.status === status).length
 
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
         <div>
-          <h1 className="font-display text-xl text-[var(--color-text-primary)]">Commandes</h1>
-          <p className="font-body text-xs text-[var(--color-text-muted)] mt-0.5">
+          <p className="font-body text-sm text-[var(--color-text-secondary)] first-letter:uppercase">
             {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>

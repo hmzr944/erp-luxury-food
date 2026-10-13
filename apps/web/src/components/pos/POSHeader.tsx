@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CaretLeft, CloudCheck, CloudSlash, WarningCircle, SignOut } from '@phosphor-icons/react'
+import { ArrowUUpLeft, CaretLeft, CloudCheck, CloudSlash, WarningCircle, SignOut } from '@phosphor-icons/react'
 import { useAuthStore } from '@/stores/auth.store'
 import type { SaleQueueState } from './useSaleQueue'
 
@@ -11,9 +11,10 @@ interface POSHeaderProps {
   siteName: string
   terminalName?: string
   queue: SaleQueueState
+  onReturn: () => void
 }
 
-export function POSHeader({ siteName, terminalName, queue }: POSHeaderProps) {
+export function POSHeader({ siteName, terminalName, queue, onReturn }: POSHeaderProps) {
   const { user, logout } = useAuthStore()
   const router = useRouter()
   const time = useClock()
@@ -37,6 +38,16 @@ export function POSHeader({ siteName, terminalName, queue }: POSHeaderProps) {
       </div>
 
       <SyncStatus queue={queue} />
+
+      <button
+        type="button"
+        onClick={onReturn}
+        className="flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-pill)] px-3 text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]"
+      >
+        <ArrowUUpLeft size={18} aria-hidden />
+        <span className="hidden sm:inline">Retour</span>
+        <span className="sr-only sm:hidden">Retour d&apos;article</span>
+      </button>
 
       <button
         type="button"

@@ -17,13 +17,13 @@ const STATUS_INFO: Record<string, { label: string; icon: React.ElementType; colo
   PENDING: {
     label: 'Commande reçue',
     icon: HourglassMedium,
-    color: 'text-yellow-400',
+    color: 'text-[var(--color-text-primary)]',
     hint: 'Votre commande est en file d\'attente.',
   },
   PREPARING: {
     label: 'En préparation',
     icon: Coffee,
-    color: 'text-blue-400',
+    color: 'text-[var(--color-accent)]',
     hint: 'Nos équipes préparent votre commande.',
   },
   READY: {

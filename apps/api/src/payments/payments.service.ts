@@ -219,6 +219,18 @@ export class PaymentsService {
     return payment ? this.view(payment) : null
   }
 
+  // Rembourse sur la carte d'origine un paiement encaissé par un TPE connecté
+  async refundByReference(organizationId: string, providerRef: string, amountCents: number) {
+    const payment = await this.prisma.terminalPayment.findFirst({
+      where: { OR: [{ providerRef }, { id: providerRef }], status: 'SUCCEEDED', device: { site: { organizationId } } },
+    })
+    if (!payment) return null // pas un paiement par TPE connecté
+    const ctx = await this.context(organizationId, payment.provider)
+    return this.connector(payment.provider)
+      .refund(ctx, { providerRef: payment.providerRef ?? payment.id, amount: amountCents })
+      .catch(this.toHttp)
+  }
+
   // Rattache le paiement TPE à la vente synchronisée (référence prestataire)
   async referencesForSale(clientSaleId: string) {
     const payments = await this.prisma.terminalPayment.findMany({

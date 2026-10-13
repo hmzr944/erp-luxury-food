@@ -17,6 +17,11 @@ import { OrdersService } from './orders.service'
 import { CheckoutDto } from './dto/checkout.dto'
 import { SyncSaleDto } from './dto/sync-sale.dto'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { CurrentUser } from '../common/decorators/current-user.decorator'
+import { RefundsService } from './refunds.service'
+import { RefundDto } from './dto/refund.dto'
+
+type AuthUser = { id: string; email?: string; organizationId: string }
 
 // Route publique pour la page click & collect client
 @Controller('pickup')
@@ -45,7 +50,10 @@ export class PickupController {
 @Controller('sites/:siteId/orders')
 @UseGuards(JwtAuthGuard, SiteGuard)
 export class OrdersController {
-  constructor(private orders: OrdersService) {}
+  constructor(
+    private orders: OrdersService,
+    private refunds: RefundsService,
+  ) {}
 
   @Post('checkout')
   @HttpCode(HttpStatus.CREATED)
@@ -65,11 +73,28 @@ export class OrdersController {
     @Param('siteId') siteId: string,
     @Query('limit') limit?: string,
     @Query('status') status?: string,
+    @Query('q') q?: string,
+    @Query('kind') kind?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('before') before?: string,
   ) {
     return this.orders.findBySite(siteId, {
       limit: limit ? parseInt(limit) : undefined,
       status,
+      q,
+      kind: kind === 'SALE' || kind === 'REFUND' ? kind : undefined,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+      before: before || undefined,
     })
+  }
+
+  // Retour : ticket négatif signé, carte remboursée sur le TPE connecté ou avoir
+  @Post(':id/refund')
+  @HttpCode(HttpStatus.CREATED)
+  refund(@Param('siteId') siteId: string, @Param('id') id: string, @Body() dto: RefundDto, @CurrentUser() user: AuthUser) {
+    return this.refunds.refund(siteId, id, dto, user)
   }
 
   @Get(':id')
@@ -84,5 +109,16 @@ export class OrdersController {
     @Body('status') status: string,
   ) {
     return this.orders.updateStatus(id, siteId, status)
+  }
+}
+
+@Controller('sites/:siteId/credits')
+@UseGuards(JwtAuthGuard, SiteGuard)
+export class CreditsController {
+  constructor(private refunds: RefundsService) {}
+
+  @Get(':code')
+  balance(@Param('code') code: string, @CurrentUser() user: AuthUser) {
+    return this.refunds.creditBalance(user.organizationId, code)
   }
 }

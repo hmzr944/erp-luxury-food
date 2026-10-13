@@ -18,4 +18,7 @@ export const simulatorConnector: PaymentConnector = {
     return { status: 'PENDING' }
   },
   async cancel() {},
+  async refund() {
+    return { refundRef: `simrefund_${randomUUID()}` }
+  },
 }

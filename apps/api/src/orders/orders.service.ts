@@ -17,6 +17,7 @@ import { RECEIPT_GENESIS_HASH } from '@erp/utils'
 import { verifyTerminalReceipt } from '../compliance/terminal-receipt'
 import type { SyncSaleDto } from './dto/sync-sale.dto'
 import { buildOrderDraft, OrderDraftError, type DraftInput, type OrderDraft } from './order-draft'
+import { redeemCredit } from './credits'
 
 const ORDER_INCLUDE = {
   items: { include: { product: { select: { name: true } } } },
@@ -54,12 +55,14 @@ export class OrdersService {
 
       const total = new Decimal(draft.pricing.total)
       const receipt = await this.compliance.signReceipt(tx, siteId, total)
-      return this.persistOrder(tx, siteId, draft, {
+      const order = await this.persistOrder(tx, siteId, draft, {
         channel: dto.channel ?? 'IN_STORE',
         customerEmail: dto.customerEmail,
         note: dto.note,
         receiptChainId: receipt.id,
       })
+      await this.redeemCredits(tx, ref.organizationId, draft, order.id, true)
+      return order
     })
 
     this.afterOrder(siteId, order, dto.printerId)
@@ -163,7 +166,7 @@ export class OrdersService {
         where: { clientSaleId: dto.clientId, status: 'SUCCEEDED', siteId },
         select: { amount: true, providerRef: true, id: true },
       })
-      for (const p of draft.payments) {
+      for (const p of draft.payments.filter((x) => !x.reference)) {
         const i = terminalRefs.findIndex((t) => t.amount === Math.round(p.amount * 100))
         if (i >= 0) {
           p.reference = terminalRefs[i].providerRef ?? terminalRefs[i].id
@@ -171,7 +174,7 @@ export class OrdersService {
         }
       }
 
-      return this.persistOrder(tx, siteId, draft, {
+      const order = await this.persistOrder(tx, siteId, draft, {
         channel: 'IN_STORE',
         customerEmail: dto.customerEmail,
         note: notes.length ? notes.join('\n') : undefined,
@@ -180,6 +183,16 @@ export class OrdersService {
         soldAt: signedAt,
         createdAt: await this.bookingDate(tx, siteId, signedAt),
       })
+      // Vente déjà faite hors ligne : un avoir insuffisant est signalé, pas refusé
+      const shortfalls = await this.redeemCredits(tx, ref.organizationId, draft, order.id, false)
+      if (shortfalls.length) {
+        return tx.order.update({
+          where: { id: order.id },
+          data: { note: [order.note, ...shortfalls].filter(Boolean).join('\n') },
+          include: ORDER_INCLUDE,
+        })
+      }
+      return order
     }).catch(async (e) => {
       // Même vente envoyée deux fois en parallèle : la première a gagné
       if (this.isUniqueViolation(e)) {
@@ -191,6 +204,21 @@ export class OrdersService {
 
     this.afterOrder(siteId, order)
     return order
+  }
+
+  // Paiements par avoir : le code est dans la référence du paiement
+  private async redeemCredits(tx: Prisma.TransactionClient, organizationId: string, draft: OrderDraft, orderId: string, strict: boolean) {
+    const notes: string[] = []
+    for (const p of draft.payments.filter((x) => x.code === 'CREDIT')) {
+      if (!p.reference) {
+        if (strict) throw new BadRequestException("Code de l'avoir manquant")
+        notes.push(`Avoir sans code : ${p.amount.toFixed(2)} € à vérifier`)
+        continue
+      }
+      const { shortfall } = await redeemCredit(tx, { organizationId, code: p.reference, amount: p.amount, orderId, strict })
+      if (shortfall > 0) notes.push(`Avoir ${p.reference} : ${shortfall.toFixed(2)} € non couverts`)
+    }
+    return notes
   }
 
   private isUniqueViolation(e: unknown) {
@@ -212,6 +240,7 @@ export class OrdersService {
     const site = await tx.site.findUniqueOrThrow({
       where: { id: siteId },
       select: {
+        organizationId: true,
         organization: {
           select: {
             priceIncludesTax: true,
@@ -233,6 +262,7 @@ export class OrdersService {
     })
     const methods = site.organization.paymentMethods
     return {
+      organizationId: site.organizationId,
       priceIncludesTax: site.organization.priceIncludesTax,
       paymentMethods: methods.filter((m) => m.isActive),
       allPaymentMethods: methods,
@@ -352,18 +382,44 @@ export class OrdersService {
     this.eventEmitter.emit('order.created', { siteId, order })
   }
 
-  async findBySite(siteId: string, params: { limit?: number; status?: string }) {
+  // Historique : recherche par n° de ticket, e-mail, produit, code d'avoir
+  async findBySite(
+    siteId: string,
+    params: { limit?: number; status?: string; q?: string; kind?: 'SALE' | 'REFUND'; from?: Date; to?: Date; before?: string },
+  ) {
+    const q = params.q?.trim()
+    const ticket = q && /^#?\d+$/.test(q) ? Number(q.replace('#', '')) : null
+    const where: Prisma.OrderWhereInput = {
+      siteId,
+      ...(params.status ? { status: params.status as Prisma.OrderWhereInput['status'] } : {}),
+      ...(params.kind ? { kind: params.kind } : {}),
+      ...(params.from || params.to ? { createdAt: { ...(params.from ? { gte: params.from } : {}), ...(params.to ? { lt: params.to } : {}) } } : {}),
+      ...(q
+        ? {
+            OR: [
+              ...(ticket ? [{ receiptChain: { counter: ticket } }] : []),
+              { customerEmail: { contains: q, mode: 'insensitive' as const } },
+              { customerName: { contains: q, mode: 'insensitive' as const } },
+              { items: { some: { name: { contains: q, mode: 'insensitive' as const } } } },
+              { items: { some: { serialNumber: { equals: q, mode: 'insensitive' as const } } } },
+              { payments: { some: { reference: { equals: q.toUpperCase().replace(/\s+/g, '') } } } },
+            ],
+          }
+        : {}),
+    }
+    const limit = Math.min(params.limit ?? 50, 200)
     return this.prisma.order.findMany({
-      where: {
-        siteId,
-        ...(params.status ? { status: params.status as any } : {}),
-      },
+      where,
       include: {
         items: true,
+        payments: { select: { code: true, label: true, kind: true, amount: true, reference: true } },
         receiptChain: { select: { counter: true, signedAt: true } },
+        refunds: { select: { id: true, total: true, createdAt: true } },
+        refundOf: { select: { id: true, receiptChain: { select: { counter: true } } } },
       },
-      orderBy: { createdAt: 'desc' },
-      take: params.limit ?? 50,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      ...(params.before ? { cursor: { id: params.before }, skip: 1 } : {}),
     })
   }
 
@@ -374,6 +430,12 @@ export class OrdersService {
         items: { include: { product: { select: { name: true, subtitle: true } } } },
         payments: true,
         receiptChain: true,
+        site: { select: { name: true } },
+        refundOf: { select: { id: true, createdAt: true, receiptChain: { select: { counter: true } } } },
+        refunds: {
+          orderBy: { createdAt: 'asc' },
+          include: { items: true, payments: true, receiptChain: { select: { counter: true, signedAt: true } } },
+        },
       },
     })
     if (!order) throw new NotFoundException('Commande introuvable')

@@ -121,9 +121,9 @@ export function OrderCard({
             className={[
               'px-3 py-1.5 rounded-[var(--radius-sm)] font-body text-[11px] font-medium transition-all',
               action.next === 'PREPARING'
-                ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20'
+                ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)]'
                 : action.next === 'READY'
-                ? 'bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20'
+                ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)]'
                 : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
             ].join(' ')}
           >

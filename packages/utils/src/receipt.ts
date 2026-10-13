@@ -20,7 +20,8 @@ export interface SignedSaleItem {
 
 export interface SignedSaleContent {
   items: SignedSaleItem[]
-  payments: Array<{ code: string; amount: number }>
+  // reference : code de l'avoir utilisé, par exemple
+  payments: Array<{ code: string; amount: number; reference?: string | null }>
   orderDiscount?: number
 }
 
@@ -44,7 +45,8 @@ export function canonicalSaleContent(content: SignedSaleContent): string {
     if (i.customName) fields.push(`name=${encodeURIComponent(i.customName)}`)
     return fields.join(',')
   })
-  const payments = content.payments.map((p) => `${p.code},${money(p.amount)}`)
+  // La référence n'est ajoutée que si elle existe : les tickets déjà signés restent valides
+  const payments = content.payments.map((p) => `${p.code},${money(p.amount)}${p.reference ? `,ref=${encodeURIComponent(p.reference)}` : ''}`)
   return [`items:${items.join(';')}`, `payments:${payments.join(';')}`, `discount:${money(content.orderDiscount)}`].join('|')
 }
 

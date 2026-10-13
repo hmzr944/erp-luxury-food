@@ -8,16 +8,16 @@ import { toast } from 'sonner'
 import { allergensApi, type ProductWithAllergens, type AllergenApi } from '@/lib/api/allergens'
 
 const ALLERGEN_COLORS: Record<string, string> = {
-  GLUTEN:       'bg-amber-500/15 text-amber-400 border-amber-500/25',
-  CRUSTACES:    'bg-red-500/15 text-red-400 border-red-500/25',
-  OEUFS:        'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
-  POISSONS:     'bg-blue-500/15 text-blue-400 border-blue-500/25',
+  GLUTEN:       'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
+  CRUSTACES:    'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
+  OEUFS:        'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
+  POISSONS:     'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   ARACHIDES:    'bg-orange-500/15 text-orange-400 border-orange-500/25',
-  SOJA:         'bg-green-500/15 text-green-400 border-green-500/25',
+  SOJA:         'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   LAIT:         'bg-sky-500/15 text-sky-400 border-sky-500/25',
-  FRUITS_COQUE: 'bg-brown-500/15 text-amber-600/80 border-amber-600/25',
+  FRUITS_COQUE: 'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   CELERI:       'bg-lime-500/15 text-lime-400 border-lime-500/25',
-  MOUTARDE:     'bg-yellow-600/15 text-yellow-500 border-yellow-600/25',
+  MOUTARDE:     'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   SESAME:       'bg-stone-500/15 text-stone-400 border-stone-500/25',
   SULFITES:     'bg-purple-500/15 text-purple-400 border-purple-500/25',
   LUPIN:        'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
