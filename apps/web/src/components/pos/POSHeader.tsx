@@ -117,7 +117,7 @@ export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cas
             ...(cashOpen !== null ? [{ label: cashOpen ? 'Fermer la caisse' : 'Ouvrir la caisse', icon: Money, run: onCash }] : []),
             { label: "Retour d'article", icon: ArrowUUpLeft, run: onReturn },
             { label: 'Changer de vendeur', icon: UserSwitch, run: onSwitchUser },
-            { label: 'Imprimante et tiroir', icon: Printer, run: onPrinter },
+            { label: 'Imprimante, tiroir et TPE', icon: Printer, run: onPrinter },
             ...(onTraining ? [{ label: training ? 'Quitter le mode formation' : 'Mode formation', icon: GraduationCap, run: onTraining }] : []),
             {
               label: 'Se déconnecter',

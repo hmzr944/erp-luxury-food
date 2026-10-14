@@ -18,6 +18,8 @@ export interface ApiProduct {
   barcode: string | null
   price: number
   taxRate: number
+  // Payable en titre-restaurant
+  mealVoucherEligible?: boolean
   categoryId: string | null
   category: ApiCategory | null
   variants: ApiVariant[]

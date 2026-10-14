@@ -9,6 +9,7 @@ export interface CreateProductPayload {
   barcode?: string
   price: number
   taxRate?: number
+  mealVoucherEligible?: boolean
   categoryId?: string
   imageUrl?: string
   variants?: Array<{ name: string; price: number; barcode?: string }>

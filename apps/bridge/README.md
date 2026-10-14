@@ -50,8 +50,8 @@ Commandes :
 
 ## Appairer une caisse
 
-1. Lancer le pont : le code s'affiche dans la console (ou `flow-bridge pair` si le pont tourne en service).
-2. Dans la caisse, saisir le code et un nom de poste (« Caisse 1 »).
+1. Lancer le pont : le code s'affiche dans la console (ou `flow-bridge pair` si le pont tourne en service). Un code ne sert qu'une fois.
+2. Dans la caisse, menu ⋮ > « Imprimante, tiroir et TPE » (ou Paramètres > Paiement > Mon TPE bancaire) : saisir le code.
 3. La caisse reçoit un jeton long qu'elle garde dans `localStorage` (`flow-bridge-token`). Aux connexions suivantes, elle s'authentifie seule.
 
 Côté code de la caisse (`apps/web/src/lib/bridge`) :
@@ -64,6 +64,13 @@ await getBridge().pair('230631', 'Caisse 1')
 await getBridge().call('printer.print', { host: '192.168.1.50', data: bytesToBase64(ticket) })
 const off = getBridge().on('payment.progress', (p) => afficher(p.message))
 ```
+
+Réglages de chaque appareil, gardés dans son `localStorage` :
+
+- `flow-printer` : imprimante (mode « Imprimante réseau » = ESC/POS par le pont, port 9100), tiroir sur l'imprimante ;
+- `flow-bridge-tpe` : TPE bancaire Caisse-AP (adresse, port 8888, n° de caisse) ou TPE simulé. Une fois activé, la touche « Carte » de la caisse envoie le montant au TPE ; le n° d'autorisation est gardé sur le paiement.
+
+Le site doit pouvoir joindre le pont : `connect-src` de la politique de contenu inclut `NEXT_PUBLIC_BRIDGE_URL` (par défaut `ws://127.0.0.1:51717`), et le pont doit autoriser l'adresse du site dans `FLOW_BRIDGE_ORIGINS`.
 
 Pour retirer un poste : `bridge.unpair` depuis la caisse, ou supprimer l'entrée dans `~/.flow-bridge/config.json`.
 

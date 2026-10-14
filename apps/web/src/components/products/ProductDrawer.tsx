@@ -9,6 +9,7 @@ import { X, Plus, Trash } from '@phosphor-icons/react'
 import type { ApiProduct, ApiCategory } from '@/lib/api/products'
 import { FieldError } from '@/components/ui/FieldError'
 import { EASE_DRAWER } from '@/lib/motion'
+import { usePlatformConfig } from '@/lib/api/platform'
 
 const variantSchema = z.object({
   name: z.string().min(1),
@@ -24,6 +25,7 @@ const productSchema = z.object({
   barcode: z.string().optional(),
   price: z.number({ invalid_type_error: 'Prix requis' }).positive('Prix > 0'),
   taxRate: z.number().min(0).max(100),
+  mealVoucherEligible: z.boolean().optional(),
   categoryId: z.string().optional(),
   variants: z.array(variantSchema).optional(),
 })
@@ -45,17 +47,26 @@ export function ProductDrawer({
   product, isNew, categories, onSave, onClose, isSaving,
 }: ProductDrawerProps) {
   const {
-    register, handleSubmit, control, reset,
-    formState: { errors },
+    register, handleSubmit, control, reset, watch, setValue,
+    formState: { errors, dirtyFields },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: '', subtitle: '', sku: '', barcode: '',
-      price: 0, taxRate: 5.5, categoryId: '', variants: [],
+      price: 0, taxRate: 5.5, mealVoucherEligible: true, categoryId: '', variants: [],
     },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'variants' })
+
+  // Titre-restaurant : proposé seulement si la boutique l'accepte. Pour un
+  // nouveau produit, coché d'office aux taux alimentaires (pas l'alcool à 20 %)
+  const { data: platform } = usePlatformConfig()
+  const acceptsMealVoucher = !!platform?.paymentMethods.some((m) => m.mealVoucher && m.isActive)
+  const taxRate = watch('taxRate')
+  useEffect(() => {
+    if (!product && !dirtyFields.mealVoucherEligible) setValue('mealVoucherEligible', taxRate !== 20)
+  }, [product, taxRate, dirtyFields.mealVoucherEligible, setValue])
 
   useEffect(() => {
     if (product) {
@@ -67,6 +78,7 @@ export function ProductDrawer({
         barcode: product.barcode ?? '',
         price: Number(product.price),
         taxRate: Number(product.taxRate),
+        mealVoucherEligible: !!product.mealVoucherEligible,
         categoryId: product.categoryId ?? '',
         variants: product.variants?.map((v) => ({
           name: v.name,
@@ -75,7 +87,7 @@ export function ProductDrawer({
         })) ?? [],
       })
     } else {
-      reset({ name: '', subtitle: '', sku: '', barcode: '', price: 0, taxRate: 5.5, categoryId: '', variants: [] })
+      reset({ name: '', subtitle: '', sku: '', barcode: '', price: 0, taxRate: 5.5, mealVoucherEligible: true, categoryId: '', variants: [] })
     }
   }, [product, reset])
 
@@ -175,6 +187,13 @@ export function ProductDrawer({
               </select>
             </div>
           </div>
+
+          {acceptsMealVoucher && (
+            <label className="flex items-center gap-3 font-body text-sm text-[var(--color-text-primary)]">
+              <input type="checkbox" {...register('mealVoucherEligible')} className="size-5 accent-[var(--color-accent)]" />
+              Payable en titre-restaurant
+            </label>
+          )}
 
           {/* Catégorie */}
           <div className="space-y-1.5">

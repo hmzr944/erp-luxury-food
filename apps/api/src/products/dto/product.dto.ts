@@ -104,6 +104,11 @@ export class CreateProductDto {
   @IsString()
   imageUrl?: string
 
+  // Payable en titre-restaurant. Absent : oui pour l'alimentaire à 5,5 % ou 10 %
+  @IsOptional()
+  @IsBoolean()
+  mealVoucherEligible?: boolean
+
   // Absent : suivi par défaut du secteur
   @IsOptional()
   @IsEnum(TrackingMode)

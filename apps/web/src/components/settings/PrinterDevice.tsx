@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, Plugs, Printer, Tray } from '@phosphor-icons/react'
-import { getBridge, useBridge } from '@/lib/bridge'
+import { CheckCircle, Printer, Tray } from '@phosphor-icons/react'
+import { BridgePairing } from './BridgePairing'
 import { canOpenDrawer, openDrawer, printTicket, setPrinterConfig, usePrinterConfig, type PrinterConfig } from '@/lib/printing/printer'
 import { buildSaleTicket } from '@/lib/printing/ticket'
 import { usePlatformConfig } from '@/lib/api/platform'
@@ -21,9 +21,7 @@ const btn = 'inline-flex h-11 items-center justify-center gap-2 rounded-[var(--r
 export function PrinterDevice() {
   const config = usePrinterConfig()
   const { data: platform } = usePlatformConfig()
-  const { status } = useBridge()
   const [draft, setDraft] = useState(config)
-  const [pairCode, setPairCode] = useState('')
   const [state, setState] = useState<{ kind: 'idle' | 'busy' | 'ok' | 'error'; message?: string }>({ kind: 'idle' })
   const dirty = JSON.stringify(draft) !== JSON.stringify(config)
   const needsHost = draft.mode === 'bridge' || draft.mode === 'epos'
@@ -116,47 +114,7 @@ export function PrinterDevice() {
         </label>
       )}
 
-      {draft.mode === 'bridge' && (
-        <section aria-labelledby="bridge-title" className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] p-4">
-          <h3 id="bridge-title" className="flex items-center gap-2 text-[15px] font-semibold">
-            <Plugs size={20} aria-hidden /> FLŌW-Bridge
-            <span className="ml-auto rounded-[var(--radius-pill)] bg-[var(--color-bg-hover)] px-2.5 py-0.5 text-sm font-medium">
-              {status === 'ready' ? 'Connecté' : status === 'unpaired' ? 'À appairer' : status === 'connecting' ? 'Connexion' : 'Introuvable'}
-            </span>
-          </h3>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Le pont s’installe sur un ordinateur de la boutique et pilote l’imprimante, le tiroir et le terminal de paiement. Au démarrage, il affiche un code à six chiffres.
-          </p>
-          {status !== 'ready' && (
-            <div className="flex flex-wrap gap-2">
-              <input
-                className={`${field} max-w-[12rem] tabular tracking-[0.3em]`}
-                inputMode="numeric"
-                maxLength={7}
-                placeholder="123 456"
-                aria-label="Code d’appairage"
-                value={pairCode}
-                onChange={(e) => setPairCode(e.target.value.replace(/[^\d ]/g, ''))}
-              />
-              <button
-                type="button"
-                className={btn}
-                disabled={pairCode.replace(/\s/g, '').length !== 6 || state.kind === 'busy'}
-                onClick={() =>
-                  run('Pont appairé avec cette caisse', async () => {
-                    const bridge = getBridge()
-                    bridge.connect()
-                    await bridge.pair(pairCode.replace(/\s/g, ''), 'Caisse FLŌW')
-                    setPairCode('')
-                  })
-                }
-              >
-                Appairer
-              </button>
-            </div>
-          )}
-        </section>
-      )}
+      {draft.mode === 'bridge' && <BridgePairing />}
 
       {state.kind === 'error' && (
         <p role="alert" className="alert-box">

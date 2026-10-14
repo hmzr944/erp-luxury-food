@@ -10,6 +10,8 @@ export interface CartProduct {
   price: number // prix de la variante choisie s'il y en a une
   taxRate: number
   categoryId?: string
+  // Payable en titre-restaurant
+  mealVoucher?: boolean
 }
 
 export interface CartLine {

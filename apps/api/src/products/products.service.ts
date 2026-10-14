@@ -94,6 +94,7 @@ export class ProductsService {
         price: new Decimal(dto.price),
         taxRate: new Decimal(dto.taxRate ?? org.defaultTaxRate),
         tracking: dto.tracking ?? SECTOR_PRESETS[org.sector as Sector].defaultTracking,
+        mealVoucherEligible: dto.mealVoucherEligible ?? defaultMealVoucher(org.sector, dto.taxRate ?? org.defaultTaxRate),
         attributes: attributes as Prisma.InputJsonObject,
         options: { create: options.map((o, position) => ({ ...o, position })) },
         variants: { create: variants.map((v, position) => this.variantData(v, position)) },
@@ -270,4 +271,9 @@ export class ProductsService {
     await this.prisma.category.delete({ where: { id } })
     return { success: true }
   }
+}
+
+// Titre-restaurant : par défaut, l'alimentaire aux taux réduits (pas l'alcool à 20 %)
+function defaultMealVoucher(sector: string, taxRate: number) {
+  return sector === 'FOOD' && (taxRate === 5.5 || taxRate === 10)
 }

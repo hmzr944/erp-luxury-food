@@ -73,6 +73,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
       barcode: data.barcode || undefined,
       price: data.price,
       taxRate: data.taxRate,
+      mealVoucherEligible: data.mealVoucherEligible,
       categoryId: data.categoryId || undefined,
       variants: data.variants?.filter((v) => v.name && v.price > 0),
     }

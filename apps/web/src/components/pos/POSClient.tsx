@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -15,7 +15,7 @@ import { POSHeader } from './POSHeader'
 import { Catalog } from './Catalog'
 import { Ticket } from './Ticket'
 import { VariantPicker } from './VariantPicker'
-import { PaymentSheet, type ReceiptView } from './PaymentSheet'
+import { PaymentSheet, type PayOptions, type ReceiptView } from './PaymentSheet'
 import { Sheet, EASE } from './Sheet'
 import { useSaleQueue } from './useSaleQueue'
 import { CustomItemSheet, QuickProductSheet } from './QuickSheets'
@@ -26,6 +26,7 @@ import { PinPad } from '@/components/auth/PinPad'
 import { BadgeLogin } from '@/components/auth/BadgeLogin'
 import { useAuthStore } from '@/stores/auth.store'
 import { fiscalApi } from '@/lib/api/fiscal'
+import { BridgeTpeSettings } from '@/components/settings/BridgeTpeSettings'
 import { PrinterDevice } from '@/components/settings/PrinterDevice'
 import type { RecordedSale } from '@/lib/terminal/terminal'
 
@@ -134,6 +135,14 @@ export function POSClient({ siteId }: POSClientProps) {
   const priceIncludesTax = config?.priceIncludesTax ?? true
   const totals = computeCartTotals(lines, orderDiscount, priceIncludesTax)
   const methods = (config?.paymentMethods ?? []).filter((m) => m.isActive)
+  // TTC de chaque ligne, remise globale répartie : base des règles d'encaissement
+  const ruleLines = useMemo(() => {
+    const priced = priceOrder(
+      lines.map((l) => ({ unitPrice: l.product.price, quantity: l.quantity, discount: l.discount, taxRate: l.product.taxRate })),
+      { priceIncludesTax, orderDiscount },
+    )
+    return lines.map((l, i) => ({ total: priced.lines[i]?.ttc ?? 0, mealVoucherEligible: !!l.product.mealVoucher }))
+  }, [lines, orderDiscount, priceIncludesTax])
 
   const add = useCallback(
     (product: ApiProduct, variant?: ApiVariant, serialNumber?: string) => {
@@ -145,6 +154,7 @@ export function POSClient({ siteId }: POSClientProps) {
           price: Number(variant?.price ?? product.price),
           taxRate: Number(product.taxRate),
           categoryId: product.categoryId ?? undefined,
+          mealVoucher: !!product.mealVoucherEligible,
         },
         { variantId: variant?.id, variantName: variant?.name, serialNumber },
       )
@@ -160,13 +170,16 @@ export function POSClient({ siteId }: POSClientProps) {
     add(product)
   }
 
-  const pay = async (payments: PayLine[], email?: string, clientId?: string) => {
+  const pay = async (payments: PayLine[], email?: string, clientId?: string, options: PayOptions = {}) => {
     setBusy(true)
     setPayError(null)
     const sold = [...lines]
     const labels = new Map(methods.map((m) => [m.code, m.label]))
     const cashCodes = new Set(methods.filter((m) => m.kind === 'CASH').map((m) => m.code))
     const cashPaid = payments.some((p) => cashCodes.has(p.code))
+    // Monnaie rendue : espèces remises moins la part payée en espèces
+    const cashDue = payments.filter((p) => cashCodes.has(p.code)).reduce((a, p) => a + Math.round(p.amount * 100), 0)
+    const change = options.tendered != null ? Math.max(0, Math.round(options.tendered * 100) - cashDue) / 100 : undefined
     if (training) {
       try {
         const pricing = priceOrder(
@@ -191,6 +204,7 @@ export function POSClient({ siteId }: POSClientProps) {
           sale: fake,
           lines: sold,
           payments: payments.map((p) => ({ label: labels.get(p.code) ?? p.code, amount: p.amount })),
+          change,
           training: { number: t.number, operator: t.userName },
         })
         clearCart()
@@ -219,11 +233,13 @@ export function POSClient({ siteId }: POSClientProps) {
         customerEmail: email,
         priceIncludesTax,
         clientId,
+        nonResident: options.nonResident || undefined,
       })
       setReceipt({
         sale,
         lines: sold,
         payments: payments.map((p) => ({ label: labels.get(p.code) ?? p.code, amount: p.amount })),
+        change,
         cashPaid,
       })
       clearCart()
@@ -428,9 +444,11 @@ export function POSClient({ siteId }: POSClientProps) {
           onClose={() => setReturning(false)}
         />
 
-        <Sheet open={printerOpen} title="Imprimante et tiroir" onClose={() => setPrinterOpen(false)} width="lg">
+        <Sheet open={printerOpen} title="Imprimante, tiroir et TPE" onClose={() => setPrinterOpen(false)} width="lg">
           <div className="pb-2">
             <PrinterDevice />
+            <h3 className="mb-3 mt-8 text-[15px] font-semibold">TPE bancaire</h3>
+            <BridgeTpeSettings />
           </div>
         </Sheet>
 
@@ -439,6 +457,7 @@ export function POSClient({ siteId }: POSClientProps) {
           siteId={siteId}
           device={device}
           total={totals.total}
+          ruleLines={ruleLines}
           methods={methods}
           siteName={siteName}
           receiptSettings={config?.receipt}

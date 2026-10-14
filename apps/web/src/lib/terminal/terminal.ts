@@ -73,6 +73,8 @@ export interface SaleInput {
   priceIncludesTax: boolean
   // Identifiant de vente déjà utilisé pour un paiement sur TPE connecté
   clientId?: string
+  // Client non résident déclaré (plafond espèces 15 000 €), hors contenu signé
+  nonResident?: boolean
 }
 
 export interface RecordedSale {
@@ -125,6 +127,7 @@ export async function recordSale(siteId: string, input: SaleInput): Promise<Reco
         ...content,
         customerEmail: input.customerEmail,
         note: input.note,
+        ...(input.nonResident ? { nonResident: true } : {}),
         receipt,
       },
     }

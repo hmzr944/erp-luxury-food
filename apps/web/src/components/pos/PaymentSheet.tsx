@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowUUpLeft, CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle, Printer } from '@phosphor-icons/react'
-import { formatPrice } from '@erp/utils'
+import { CASH_LIMIT_NON_RESIDENT, CASH_LIMIT_RESIDENT, checkPayments, formatPrice, mealVoucherAllowance, type RuleLine } from '@erp/utils'
 import { PaymentKind } from '@erp/types'
 import type { PlatformConfig } from '@/lib/api/platform'
 import type { PaymentDevice } from '@/lib/api/payments'
@@ -18,6 +18,8 @@ import { Sheet } from './Sheet'
 import { FlowBeat } from '@/components/brand/FlowLogo'
 import { EASE_DRAWER } from '@/lib/motion'
 import { TerminalWait } from './TerminalWait'
+import { BridgeTerminalWait } from './BridgeTerminalWait'
+import { getBridgeTpe } from '@/lib/bridge'
 import { PartsPayment } from './PartsPayment'
 import { CreditPayment, type PayLine } from './CreditPayment'
 
@@ -30,6 +32,12 @@ const KIND_ICON: Record<PaymentKind, React.ElementType> = {
 }
 
 type Method = PlatformConfig['paymentMethods'][number]
+
+// Précisions d'un encaissement : espèces remises, client non résident
+export interface PayOptions {
+  tendered?: number
+  nonResident?: boolean
+}
 
 export interface ReceiptView {
   sale: RecordedSale
@@ -49,6 +57,8 @@ interface PaymentSheetProps {
   // TPE connecté de cette caisse : la carte y est encaissée automatiquement
   device: PaymentDevice | null
   total: number
+  // Lignes de la vente (TTC, éligibilité titre-restaurant) pour les règles d'encaissement
+  ruleLines: RuleLine[]
   methods: Method[]
   siteName: string
   // Mentions du ticket et nom du vendeur, pour l'impression
@@ -59,16 +69,23 @@ interface PaymentSheetProps {
   error: string | null
   // Code d'avoir apporté par un échange (écran Commandes)
   creditCode?: string
-  onPay: (payments: PayLine[], email?: string, clientId?: string) => void
+  onPay: (payments: PayLine[], email?: string, clientId?: string, options?: PayOptions) => void
   onClose: () => void
 }
 
-export function PaymentSheet({ open, siteId, device, total, methods, siteName, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose }: PaymentSheetProps) {
+export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, siteName, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose }: PaymentSheetProps) {
   const [split, setSplit] = useState(false)
   const [terminal, setTerminal] = useState<Method | null>(null)
+  // TPE bancaire branché sur FLŌW-Bridge (Caisse-AP)
+  const [bridgeCard, setBridgeCard] = useState<Method | null>(null)
   const [parts, setParts] = useState(false)
   const [partsLocked, setPartsLocked] = useState(false)
   const [credit, setCredit] = useState(false)
+  // Étape propre à un moyen : espèces (rendu), chèque (numéro)
+  const [cash, setCash] = useState<Method | null>(null)
+  const [reference, setReference] = useState<Method | null>(null)
+  const [splitPreset, setSplitPreset] = useState<{ amounts: Record<string, string>; notice: string } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   // L'avoir demande un code : il a son propre écran, pas sa place dans les partages
   const plain = methods.filter((m) => m.code !== 'CREDIT')
   const [email, setEmail] = useState('')
@@ -78,9 +95,14 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
     if (!open) {
       setSplit(false)
       setTerminal(null)
+      setBridgeCard(null)
       setParts(false)
       setPartsLocked(false)
       setCredit(false)
+      setCash(null)
+      setReference(null)
+      setSplitPreset(null)
+      setNotice(null)
       setEmail('')
       setShowEmail(false)
     }
@@ -88,10 +110,14 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
 
   const title = receipt
     ? 'Vente enregistrée'
-    : terminal
+    : terminal || bridgeCard
       ? 'Paiement sur le TPE'
       : credit
         ? `Payer ${formatPrice(total)} par avoir`
+        : cash
+        ? `Espèces : ${formatPrice(total)}`
+        : reference
+        ? `${reference.label} : ${formatPrice(total)}`
         : parts
         ? 'Diviser la note'
         : split
@@ -100,8 +126,23 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
 
   // Carte + TPE connecté + réseau : le montant part au TPE. Sinon, TPE autonome.
   const choose = (m: Method) => {
+    setNotice(null)
     if (m.code === 'CREDIT') return setCredit(true)
     if (m.kind === PaymentKind.CARD && device && navigator.onLine) return setTerminal(m)
+    if (m.kind === PaymentKind.CARD && getBridgeTpe().enabled) return setBridgeCard(m)
+    // Titre-restaurant : articles éligibles seulement, plafonné par ticket.
+    // Au-delà, le reste se paie avec un autre moyen.
+    if (m.mealVoucher) {
+      const allowed = mealVoucherAllowance(ruleLines, m)
+      if (allowed <= 0) return setNotice('Aucun article de cette vente n’est payable en titre-restaurant.')
+      if (Math.round(allowed * 100) < Math.round(total * 100)) {
+        const why = m.maxAmount != null && allowed >= Number(m.maxAmount) ? `plafond de ${formatPrice(Number(m.maxAmount))} par ticket` : 'articles éligibles'
+        setSplitPreset({ amounts: { [m.code]: allowed.toFixed(2).replace('.', ',') }, notice: `${m.label} : ${formatPrice(allowed)} au plus (${why}). Le reste avec un autre moyen.` })
+        return setSplit(true)
+      }
+    }
+    if (m.requiresReference) return setReference(m)
+    if (m.kind === PaymentKind.CASH) return setCash(m)
     onPay([{ code: m.code, amount: total }], mail)
   }
   const mail = email.trim() || undefined
@@ -109,7 +150,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
   return (
     // Pendant l'attente du TPE, on ne ferme qu'en annulant : sinon le client
     // pourrait payer sans que la vente soit enregistrée
-    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || partsLocked))}>
+    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || !!bridgeCard || partsLocked))}>
       {receipt ? (
         <Receipt receipt={receipt} siteId={siteId} siteName={siteName} settings={receiptSettings} sellerName={sellerName} onNext={onClose} />
       ) : terminal && device ? (
@@ -127,6 +168,21 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
             onApproved={(clientId) => onPay([{ code: terminal.code, amount: total }], mail, clientId)}
             onPaidElsewhere={() => onPay([{ code: terminal.code, amount: total }], mail)}
             onBack={() => setTerminal(null)}
+          />
+        </>
+      ) : bridgeCard ? (
+        <>
+          {error && (
+            <p role="alert" className="mb-4 alert-box">
+              Paiement accepté, mais la vente n&apos;a pas pu être enregistrée : {error}
+            </p>
+          )}
+          <BridgeTerminalWait
+            config={getBridgeTpe()}
+            amount={total}
+            onApproved={(ref) => onPay([{ code: bridgeCard.code, amount: total, ...(ref ? { reference: ref } : {}) }], mail)}
+            onPaidElsewhere={() => onPay([{ code: bridgeCard.code, amount: total }], mail)}
+            onBack={() => setBridgeCard(null)}
           />
         </>
       ) : credit ? (
@@ -152,8 +208,38 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
           onPay={(p, clientId) => onPay(p, mail, clientId)}
           onBack={() => setParts(false)}
         />
+      ) : cash ? (
+        <CashPayment
+          total={total}
+          giveChange={cash.giveChange !== false}
+          busy={busy}
+          error={error}
+          onPay={(tendered, nonResident) => onPay([{ code: cash.code, amount: total }], mail, undefined, { tendered, nonResident })}
+          onBack={() => setCash(null)}
+        />
+      ) : reference ? (
+        <ReferencePayment
+          method={reference}
+          busy={busy}
+          error={error}
+          onPay={(ref) => onPay([{ code: reference.code, amount: total, reference: ref }], mail)}
+          onBack={() => setReference(null)}
+        />
       ) : split ? (
-        <SplitPayment total={total} methods={plain} busy={busy} onPay={(p) => onPay(p, mail)} onBack={() => setSplit(false)} />
+        <SplitPayment
+          total={total}
+          methods={plain}
+          ruleLines={ruleLines}
+          initial={splitPreset?.amounts}
+          notice={splitPreset?.notice}
+          busy={busy}
+          error={error}
+          onPay={(p, nonResident) => onPay(p, mail, undefined, { nonResident })}
+          onBack={() => {
+            setSplit(false)
+            setSplitPreset(null)
+          }}
+        />
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-[var(--color-text-secondary)]">Touchez le moyen de paiement pour valider.</p>
@@ -178,6 +264,11 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
             })}
           </ul>
 
+          {notice && (
+            <p role="status" className="alert-box">
+              {notice}
+            </p>
+          )}
           {error && (
             <p role="alert" className="alert-box">
               {error}
@@ -222,48 +313,212 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
   )
 }
 
+const fieldCls =
+  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]'
+const primaryCls =
+  'h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] press'
+const backCls = 'h-11 w-full text-sm font-medium text-[var(--color-text-secondary)]'
+const toCents = (v: string | undefined) => Math.round(Number((v ?? '').replace(',', '.')) * 100) || 0
+// Saisie à la française : « 20,00 »
+const toInput = (cents: number) => (cents / 100).toFixed(2).replace('.', ',')
+
+// Paiement en espèces au-delà de 1 000 € : seul un client non résident le peut,
+// jusqu'à 15 000 € (art. L112-6 et D112-3 code monétaire et financier)
+function NonResident({ cash, checked, onChange }: { cash: number; checked: boolean; onChange: (v: boolean) => void }) {
+  if (cash <= CASH_LIMIT_RESIDENT) return null
+  return (
+    <label className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] p-3 text-[15px]">
+      <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        Client non résident, justificatif de domicile à l’étranger vérifié.
+        <span className="block text-sm text-[var(--color-text-secondary)]">
+          En espèces, {formatPrice(CASH_LIMIT_RESIDENT)} au plus pour un client résidant en France, {formatPrice(CASH_LIMIT_NON_RESIDENT)} pour un non-résident.
+        </span>
+      </span>
+    </label>
+  )
+}
+
+// Espèces : montant remis, monnaie à rendre
+function CashPayment({
+  total,
+  giveChange,
+  busy,
+  error,
+  onPay,
+  onBack,
+}: {
+  total: number
+  giveChange: boolean
+  busy: boolean
+  error: string | null
+  onPay: (tendered: number, nonResident: boolean) => void
+  onBack: () => void
+}) {
+  const due = Math.round(total * 100)
+  const [given, setGiven] = useState('')
+  const [nonResident, setNonResident] = useState(false)
+  const tendered = given ? toCents(given) : due
+  const change = tendered - due
+  // Billets ronds au-dessus du total, comme les propose le client
+  const quick = [...new Set([500, 1000, 2000, 5000, 10000].map((n) => Math.ceil(due / n) * n).filter((n) => n > due))].slice(0, 3)
+  const issues = checkPayments({ lines: [], payments: [{ code: 'CASH', amount: total }], methods: [{ code: 'CASH', label: 'Espèces', kind: 'CASH' }], nonResident })
+  const ok = tendered >= due && (giveChange || change === 0) && !issues.length
+
+  return (
+    <div className="space-y-4">
+      {giveChange && (
+        <>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[due, ...quick].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setGiven(n === due ? '' : toInput(n))}
+                aria-pressed={tendered === n}
+                className={[
+                  'tabular h-14 rounded-[var(--radius-md)] border px-2 text-[15px] font-semibold press',
+                  tendered === n ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)]' : 'border-[var(--color-border-strong)]',
+                ].join(' ')}
+              >
+                {n === due ? 'Compte exact' : formatPrice(n / 100)}
+              </button>
+            ))}
+          </div>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">Montant remis par le client</span>
+            <input inputMode="decimal" placeholder={toInput(due)} value={given} onChange={(e) => setGiven(e.target.value)} className={`tabular ${fieldCls}`} />
+          </label>
+          <p className="tabular flex items-baseline justify-between" aria-live="polite">
+            <span className="text-[15px]">{change >= 0 ? 'À rendre' : 'Il manque'}</span>
+            <span className="font-display text-3xl font-bold tracking-[-0.03em]">{formatPrice(Math.abs(change) / 100)}</span>
+          </p>
+        </>
+      )}
+      <NonResident cash={total} checked={nonResident} onChange={setNonResident} />
+      {issues.map((i) => (
+        <p key={i} role="status" className="alert-box">
+          {i}
+        </p>
+      ))}
+      {error && (
+        <p role="alert" className="alert-box">
+          {error}
+        </p>
+      )}
+      <button type="button" data-autofocus disabled={busy || !ok} onClick={() => onPay(tendered / 100, nonResident)} className={primaryCls}>
+        Valider {formatPrice(total)}
+      </button>
+      <button type="button" onClick={onBack} className={backCls}>
+        Autre moyen de paiement
+      </button>
+    </div>
+  )
+}
+
+// Chèque, chèque-vacances : le numéro est noté sur la vente
+function ReferencePayment({ method, busy, error, onPay, onBack }: { method: Method; busy: boolean; error: string | null; onPay: (reference: string) => void; onBack: () => void }) {
+  const [ref, setRef] = useState('')
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (ref.trim()) onPay(ref.trim())
+      }}
+    >
+      <label className="block space-y-1.5">
+        <span className="text-sm font-medium">Numéro du {method.label.toLowerCase().startsWith('chèque') ? method.label.toLowerCase() : `paiement ${method.label}`}</span>
+        <input data-autofocus autoComplete="off" inputMode="numeric" value={ref} onChange={(e) => setRef(e.target.value)} className={`tabular ${fieldCls}`} />
+      </label>
+      {error && (
+        <p role="alert" className="alert-box">
+          {error}
+        </p>
+      )}
+      <button type="submit" disabled={busy || !ref.trim()} className={primaryCls}>
+        Valider
+      </button>
+      <button type="button" onClick={onBack} className={backCls}>
+        Autre moyen de paiement
+      </button>
+    </form>
+  )
+}
+
 function SplitPayment({
   total,
   methods,
+  ruleLines,
+  initial,
+  notice,
   busy,
+  error,
   onPay,
   onBack,
 }: {
   total: number
   methods: Method[]
+  ruleLines: RuleLine[]
+  initial?: Record<string, string>
+  notice?: string
   busy: boolean
-  onPay: (payments: Array<{ code: string; amount: number }>) => void
+  error: string | null
+  onPay: (payments: PayLine[], nonResident: boolean) => void
   onBack: () => void
 }) {
-  const [amounts, setAmounts] = useState<Record<string, string>>({})
-  const cents = (v: string | undefined) => Math.round(Number((v ?? '').replace(',', '.')) * 100) || 0
-  const paid = Object.values(amounts).reduce((a, v) => a + cents(v), 0)
+  const [amounts, setAmounts] = useState<Record<string, string>>(initial ?? {})
+  const [refs, setRefs] = useState<Record<string, string>>({})
+  const [nonResident, setNonResident] = useState(false)
+  const paid = Object.values(amounts).reduce((a, v) => a + toCents(v), 0)
   const remaining = Math.round(total * 100) - paid
+  const payments: PayLine[] = methods
+    .filter((m) => toCents(amounts[m.code]) > 0)
+    .map((m) => ({ code: m.code, amount: toCents(amounts[m.code]) / 100, ...(refs[m.code]?.trim() ? { reference: refs[m.code].trim() } : {}) }))
+  const issues = remaining === 0 ? checkPayments({ lines: ruleLines, payments, methods, nonResident }) : []
+  const cashTotal = payments.filter((p) => methods.find((m) => m.code === p.code)?.kind === PaymentKind.CASH).reduce((a, p) => a + p.amount, 0)
 
   return (
     <div className="space-y-3">
+      {notice && (
+        <p role="status" className="alert-box">
+          {notice}
+        </p>
+      )}
       <ul className="space-y-2">
         {methods.map((m) => (
-          <li key={m.code} className="flex items-center gap-3">
-            <label htmlFor={`pay-${m.code}`} className="flex-1 text-[15px] font-medium">
-              {m.label}
-            </label>
-            <button
-              type="button"
-              onClick={() => setAmounts((a) => ({ ...a, [m.code]: ((cents(a[m.code]) + Math.max(remaining, 0)) / 100).toFixed(2) }))}
-              disabled={remaining <= 0}
-              className="h-11 rounded-[var(--radius-pill)] px-3 text-sm text-[var(--color-accent)] disabled:opacity-40"
-            >
-              Le reste
-            </button>
-            <input
-              id={`pay-${m.code}`}
-              inputMode="decimal"
-              value={amounts[m.code] ?? ''}
-              onChange={(e) => setAmounts((a) => ({ ...a, [m.code]: e.target.value }))}
-              placeholder="0,00"
-              className="tabular h-12 w-28 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-right text-base focus:border-[var(--color-accent)]"
-            />
+          <li key={m.code} className="space-y-2">
+            <div className="flex items-center gap-3">
+              <label htmlFor={`pay-${m.code}`} className="flex-1 text-[15px] font-medium">
+                {m.label}
+              </label>
+              <button
+                type="button"
+                onClick={() => setAmounts((a) => ({ ...a, [m.code]: toInput(toCents(a[m.code]) + Math.max(remaining, 0)) }))}
+                disabled={remaining <= 0}
+                className="h-11 rounded-[var(--radius-pill)] px-3 text-sm text-[var(--color-accent)] disabled:opacity-40"
+              >
+                Le reste
+              </button>
+              <input
+                id={`pay-${m.code}`}
+                inputMode="decimal"
+                value={amounts[m.code] ?? ''}
+                onChange={(e) => setAmounts((a) => ({ ...a, [m.code]: e.target.value }))}
+                placeholder="0,00"
+                className="tabular h-12 w-28 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-right text-base focus:border-[var(--color-accent)]"
+              />
+            </div>
+            {m.requiresReference && toCents(amounts[m.code]) > 0 && (
+              <input
+                aria-label={`Numéro ${m.label}`}
+                placeholder={`Numéro ${m.label.toLowerCase()}`}
+                autoComplete="off"
+                value={refs[m.code] ?? ''}
+                onChange={(e) => setRefs((r) => ({ ...r, [m.code]: e.target.value }))}
+                className={`tabular ${fieldCls}`}
+              />
+            )}
           </li>
         ))}
       </ul>
@@ -271,21 +526,21 @@ function SplitPayment({
         <span>{remaining >= 0 ? 'Reste à payer' : 'Trop perçu'}</span>
         <span className="font-semibold">{formatPrice(Math.abs(remaining) / 100)}</span>
       </p>
-      <button
-        type="button"
-        disabled={busy || remaining !== 0}
-        onClick={() =>
-          onPay(
-            methods
-              .filter((m) => cents(amounts[m.code]) > 0)
-              .map((m) => ({ code: m.code, amount: cents(amounts[m.code]) / 100 })),
-          )
-        }
-        className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
-      >
+      <NonResident cash={cashTotal} checked={nonResident} onChange={setNonResident} />
+      {issues.map((i) => (
+        <p key={i} role="status" className="alert-box">
+          {i}
+        </p>
+      ))}
+      {error && (
+        <p role="alert" className="alert-box">
+          {error}
+        </p>
+      )}
+      <button type="button" disabled={busy || remaining !== 0 || issues.length > 0} onClick={() => onPay(payments, nonResident)} className={primaryCls}>
         Valider {formatPrice(total)}
       </button>
-      <button type="button" onClick={onBack} className="h-11 w-full text-sm font-medium text-[var(--color-text-secondary)]">
+      <button type="button" onClick={onBack} className={backCls}>
         Un seul moyen de paiement
       </button>
     </div>

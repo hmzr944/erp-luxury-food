@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bank, CheckCircle, DeviceMobile, Plus, Trash } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { sitesApi } from '@/lib/api/sites'
+import { PaymentMethodsSettings } from './PaymentMethodsSettings'
+import { BridgeTpeSettings } from './BridgeTpeSettings'
 import { PROVIDER_LABEL, paymentsApi, type PaymentAccount, type PaymentProvider } from '@/lib/api/payments'
 
 type Choice = PaymentProvider | 'BANK'
@@ -48,9 +50,11 @@ export function PaymentSettings() {
       <header className="space-y-1">
         <h1 className="page-title">Paiement</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">
-          Reliez un TPE : la caisse lui envoie le montant et ferme la vente dès que le paiement est accepté. Plus rien à retaper.
+          Choisissez les moyens acceptés en caisse, puis reliez un TPE : la caisse lui envoie le montant et ferme la vente dès que le paiement est accepté.
         </p>
       </header>
+
+      <PaymentMethodsSettings />
 
       {sites.length > 1 && (
         <div className="space-y-2">
@@ -140,14 +144,16 @@ export function PaymentSettings() {
         {choice === 'BANK' && (
           <div className="flex gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] p-4 text-sm">
             <Bank size={22} aria-hidden className="shrink-0 text-[var(--color-accent)]" />
-            <div className="space-y-2">
+            <div className="min-w-0 flex-1 space-y-3">
               <p>
-                Les TPE bancaires se relient à la caisse par le réseau de la boutique (protocole Concert). Cette liaison passe par un
-                petit logiciel à installer sur place ; elle n&apos;est pas encore disponible.
+                Les TPE bancaires compatibles Caisse-AP sur IP se relient à la caisse par FLŌW-Bridge, installé sur un ordinateur de la
+                boutique. Demandez à votre banque d&apos;activer Caisse-AP sur le TPE et notez son adresse sur le réseau. Ce réglage vaut
+                pour cet appareil.
               </p>
+              <BridgeTpeSettings />
               <p className="text-[var(--color-text-secondary)]">
-                En attendant, rien ne change pour vous : encaissez sur votre TPE comme d&apos;habitude, puis touchez « Carte » dans la
-                caisse. Le ticket et la comptabilité restent justes.
+                Sans liaison, rien ne change : encaissez sur votre TPE comme d&apos;habitude, puis touchez « Carte » dans la caisse. Le
+                ticket et la comptabilité restent justes.
               </p>
             </div>
           </div>
