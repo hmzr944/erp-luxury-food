@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config'
 import { OnEvent } from '@nestjs/event-emitter'
 import PDFDocument from 'pdfkit'
 import { FISCAL_SOFTWARE } from '@erp/types'
-import { buildSaleTicket, layoutTicket, priceOrder, type TicketModel } from '@erp/utils'
+import { buildSaleTicket, layoutTicket, priceOrder, soldItemView, ticketLinesFromItems, type TicketModel } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { MailService, esc } from '../common/mail/mail.service'
 
@@ -26,7 +26,7 @@ const RECEIPT_SELECT = {
   invoicedAt: true,
   invoiceSentAt: true,
   b2bClient: { select: { name: true } },
-  items: { select: { name: true, variantName: true, serialNumber: true, price: true, taxRate: true, quantity: true, discount: true } },
+  items: { select: { name: true, variantName: true, serialNumber: true, price: true, taxRate: true, quantity: true, discount: true, modifiers: true, menuGroup: true, menuName: true, weight: true, pricePerKg: true } },
   payments: { select: { label: true, amount: true, reference: true, kind: true } },
   receiptChain: { select: { counter: true, hash: true, terminalCounter: true, terminalHash: true, signedAt: true, terminal: { select: { name: true } } } },
   site: {
@@ -108,14 +108,8 @@ export class ReceiptsService {
       number: String(chain.terminalCounter ?? chain.counter),
       signedAt: chain.signedAt,
       timeZone: order.site.timezone,
-      lines: order.items.map((i, n) => ({
-        quantity: i.quantity,
-        name: i.name,
-        detail: [i.variantName, i.serialNumber ? `N° de série ${i.serialNumber}` : null].filter(Boolean).join(', ') || undefined,
-        unit: Math.round(((priced.lines[n]?.ttc ?? 0) / i.quantity) * 100) / 100 * sign,
-        total: (priced.lines[n]?.ttc ?? 0) * sign,
-        taxRate: Number(i.taxRate),
-      })),
+      // Les composants d'une formule sont regroupés sous la formule
+      lines: ticketLinesFromItems(order.items.map(soldItemView), priced.lines.map((l) => l.ttc), sign),
       discount: priced.discount ? priced.discount * sign : undefined,
       total: Number(order.total),
       taxBreakdown: priced.taxBreakdown.map((t) => ({ rate: t.rate, ht: t.ht * sign, tax: t.tax * sign })),

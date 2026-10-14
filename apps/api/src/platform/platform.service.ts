@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/library'
 import { PACK_ATTRIBUTES, SECTOR_PRESETS, type Pack, type Sector } from '@erp/types'
+import { scaleRulesFrom } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
 import type {
   AttributeDefinitionDto,
@@ -26,6 +27,7 @@ export class PlatformService {
         packs: true,
         priceIncludesTax: true,
         currency: true,
+        scaleBarcodes: true,
         taxRates: { orderBy: { rate: 'desc' } },
         paymentMethods: { orderBy: { position: 'asc' } },
         attributeDefinitions: { orderBy: [{ position: 'asc' }, { label: 'asc' }] },
@@ -36,9 +38,11 @@ export class PlatformService {
     })
     if (!org) throw new NotFoundException('Organisation introuvable')
     const preset = SECTOR_PRESETS[org.sector as Sector]
-    const { settings, ...rest } = org
+    const { settings, scaleBarcodes, ...rest } = org
     return {
       ...rest,
+      // Étiquettes de balance lues par la caisse (réglage par défaut si vide)
+      scaleBarcodes: scaleRulesFrom(scaleBarcodes),
       // Mentions du ticket, gardées en cache par la caisse pour imprimer hors ligne
       receipt: {
         legalName: org.name,
@@ -93,8 +97,16 @@ export class PlatformService {
   }
 
   async update(organizationId: string, dto: UpdatePlatformDto) {
+    const { scaleBarcodes, ...rest } = dto
+    if (scaleBarcodes) {
+      const prefixes = scaleBarcodes.map((r) => r.prefix)
+      if (new Set(prefixes).size !== prefixes.length) throw new BadRequestException('Préfixe de balance en double')
+    }
     await this.prisma.$transaction(async (tx) => {
-      await tx.organization.update({ where: { id: organizationId }, data: dto })
+      await tx.organization.update({
+        where: { id: organizationId },
+        data: { ...rest, ...(scaleBarcodes ? { scaleBarcodes: scaleBarcodes.map((r) => ({ prefix: r.prefix, mode: r.mode, codeLength: r.codeLength })) } : {}) },
+      })
       if (dto.packs) await this.ensurePackAttributes(tx, organizationId, dto.packs)
     })
     return this.getConfig(organizationId)

@@ -13,8 +13,8 @@ import { ComplianceService } from '../compliance/compliance.service'
 import { PrintingService } from '../printing/printing.service'
 import { StockService } from '../stock/stock.service'
 import type { CheckoutDto } from './dto/checkout.dto'
-import type { Channel, PaymentKind, PaymentMode, Prisma } from '@prisma/client'
-import { RECEIPT_GENESIS_HASH, businessDate, canonicalSaleContent, checkPayments } from '@erp/utils'
+import { Prisma, type Channel, type PaymentKind, type PaymentMode } from '@prisma/client'
+import { RECEIPT_GENESIS_HASH, businessDate, canonicalSaleContent, checkPayments, scaleRulesFrom } from '@erp/utils'
 import { verifyTerminalReceipt } from '../compliance/terminal-receipt'
 import type { SyncSaleDto } from './dto/sync-sale.dto'
 import { buildOrderDraft, draftContent, OrderDraftError, type DraftInput, type OrderDraft } from './order-draft'
@@ -42,7 +42,7 @@ export class OrdersService {
   // Vente encaissée par le serveur (API, B2B, intégrations)
   async checkout(siteId: string, dto: CheckoutDto) {
     const order = await this.prisma.$transaction(async (tx) => {
-      const ref = await this.loadReference(tx, siteId, dto.items.map((i) => i.productId), true)
+      const ref = await this.loadReference(tx, siteId, referencedProducts(dto.items), true)
       const draft = this.draft({
         items: dto.items,
         products: ref.products,
@@ -51,6 +51,7 @@ export class OrdersService {
         paymentMethods: ref.paymentMethods,
         payments: dto.payments,
         paymentMode: dto.paymentMode,
+        scaleRules: ref.scaleRules,
       })
       await this.takeSerials(tx, siteId, draft, true)
       const issues = this.paymentIssues(draft, ref, dto.nonResident)
@@ -127,7 +128,7 @@ export class OrdersService {
         })
       }
 
-      const ref = await this.loadReference(tx, siteId, dto.items.map((i) => i.productId), false)
+      const ref = await this.loadReference(tx, siteId, referencedProducts(dto.items), false)
       const draft = this.draft({
         items: dto.items,
         products: ref.products,
@@ -137,6 +138,7 @@ export class OrdersService {
         paymentMethods: ref.allPaymentMethods,
         payments: dto.payments,
         useSignedPrices: true,
+        scaleRules: ref.scaleRules,
       })
       if (Math.round(draft.pricing.total * 100) !== Math.round(dto.receipt.total * 100)) {
         throw new UnprocessableEntityException(
@@ -270,6 +272,7 @@ export class OrdersService {
         organization: {
           select: {
             priceIncludesTax: true,
+            scaleBarcodes: true,
             paymentMethods: { select: { code: true, label: true, kind: true, isActive: true, mealVoucher: true, maxAmount: true, requiresReference: true } },
           },
         },
@@ -280,9 +283,19 @@ export class OrdersService {
       where: { id: { in: [...new Set(productIds)] }, siteId, ...(activeOnly ? { OR: [{ isActive: true }, { isCustom: true }] } : {}) },
       select: {
         id: true, name: true, price: true, taxRate: true, tracking: true, isCustom: true, mealVoucherEligible: true,
+        isMenu: true, soldByWeight: true, scaleCode: true,
         variants: {
           where: activeOnly ? { isActive: true } : {},
           select: { id: true, name: true, price: true },
+        },
+        // Vente signée : une option désactivée depuis reste reconnue
+        modifierGroups: {
+          where: activeOnly ? { group: { isActive: true } } : {},
+          select: { group: { select: { modifiers: { where: activeOnly ? { isActive: true } : {}, select: { id: true, name: true, price: true } } } } },
+        },
+        menuSteps: {
+          orderBy: { position: 'asc' },
+          select: { name: true, minSelect: true, maxSelect: true, choices: { orderBy: { position: 'asc' }, select: { productId: true, variantId: true, supplement: true } } },
         },
       },
     })
@@ -292,11 +305,14 @@ export class OrdersService {
       priceIncludesTax: site.organization.priceIncludesTax,
       paymentMethods: methods.filter((m) => m.isActive),
       allPaymentMethods: methods,
-      products: products.map((p) => ({
+      scaleRules: scaleRulesFrom(site.organization.scaleBarcodes),
+      products: products.map(({ modifierGroups, menuSteps, ...p }) => ({
         ...p,
         price: Number(p.price),
         taxRate: Number(p.taxRate),
         variants: p.variants.map((v) => ({ ...v, price: Number(v.price) })),
+        modifiers: modifierGroups.flatMap((g) => g.group.modifiers.map((m) => ({ ...m, price: Number(m.price) }))),
+        menuSteps: menuSteps.map((st) => ({ ...st, choices: st.choices.map((c) => ({ ...c, supplement: Number(c.supplement) })) })),
       })),
     }
   }
@@ -364,6 +380,9 @@ export class OrdersService {
             price: new Decimal(i.price),
             taxRate: new Decimal(i.taxRate),
             discount: new Decimal(i.discount),
+            modifiers: i.modifiers ? i.modifiers.map((m) => ({ id: m.id, name: m.name, price: m.price })) : Prisma.DbNull,
+            weight: i.weight !== null ? new Decimal(i.weight) : null,
+            pricePerKg: i.pricePerKg !== null ? new Decimal(i.pricePerKg) : null,
           })),
         },
         payments: {
@@ -399,7 +418,8 @@ export class OrdersService {
         items: order.items.map((i) => ({
           productId: i.productId,
           variantId: i.variantId,
-          quantity: i.quantity,
+          // Article pesé : on sort son poids
+          quantity: i.weight ? Number(i.weight) : i.quantity,
           // Déjà sortie du stock lot par lot pendant la transaction
           serialNumber: i.serialNumber,
         })),
@@ -511,3 +531,9 @@ export class OrdersService {
     return lines.join('\n')
   }
 }
+
+// Produits vendus et formules dont ils font partie
+function referencedProducts(items: Array<{ productId: string; menu?: { productId: string } }>) {
+  return [...items.map((i) => i.productId), ...items.flatMap((i) => (i.menu ? [i.menu.productId] : []))]
+}
+

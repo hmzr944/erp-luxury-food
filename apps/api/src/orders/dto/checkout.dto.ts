@@ -1,8 +1,44 @@
-import { ArrayMinSize, IsArray, IsEmail, IsEnum, IsInt, IsNumber, IsOptional, MaxLength, IsString, Min, ValidateNested, IsBoolean } from 'class-validator'
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsEnum, IsInt, IsNumber, IsOptional, Matches, Max, MaxLength, IsString, Min, ValidateNested, IsBoolean } from 'class-validator'
 import { Type } from 'class-transformer'
 import { Channel, PaymentMode } from '@erp/types'
 
-export class CheckoutItemDto {
+// Composant d'une formule : la formule et le numéro de sa ligne dans la vente
+export class MenuRefDto {
+  @IsString()
+  productId!: string
+
+  @IsInt()
+  @Min(0)
+  group!: number
+}
+
+// Options, formule et pesée, communs aux ventes du serveur et des caisses
+export class ItemCompositionDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  modifiers?: string[]
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MenuRefDto)
+  menu?: MenuRefDto
+
+  // Poids en kg
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
+  @Max(9999)
+  weight?: number
+
+  // Étiquette de balance (EAN-13)
+  @IsOptional()
+  @Matches(/^2\d{12}$/)
+  label?: string
+}
+
+export class CheckoutItemDto extends ItemCompositionDto {
   @IsString()
   productId!: string
 

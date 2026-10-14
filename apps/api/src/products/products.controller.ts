@@ -8,6 +8,7 @@ import { ProductsService } from './products.service'
 import {
   CategoryDto,
   CreateProductDto,
+  ModifierGroupDto,
   ProductOptionDto,
   UpdateCategoryDto,
   UpdateProductDto,
@@ -85,6 +86,29 @@ export class ProductsController {
   @HttpCode(HttpStatus.OK)
   remove(@Param('siteId') siteId: string, @Param('id') id: string) {
     return this.products.remove(id, siteId)
+  }
+
+  // ── Options et suppléments ──────────────────────────────────
+
+  @Get('modifier-groups')
+  findModifierGroups(@Param('siteId') siteId: string) {
+    return this.products.findModifierGroups(siteId)
+  }
+
+  @Post('modifier-groups')
+  createModifierGroup(@Param('siteId') siteId: string, @Body() dto: ModifierGroupDto) {
+    return this.products.createModifierGroup(siteId, dto)
+  }
+
+  @Patch('modifier-groups/:id')
+  updateModifierGroup(@Param('siteId') siteId: string, @Param('id') id: string, @Body() dto: ModifierGroupDto) {
+    return this.products.updateModifierGroup(id, siteId, dto)
+  }
+
+  @Delete('modifier-groups/:id')
+  @HttpCode(HttpStatus.OK)
+  removeModifierGroup(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.products.removeModifierGroup(id, siteId)
   }
 
   // ── Catégories ──────────────────────────────────────────────

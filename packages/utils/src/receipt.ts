@@ -16,6 +16,15 @@ export interface SignedSaleItem {
   serialNumber?: string | null
   // Article libre : nom saisi en caisse
   customName?: string | null
+  // Options choisies (identifiants), prix déjà compris dans unitPrice
+  modifiers?: string[] | null
+  // Composant d'une formule : formule vendue et numéro de la ligne de
+  // formule dans la vente (les composants d'une même formule le partagent)
+  menu?: { productId: string; group: number } | null
+  // Article pesé : poids en kg
+  weight?: number | null
+  // Étiquette de balance scannée (EAN-13 à prix ou poids intégré)
+  label?: string | null
 }
 
 export interface SignedSaleContent {
@@ -41,8 +50,12 @@ const money = (n: number | undefined) => (n ?? 0).toFixed(2)
 export function canonicalSaleContent(content: SignedSaleContent): string {
   const items = content.items.map((i) => {
     const fields = [i.productId, i.variantId ?? '', i.quantity, money(i.unitPrice), money(i.taxRate), money(i.discount), i.serialNumber ?? '']
-    // Ajouté à la fin et seulement s'il existe : les tickets déjà signés restent valides
+    // Champs ajoutés à la fin et seulement s'ils existent : les tickets déjà signés restent valides
     if (i.customName) fields.push(`name=${encodeURIComponent(i.customName)}`)
+    if (i.modifiers?.length) fields.push(`mods=${i.modifiers.map(encodeURIComponent).join('+')}`)
+    if (i.menu) fields.push(`menu=${encodeURIComponent(i.menu.productId)}.${i.menu.group}`)
+    if (i.weight) fields.push(`w=${i.weight.toFixed(3)}`)
+    if (i.label) fields.push(`ean=${encodeURIComponent(i.label)}`)
     return fields.join(',')
   })
   // La référence n'est ajoutée que si elle existe : les tickets déjà signés restent valides

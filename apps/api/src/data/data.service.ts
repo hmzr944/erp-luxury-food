@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/library'
-import { parseCsv, toCsv } from '@erp/utils'
+import { modifiersLabel, parseCsv, toCsv } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { planProductImport, type ImportPlan } from './product-import'
 
@@ -47,6 +47,9 @@ export class DataService {
       { header: 'Produit', value: (i) => i.name },
       { header: 'Variante', value: (i) => i.variantName },
       { header: 'N° de série', value: (i) => i.serialNumber },
+      { header: 'Formule', value: (i) => i.menuName },
+      { header: 'Options', value: (i) => (Array.isArray(i.modifiers) ? modifiersLabel(i.modifiers as Array<{ name: string; price: number }>) : '') },
+      { header: 'Poids (kg)', value: (i) => (i.weight ? n(i.weight) : '') },
       { header: 'SKU', value: (i) => i.product.sku },
       { header: 'Catégorie', value: (i) => i.product.category?.name },
       { header: 'Quantité', value: (i) => i.quantity },

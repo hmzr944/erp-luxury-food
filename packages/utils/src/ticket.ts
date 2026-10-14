@@ -1,3 +1,6 @@
+import { modifiersLabel } from './composition'
+import { weightLabel } from './scale-barcode'
+
 // Ticket de caisse : modèle commun à la caisse (impression) et au serveur
 // (reçu en ligne, PDF). Aucune dépendance au navigateur.
 // Mentions légales du commerçant reprises sur le ticket
@@ -21,10 +24,93 @@ export interface ReceiptSettings {
 export interface TicketLine {
   quantity: number
   name: string
-  detail?: string // variante, n° de série
+  detail?: string // variante, n° de série, options, poids
   unit: number
   total: number
   taxRate: number
+  // Formule : composants avec leur part du prix et leur taux de TVA
+  parts?: Array<{ name: string; total: number; taxRate: number }>
+}
+
+// Ligne vendue telle qu'enregistrée (OrderItem, ou ligne signée en caisse)
+export interface SoldItemView {
+  name: string
+  variantName?: string | null
+  serialNumber?: string | null
+  quantity: number
+  taxRate: number
+  modifiers?: Array<{ name: string; price: number }> | null
+  menuGroup?: number | null
+  menuName?: string | null
+  weight?: number | null
+  pricePerKg?: number | null
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+// Ligne vendue lue en base (Decimal, Json) ramenée à une SoldItemView
+export function soldItemView(i: {
+  name: string
+  variantName?: string | null
+  serialNumber?: string | null
+  quantity: number
+  taxRate: unknown
+  modifiers?: unknown
+  menuGroup?: number | null
+  menuName?: string | null
+  weight?: unknown
+  pricePerKg?: unknown
+}): SoldItemView {
+  const mods = Array.isArray(i.modifiers) ? (i.modifiers as Array<{ name: string; price: unknown }>).map((m) => ({ name: String(m.name), price: Number(m.price) })) : null
+  return {
+    name: i.name,
+    variantName: i.variantName ?? null,
+    serialNumber: i.serialNumber ?? null,
+    quantity: i.quantity,
+    taxRate: Number(i.taxRate),
+    modifiers: mods,
+    menuGroup: i.menuGroup ?? null,
+    menuName: i.menuName ?? null,
+    weight: i.weight != null ? Number(i.weight) : null,
+    pricePerKg: i.pricePerKg != null ? Number(i.pricePerKg) : null,
+  }
+}
+
+export function soldItemDetail(i: SoldItemView): string | undefined {
+  const parts = [
+    i.variantName,
+    i.modifiers?.length ? modifiersLabel(i.modifiers) : null,
+    i.weight ? weightLabel(i.weight, i.pricePerKg ?? undefined) : null,
+    i.serialNumber ? `N° de série ${i.serialNumber}` : null,
+  ]
+  return parts.filter(Boolean).join(', ') || undefined
+}
+
+// Lignes du ticket à partir des lignes vendues et de leur montant TTC payé.
+// Les composants d'une formule sont regroupés sous le nom de la formule.
+export function ticketLinesFromItems(items: SoldItemView[], ttc: number[], sign = 1): TicketLine[] {
+  const out: TicketLine[] = []
+  const menus = new Map<number, TicketLine>()
+  items.forEach((i, k) => {
+    const total = sign * (ttc[k] ?? 0)
+    if (i.menuGroup != null) {
+      const detail = soldItemDetail(i)
+      const part = { name: detail ? `${i.name} (${detail})` : i.name, total, taxRate: i.taxRate }
+      const line = menus.get(i.menuGroup)
+      if (line) {
+        line.parts!.push(part)
+        line.total = round2(line.total + total)
+        line.unit = round2(line.total / line.quantity)
+        return
+      }
+      const created: TicketLine = { quantity: i.quantity, name: i.menuName ?? 'Formule', unit: round2(total / i.quantity), total, taxRate: i.taxRate, parts: [part] }
+      menus.set(i.menuGroup, created)
+      out.push(created)
+      return
+    }
+    out.push({ quantity: i.quantity, name: i.name, detail: soldItemDetail(i), unit: round2(total / i.quantity), total, taxRate: i.taxRate })
+  })
+  return out
 }
 
 export interface TicketModel {
@@ -170,9 +256,11 @@ export function layoutTicket(t: TicketModel, width: number): Array<{ text: strin
   out.push({ text: rule })
   for (const l of t.lines) {
     const name = `${l.quantity} x ${l.name}`
-    out.push({ text: pair(name, `${money(l.total)} ${codes.get(l.taxRate) ?? ''}`.trim()) })
+    // Formule : le taux de TVA est porté par chaque composant
+    out.push({ text: pair(name, l.parts ? money(l.total) : `${money(l.total)} ${codes.get(l.taxRate) ?? ''}`.trim()) })
     if (l.quantity !== 1) out.push({ text: `   ${money(l.unit)} l'unité` })
     if (l.detail) wrap(l.detail, width - 3).forEach((d) => out.push({ text: `   ${d}` }))
+    for (const p of l.parts ?? []) out.push({ text: pair(`   ${p.name}`, `${money(p.total)} ${codes.get(p.taxRate) ?? ''}`.trim()) })
   }
   if (t.discount) out.push({ text: pair('Remise', `-${money(t.discount)}`) })
   out.push({ text: rule })

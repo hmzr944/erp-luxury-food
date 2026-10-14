@@ -1,8 +1,8 @@
 import { ArrayMinSize, IsArray, IsDateString, IsEmail, IsInt, IsNumber, IsOptional, MaxLength, IsString, IsUUID, Length, Matches, Min, ValidateNested, IsBoolean } from 'class-validator'
 import { Type } from 'class-transformer'
-import { CheckoutPaymentDto } from './checkout.dto'
+import { CheckoutPaymentDto, ItemCompositionDto } from './checkout.dto'
 
-export class SignedSaleItemDto {
+export class SignedSaleItemDto extends ItemCompositionDto {
   @IsString()
   productId!: string
 

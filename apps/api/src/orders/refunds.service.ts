@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { Decimal } from '@prisma/client/runtime/library'
-import type { PaymentKind, Prisma } from '@prisma/client'
+import { Prisma, type PaymentKind } from '@prisma/client'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { ComplianceService } from '../compliance/compliance.service'
 import { PaymentsService } from '../payments/payments.service'
@@ -114,6 +114,13 @@ export class RefundsService {
                 name: src.name,
                 variantName: src.variantName,
                 serialNumber: src.serialNumber,
+                modifiers: src.modifiers ?? Prisma.DbNull,
+                menuProductId: src.menuProductId,
+                menuName: src.menuName,
+                menuGroup: src.menuGroup,
+                weight: src.weight,
+                pricePerKg: src.pricePerKg,
+                scaleLabel: src.scaleLabel,
                 quantity: l.quantity,
                 // Montant réellement rendu par unité (remises comprises)
                 price: new Decimal(-l.ttc / l.quantity).toDecimalPlaces(2),
@@ -193,12 +200,13 @@ export class RefundsService {
   private async restock(
     tx: Prisma.TransactionClient,
     siteId: string,
-    item: { productId: string; variantId: string | null; serialNumber: string | null },
+    item: { productId: string; variantId: string | null; serialNumber: string | null; weight: Decimal | null },
     quantity: number,
     orderId: string,
     userId: string,
   ) {
-    const qty = new Decimal(quantity)
+    // Article pesé : son poids revient en stock
+    const qty = item.weight ? item.weight.mul(quantity) : new Decimal(quantity)
     if (item.variantId) {
       await tx.variantStock.updateMany({ where: { variantId: item.variantId }, data: { quantity: { increment: qty } } })
     } else {

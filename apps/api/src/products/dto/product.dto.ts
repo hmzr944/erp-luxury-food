@@ -8,6 +8,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -60,6 +61,44 @@ export class VariantDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean
+}
+
+export class MenuChoiceDto {
+  @IsString()
+  productId!: string
+
+  @IsOptional()
+  @IsString()
+  variantId?: string
+
+  // Supplément demandé pour ce choix dans la formule
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  supplement?: number
+}
+
+export class MenuStepDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  name!: string
+
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  minSelect!: number
+
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  maxSelect!: number
+
+  @IsArray()
+  @ArrayMaxSize(80)
+  @ValidateNested({ each: true })
+  @Type(() => MenuChoiceDto)
+  choices!: MenuChoiceDto[]
 }
 
 export class CreateProductDto {
@@ -118,6 +157,35 @@ export class CreateProductDto {
   @IsObject()
   attributes?: Record<string, unknown>
 
+  // Groupes d'options proposés à la vente, dans l'ordre
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  modifierGroupIds?: string[]
+
+  // Formule : prix unique, étapes de choix
+  @IsOptional()
+  @IsBoolean()
+  isMenu?: boolean
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => MenuStepDto)
+  menuSteps?: MenuStepDto[]
+
+  // Vente au poids : le prix est le prix au kilo
+  @IsOptional()
+  @IsBoolean()
+  soldByWeight?: boolean
+
+  // Code article de la balance étiqueteuse
+  @IsOptional()
+  @Matches(/^\d{1,6}$/, { message: 'Code balance : 1 à 6 chiffres' })
+  scaleCode?: string | null
+
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(5)
@@ -156,3 +224,44 @@ export class CategoryDto {
 }
 
 export class UpdateCategoryDto extends PartialType(CategoryDto) {}
+
+export class ModifierDto {
+  // Présente pour une option existante : mise à jour, pas recréée
+  @IsOptional()
+  @IsString()
+  id?: string
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  name!: string
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  price!: number
+}
+
+export class ModifierGroupDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  name!: string
+
+  @IsInt()
+  @Min(0)
+  @Max(20)
+  minSelect!: number
+
+  // Absent ou null : sans limite
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  maxSelect?: number | null
+
+  @IsArray()
+  @ArrayMaxSize(60)
+  @ValidateNested({ each: true })
+  @Type(() => ModifierDto)
+  modifiers!: ModifierDto[]
+}

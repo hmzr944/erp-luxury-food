@@ -1,4 +1,5 @@
-import { ArrayUnique, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator'
+import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator'
+import { Type } from 'class-transformer'
 import { AttributeType, Pack, PaymentKind, Sector } from '@erp/types'
 
 export class ApplySectorDto {
@@ -6,7 +7,28 @@ export class ApplySectorDto {
   sector!: Sector
 }
 
+// Étiquette de balance : préfixe EAN-13, prix ou poids intégré
+export class ScaleBarcodeRuleDto {
+  @Matches(/^2\d$/, { message: 'Préfixe entre 20 et 29' })
+  prefix!: string
+
+  @IsIn(['PRICE', 'WEIGHT'])
+  mode!: 'PRICE' | 'WEIGHT'
+
+  @IsInt()
+  @Min(4)
+  @Max(6)
+  codeLength!: number
+}
+
 export class UpdatePlatformDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ScaleBarcodeRuleDto)
+  scaleBarcodes?: ScaleBarcodeRuleDto[]
+
   @IsOptional()
   @IsArray()
   @ArrayUnique()

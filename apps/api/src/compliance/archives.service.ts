@@ -92,7 +92,7 @@ export class ArchivesService {
                   createdAt: true,
                   clientId: true,
                   invoiceNumber: true,
-                  items: { select: { name: true, variantName: true, serialNumber: true, price: true, taxRate: true, quantity: true, discount: true, productId: true, variantId: true, refundOfItemId: true } },
+                  items: { select: { name: true, variantName: true, serialNumber: true, price: true, taxRate: true, quantity: true, discount: true, productId: true, variantId: true, refundOfItemId: true, modifiers: true, menuProductId: true, menuName: true, menuGroup: true, weight: true, pricePerKg: true, scaleLabel: true } },
                   payments: { select: { code: true, label: true, kind: true, amount: true, reference: true } },
                 },
               },

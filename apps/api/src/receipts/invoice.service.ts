@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { FISCAL_SOFTWARE } from '@erp/types'
-import { priceOrder } from '@erp/utils'
+import { priceOrder, soldItemDetail, soldItemView } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { MailService, esc } from '../common/mail/mail.service'
 import { AuditService } from '../audit/audit.service'
@@ -113,7 +113,7 @@ export class InvoiceFromReceiptService {
         invoicedAt: true,
         total: true,
         discount: true,
-        items: { select: { name: true, variantName: true, serialNumber: true, price: true, taxRate: true, quantity: true, discount: true } },
+        items: { select: { name: true, variantName: true, serialNumber: true, price: true, taxRate: true, quantity: true, discount: true, modifiers: true, menuGroup: true, menuName: true, weight: true, pricePerKg: true } },
         payments: { select: { label: true, amount: true } },
         receiptChain: { select: { counter: true, terminalCounter: true, signedAt: true, terminal: { select: { name: true } } } },
         b2bClient: true,
@@ -168,8 +168,9 @@ export class InvoiceFromReceiptService {
       lines: order.items.map((i, k) => {
         const ht = priced.lines[k]?.ht ?? 0
         return {
-          name: i.name,
-          detail: [i.variantName, i.serialNumber ? `N° de série ${i.serialNumber}` : null].filter(Boolean).join(', ') || undefined,
+          // Composant de formule : facturé à son taux, sous le nom de la formule
+          name: i.menuName ? `${i.menuName} : ${i.name}` : i.name,
+          detail: soldItemDetail(soldItemView(i)),
           quantity: i.quantity,
           unitHt: Math.round((ht / i.quantity) * 100) / 100,
           rate: Number(i.taxRate),

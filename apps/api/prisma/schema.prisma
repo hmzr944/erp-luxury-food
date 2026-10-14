@@ -32,6 +32,9 @@ model Organization {
   // Commerce de détail : prix saisis TTC. B2B pur : prix HT.
   priceIncludesTax     Boolean               @default(true)
   currency             String                @default("EUR")
+  // Étiquettes de balance (EAN-13 à prix ou poids intégré) : règles par
+  // préfixe ; vide = réglage par défaut
+  scaleBarcodes        Json?
   taxRates             TaxRate[]
   paymentMethods       PaymentMethod[]
   attributeDefinitions AttributeDefinition[]
@@ -116,6 +119,7 @@ model Site {
   paymentDevices  PaymentDevice[]
   categories      Category[]
   products        Product[]
+  modifierGroups  ModifierGroup[]
   orders          Order[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -221,18 +225,18 @@ model Category {
 }
 
 model Product {
-  id                  String            @id @default(cuid())
+  id                  String                 @id @default(cuid())
   siteId              String
-  site                Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  site                Site                   @relation(fields: [siteId], references: [id], onDelete: Cascade)
   name                String
   subtitle            String? // ex. "Origine Ghana 72%"
   description         String?
   sku                 String?
   barcode             String?
-  price               Decimal           @db.Decimal(10, 2)
-  taxRate             Decimal           @default(5.5) @db.Decimal(5, 2)
+  price               Decimal                @db.Decimal(10, 2)
+  taxRate             Decimal                @default(5.5) @db.Decimal(5, 2)
   categoryId          String?
-  category            Category?         @relation(fields: [categoryId], references: [id])
+  category            Category?              @relation(fields: [categoryId], references: [id])
   variants            Variant[]
   orderItems          OrderItem[]
   // Back-relations Sprint 4 — ajoutées via migration additive
@@ -240,25 +244,106 @@ model Product {
   allergens           ProductAllergen[]
   // Cœur multi-secteurs
   options             ProductOption[]
-  attributes          Json              @default("{}") // valeurs des AttributeDefinition, par clé
-  tracking            TrackingMode      @default(NONE)
+  attributes          Json                   @default("{}") // valeurs des AttributeDefinition, par clé
+  tracking            TrackingMode           @default(NONE)
   // Produit technique « Article libre » du site : nom et prix saisis en caisse
-  isCustom            Boolean           @default(false)
+  isCustom            Boolean                @default(false)
   // Produit d'un labo ou d'un dépôt proposé aux boutiques, à son prix de cession
-  orderable           Boolean           @default(false)
-  supplyPrice         Decimal?          @db.Decimal(10, 2)
+  orderable           Boolean                @default(false)
+  supplyPrice         Decimal?               @db.Decimal(10, 2)
   supplyUnit          String? // « pièce », « kg », « bac de 12 »
   // Payable en titre-restaurant (aliments et boissons non alcoolisées)
-  mealVoucherEligible Boolean           @default(false)
+  mealVoucherEligible Boolean                @default(false)
   lots                StockLot[]
-  isActive            Boolean           @default(true)
+  // Options et suppléments proposés à la vente (cuisson, sauce, extra...)
+  modifierGroups      ProductModifierGroup[]
+  // Formule : prix unique, composants choisis étape par étape
+  isMenu              Boolean                @default(false)
+  menuSteps           MenuStep[]
+  menuChoices         MenuChoice[]
+  // Vente au poids : price est le prix au kilo
+  soldByWeight        Boolean                @default(false)
+  // Code article de la balance étiqueteuse (PLU), lu dans l'EAN-13
+  scaleCode           String?
+  isActive            Boolean                @default(true)
   imageUrl            String?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
 
   @@index([siteId])
   @@index([siteId, isActive])
   @@index([barcode])
+  @@index([siteId, scaleCode])
+}
+
+// Groupe d'options d'un site (« Cuisson », « Suppléments »), partagé entre produits
+model ModifierGroup {
+  id        String                 @id @default(cuid())
+  siteId    String
+  site      Site                   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name      String
+  // Choix minimum (1 = obligatoire) et maximum (null = sans limite)
+  minSelect Int                    @default(0)
+  maxSelect Int?
+  position  Int                    @default(0)
+  isActive  Boolean                @default(true)
+  modifiers Modifier[]
+  products  ProductModifierGroup[]
+
+  @@index([siteId])
+}
+
+model Modifier {
+  id       String        @id @default(cuid())
+  groupId  String
+  group    ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name     String
+  // Supplément ajouté au prix de l'article, au taux de TVA de l'article
+  price    Decimal       @default(0) @db.Decimal(10, 2)
+  position Int           @default(0)
+  isActive Boolean       @default(true)
+
+  @@index([groupId])
+}
+
+model ProductModifierGroup {
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  position  Int           @default(0)
+
+  @@id([productId, groupId])
+  @@index([groupId])
+}
+
+// Étape d'une formule (« Plat », « Boisson », « Dessert »)
+model MenuStep {
+  id        String       @id @default(cuid())
+  menuId    String
+  menu      Product      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  name      String
+  minSelect Int          @default(1)
+  maxSelect Int          @default(1)
+  position  Int          @default(0)
+  choices   MenuChoice[]
+
+  @@index([menuId])
+}
+
+// Article proposé à une étape, avec un éventuel supplément
+model MenuChoice {
+  id         String   @id @default(cuid())
+  stepId     String
+  step       MenuStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId  String?
+  supplement Decimal  @default(0) @db.Decimal(10, 2)
+  position   Int      @default(0)
+
+  @@index([stepId])
+  @@index([productId])
 }
 
 model Variant {
@@ -338,23 +423,34 @@ model Order {
 }
 
 model OrderItem {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   // Ligne remboursée : ligne de la vente d'origine
   refundOfItemId String?
   orderId        String
-  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId      String
-  product        Product @relation(fields: [productId], references: [id])
+  product        Product  @relation(fields: [productId], references: [id])
   variantId      String?
   // Snapshot immuable au moment de la vente
   name           String
   variantName    String?
   lotId          String?
   serialNumber   String?
-  price          Decimal @db.Decimal(10, 2)
-  taxRate        Decimal @db.Decimal(5, 2)
+  price          Decimal  @db.Decimal(10, 2)
+  taxRate        Decimal  @db.Decimal(5, 2)
   quantity       Int
-  discount       Decimal @default(0) @db.Decimal(10, 2)
+  discount       Decimal  @default(0) @db.Decimal(10, 2)
+  // Options choisies : [{ id, name, price }], prix compris dans price
+  modifiers      Json?
+  // Composant d'une formule : la formule vendue et le numéro de sa ligne
+  menuProductId  String?
+  menuName       String?
+  menuGroup      Int?
+  // Article pesé : poids et prix au kilo appliqué
+  weight         Decimal? @db.Decimal(10, 3)
+  pricePerKg     Decimal? @db.Decimal(10, 2)
+  // Étiquette de balance scannée
+  scaleLabel     String?
 }
 
 // ============================================================
