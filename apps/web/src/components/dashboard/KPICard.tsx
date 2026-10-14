@@ -36,7 +36,7 @@ export function KPICard({ label, value, sub, icon: Icon, accent, index = 0 }: KP
       <div>
         <p
           className={[
-            'font-data text-2xl leading-none',
+            'tabular font-display text-3xl font-bold leading-none tracking-[-0.03em]',
             accent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]',
           ].join(' ')}
         >

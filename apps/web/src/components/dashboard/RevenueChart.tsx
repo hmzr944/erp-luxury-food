@@ -34,42 +34,42 @@ export function RevenueChart({ data }: RevenueChartProps) {
       <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
         <defs>
           <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#E8C878" stopOpacity={0.25} />
-            <stop offset="100%" stopColor="#E8C878" stopOpacity={0} />
+            <stop offset="0%" stopColor="var(--base-accent)" stopOpacity={0.25} />
+            <stop offset="100%" stopColor="var(--base-accent)" stopOpacity={0} />
           </linearGradient>
         </defs>
 
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="#1F1F1F"
+          stroke="var(--color-border)"
           vertical={false}
         />
 
         <XAxis
           dataKey="hour"
-          tick={{ fill: '#555550', fontSize: 10, fontFamily: 'var(--font-data)' }}
+          tick={{ fill: 'var(--color-text-muted)', fontSize: 10, fontFamily: 'var(--font-data)' }}
           axisLine={false}
           tickLine={false}
           interval={1}
         />
 
         <YAxis
-          tick={{ fill: '#555550', fontSize: 10, fontFamily: 'var(--font-data)' }}
+          tick={{ fill: 'var(--color-text-muted)', fontSize: 10, fontFamily: 'var(--font-data)' }}
           axisLine={false}
           tickLine={false}
           tickFormatter={(v) => v > 0 ? `${v}€` : ''}
         />
 
-        <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#2A2A2A', strokeWidth: 1 }} />
+        <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--color-border-strong)', strokeWidth: 1 }} />
 
         <Area
           type="monotone"
           dataKey="revenue"
-          stroke="#E8C878"
+          stroke="var(--base-accent)"
           strokeWidth={1.5}
           fill="url(#revenueGrad)"
           dot={false}
-          activeDot={{ r: 4, fill: '#E8C878', stroke: '#0A0A0A', strokeWidth: 2 }}
+          activeDot={{ r: 4, fill: 'var(--base-accent)', stroke: 'var(--base-bg)', strokeWidth: 2 }}
         />
       </AreaChart>
     </ResponsiveContainer>

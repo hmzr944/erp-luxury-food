@@ -30,11 +30,6 @@ export type ProductFormValues = z.infer<typeof productSchema>
 
 const inputCls = 'w-full h-9 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 focus:ring-1 focus:ring-[var(--color-accent)]/20 transition-colors'
 
-const CATEGORY_COLORS = [
-  '#92400e', '#7c3aed', '#1d4ed8', '#0e7490',
-  '#065f46', '#9f1239', '#b45309', '#374151',
-]
-
 interface ProductDrawerProps {
   product: ApiProduct | null
   isNew: boolean

@@ -6,7 +6,8 @@ import { IdentificationBadge, Printer, QrCode } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api/client'
 import { listenNfc, nfcSupported, useWedgeScanner, writeNfc } from '@/lib/badge'
-import { BRAND } from '@/lib/brand'
+import { wordmarkSvg } from '@/lib/brand-svg'
+import { FlowWordmark } from '@/components/brand/FlowLogo'
 import { Sheet } from '@/components/pos/Sheet'
 
 interface Member {
@@ -110,13 +111,13 @@ export function BadgeSheet({ member, onClose, onChanged }: { member: Member | nu
 function QrCard({ member, svg, payload }: { member: Member; svg: string; payload: string }) {
   const [writing, setWriting] = useState(false)
   const card = `<div style="width:54mm;height:86mm;border:1px solid #ccc;border-radius:3mm;padding:5mm;box-sizing:border-box;font-family:system-ui,sans-serif;display:flex;flex-direction:column;justify-content:space-between">
-    <div style="font-weight:700;font-size:12pt">${BRAND}</div>
+    <div>${wordmarkSvg()}</div>
     <div style="width:42mm;height:42mm;margin:0 auto">${svg}</div>
     <div><div style="font-weight:600;font-size:12pt">${escapeHtml(member.firstName)} ${escapeHtml(member.lastName)}</div><div style="font-size:8pt;color:#555">Badge caisse, personnel</div></div></div>`
   return (
     <div className="space-y-4 pb-2">
-      <div className="mx-auto w-56 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-white p-4 text-[#16171A]">
-        <p className="text-sm font-bold">{BRAND}</p>
+      <div className="mx-auto w-56 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-white p-4 text-[#14141A]">
+        <FlowWordmark height={14} className="text-[#14141A]" />
         <div className="mx-auto my-3 w-44" dangerouslySetInnerHTML={{ __html: svg }} aria-label={`QR code du badge de ${member.firstName}`} role="img" />
         <p className="text-[15px] font-semibold">
           {member.firstName} {member.lastName}

@@ -67,7 +67,7 @@ export function AtelierScreen({ siteId }: { siteId: string }) {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[var(--color-bg-base)] text-[var(--color-text-primary)]">
       <header className="flex flex-wrap items-center gap-4 border-b border-[var(--color-border)] px-4 py-3 md:px-8">
-        <FlowMark size={44} className="shrink-0" />
+        <FlowMark size={44} tile />
         <div className="min-w-0">
           <p className="font-display text-2xl font-bold tracking-tight">{site?.name ?? 'Atelier'}</p>
           <p className="text-base text-[var(--color-text-secondary)]">

@@ -25,7 +25,7 @@ import { sitesApi } from '@/lib/api/sites'
 import { useBilling } from '@/lib/api/billing'
 
 const NAV = [
-  { href: '/dashboard',  icon: ChartLine,   label: 'Dashboard' },
+  { href: '/dashboard',  icon: ChartLine,   label: 'Tableau de bord' },
   { href: '/orders',     icon: ListChecks,  label: 'Commandes' },
   { href: '/supply',     icon: Truck,       label: 'Approvisionnement' },
   { href: '/invoices',   icon: Receipt,     label: 'Factures' },
@@ -124,8 +124,8 @@ export function Sidebar() {
               {active && (
                 <motion.span
                   layoutId="sidebar-indicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[var(--color-accent)] rounded-r-full"
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  className="absolute -left-3 top-1/2 h-5 w-1.5 -translate-y-1/2 rounded-r-full bg-[var(--color-accent)]"
+                  transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}
                 />
               )}
               <Icon size={14} weight={active ? 'fill' : 'regular'} />

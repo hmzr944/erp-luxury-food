@@ -9,6 +9,8 @@ import { formatPrice } from '@erp/utils'
 import { productsAdminApi, type CreateProductPayload } from '@/lib/api/products-admin'
 import { productsApi, type ApiProduct } from '@/lib/api/products'
 import { ProductDrawer, type ProductFormValues } from './ProductDrawer'
+import { rayonShapes } from '@/lib/brand'
+import { RayonGlyph } from '@/components/brand/RayonGlyph'
 
 interface ProductsClientProps { siteId: string }
 
@@ -27,6 +29,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
     queryKey: ['categories', siteId],
     queryFn: () => productsApi.getCategories(siteId),
   })
+  const shapeOf = rayonShapes(categories)
 
   const createProduct = useMutation({
     mutationFn: (data: CreateProductPayload) => productsAdminApi.create(siteId, data),
@@ -144,7 +147,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)]',
               ].join(' ')}
             >
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color ?? '#555550' }} />
+              {shapeOf.get(c.id) && <RayonGlyph shape={shapeOf.get(c.id)!} size={12} className="text-[var(--color-accent)]" />}
               {c.name}
               <span className="font-data text-[9px] opacity-60">{c._count.products}</span>
             </button>
@@ -178,11 +181,10 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
                   !product.isActive ? 'opacity-40' : '',
                 ].join(' ')}
               >
-                {/* Color indicator */}
-                <span
-                  className="w-1 h-8 rounded-full mr-3 shrink-0"
-                  style={{ backgroundColor: product.category?.color ?? '#555550' }}
-                />
+                {/* Forme du rayon */}
+                <span className="mr-3 grid w-4 shrink-0 place-items-center text-[var(--color-accent)]">
+                  {product.categoryId && shapeOf.get(product.categoryId) && <RayonGlyph shape={shapeOf.get(product.categoryId)!} size={14} />}
+                </span>
 
                 {/* Name + sub */}
                 <div className="flex-1 min-w-0 mr-4">

@@ -1,69 +1,96 @@
 import { BRAND } from '@/lib/brand'
 
-// Le signe FLŌW : quatre barres de hauteurs différentes dans un carré Flux,
-// comme le pouls d'une boutique (et les offres Pulse et Tempo)
-// rise : les barres se dressent une fois à l'affichage (moments rares seulement)
-export function FlowMark({ size = 32, className = '', rise = false }: { size?: number; className?: string; rise?: boolean }) {
+// Le signe FLŌW : le Ō réduit à trois formes. Le trait du macron (Klein) et
+// un disque fendu dont les deux moitiés sont décalées, comme deux flux qui se
+// croisent : la boutique et son labo, la vente et le stock. Les décalages sont
+// dans le tracé (pas en transform) pour que les animations CSS les gardent.
+function MarkShapes({ ink, accent }: { ink: string; accent: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={`${rise ? 'flow-rise ' : ''}${className}`}>
-      <rect width="32" height="32" rx="9" fill="var(--base-accent)" />
-      <rect x="7" y="13" width="3.5" height="12" rx="1.75" fill="var(--gamme-corail)" />
-      <rect x="12.5" y="7" width="3.5" height="18" rx="1.75" fill="var(--gamme-soleil)" />
-      <rect x="18" y="10" width="3.5" height="15" rx="1.75" fill="var(--gamme-menthe)" />
-      <rect x="23.5" y="16" width="3.5" height="9" rx="1.75" fill="var(--gamme-lagon)" />
+    <>
+      <rect className="fm-bar" x="11" y="5" width="26" height="6" rx="3" fill={accent} />
+      <path className="fm-l" d="M23 15.5 A13 13 0 0 0 23 41.5 Z" fill={ink} />
+      <path className="fm-r" d="M25 18.5 A13 13 0 0 1 25 44.5 Z" fill={ink} />
+    </>
+  )
+}
+
+type Motion = 'form' | 'flux' | undefined
+const motionClass = (m: Motion) => (m === 'form' ? 'flow-form ' : m === 'flux' ? 'flow-flux ' : '')
+
+// tile : le signe sur un carré Klein (icône d'application, en-tête de caisse)
+// inverse : le signe en papier, posé sur un aplat Klein
+export function FlowMark({ size = 32, className = '', tile = false, inverse = false, motion }: { size?: number; className?: string; tile?: boolean; inverse?: boolean; motion?: Motion }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden className={`${motionClass(motion)}shrink-0 ${className}`}>
+      {tile ? (
+        <>
+          <rect width="48" height="48" rx="13" fill="var(--base-accent)" />
+          <g transform="translate(4.8 3.2) scale(0.8)">
+            <MarkShapes ink="var(--base-on-accent)" accent="var(--base-on-accent)" />
+          </g>
+        </>
+      ) : inverse ? (
+        <MarkShapes ink="var(--base-on-accent)" accent="var(--base-on-accent)" />
+      ) : (
+        <MarkShapes ink="currentColor" accent="var(--base-accent)" />
+      )}
     </svg>
   )
 }
 
-export function FlowLogo({ size = 32, className = '', label = true, rise = false }: { size?: number; className?: string; label?: boolean; rise?: boolean }) {
+// Le nom, dessiné et non tapé : F, L et W sont des traits de même épaisseur
+// à bouts ronds, le Ō est le signe lui-même
+export function FlowWordmark({ height = 22, className = '', motion }: { height?: number; className?: string; motion?: Motion }) {
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`}>
-      <FlowMark size={size} rise={rise} />
-      {label ? (
-        <span className="font-display font-bold tracking-[-0.03em]" style={{ fontSize: size * 0.72, lineHeight: 1 }}>
-          {BRAND}
-        </span>
-      ) : (
-        <span className="sr-only">{BRAND}</span>
-      )}
+    <svg
+      height={height}
+      width={(height * 138) / 42}
+      viewBox="0 0 138 42"
+      aria-hidden
+      className={`${motionClass(motion)}shrink-0 ${className}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.5 4.5 V37.5 M3.5 4.5 H22 M3.5 20.5 H17" />
+      <path d="M32.5 4.5 V37.5 H50" />
+      <rect className="fm-bar" x="62" y="0" width="28" height="6" rx="3" fill="var(--base-accent)" stroke="none" />
+      <path className="fm-l" d="M74.8 10.3 A14.5 14.5 0 0 0 74.8 39.3 Z" fill="currentColor" stroke="none" />
+      <path className="fm-r" d="M77.2 12.7 A14.5 14.5 0 0 1 77.2 41.7 Z" fill="currentColor" stroke="none" />
+      <path d="M99.5 4.5 L106.5 37.5 L114.5 15 L122.5 37.5 L129.5 4.5" />
+    </svg>
+  )
+}
+
+// Logo complet : le nom dessiné (label) ou le signe seul sur son carré
+export function FlowLogo({ size = 32, className = '', label = true, motion }: { size?: number; className?: string; label?: boolean; motion?: Motion }) {
+  return (
+    <span className={`inline-flex items-center text-[var(--color-text-primary)] ${className}`}>
+      {label ? <FlowWordmark height={Math.round(size * 0.7)} motion={motion} /> : <FlowMark size={size} tile motion={motion} />}
+      <span className="sr-only">{BRAND}</span>
     </span>
   )
 }
 
-const BARS = ['var(--gamme-corail)', 'var(--gamme-soleil)', 'var(--gamme-menthe)', 'var(--gamme-lagon)']
-
-// Le pouls FLŌW : les quatre barres du signe battent tant qu'on attend.
-// Remplace les roues de chargement ; l'état lui-même est dit en texte à côté.
+// Attente : les deux moitiés glissent en sens contraire tant qu'on attend.
+// Remplace les roues de chargement ; l'état est dit en texte à côté.
 export function FlowPulse({ size = 28, className = '' }: { size?: number; className?: string }) {
-  const bar = Math.max(3, Math.round(size / 7))
-  return (
-    <span aria-hidden className={`flow-pulse inline-flex items-end ${className}`} style={{ height: size, gap: bar * 0.6 }}>
-      {BARS.map((c, i) => (
-        <span key={c} className="block h-full rounded-full" style={{ width: bar, background: c, ['--i' as string]: i }} />
-      ))}
-    </span>
-  )
+  return <FlowMark size={size} motion="flux" className={`text-[var(--color-text-primary)] ${className}`} />
 }
 
-// Le signe bat une fois : la vente est enregistrée
+// Le signe se forme une fois : la vente est enregistrée
 export function FlowBeat({ size = 28, className = '' }: { size?: number; className?: string }) {
-  const bar = Math.max(3, Math.round(size / 7))
-  const heights = [0.66, 1, 0.83, 0.5]
-  return (
-    <span aria-hidden className={`flow-rise inline-flex items-end ${className}`} style={{ height: size, gap: bar * 0.6 }}>
-      {BARS.map((c, i) => (
-        <span key={c} className="block rounded-full" style={{ width: bar, height: `${heights[i] * 100}%`, background: c }} />
-      ))}
-    </span>
-  )
+  return <FlowMark size={size} motion="form" className={`text-[var(--color-text-primary)] ${className}`} />
 }
 
-// Chargement : le pouls et une phrase, qui n'apparaissent qu'après 200 ms
+// Chargement : le flux et une phrase, qui n'apparaissent qu'après 200 ms
 // pour ne pas clignoter quand la réponse est immédiate
 export function Loading({ label = 'Chargement', className = '' }: { label?: string; className?: string }) {
   return (
     <p role="status" className={`loading-in flex items-center gap-3 text-sm text-[var(--color-text-secondary)] ${className}`}>
-      <FlowPulse size={18} />
+      <FlowPulse size={20} />
       {label}
     </p>
   )

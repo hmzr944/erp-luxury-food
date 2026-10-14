@@ -2,8 +2,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Check } from '@phosphor-icons/react/dist/ssr'
 import { PLAN_OFFERS, TRIAL_DAYS } from '@erp/types'
-import { BRAND, GAMMES, PLAN_GAMME } from '@/lib/brand'
-import comptoir from '../../../public/site/comptoir.jpg'
+import { BRAND } from '@/lib/brand'
+import { RayonGlyph } from '@/components/brand/RayonGlyph'
+import type { RayonShape } from '@/lib/brand'
+import { HeroMark } from './HeroMark'
 import paiement from '../../../public/site/paiement.jpg'
 import mode from '../../../public/site/mode.jpg'
 import patisserie from '../../../public/site/patisserie.jpg'
@@ -42,42 +44,9 @@ export function Hero() {
         <p className="site-rise mt-4 text-[15px] text-[var(--color-text-secondary)]" style={{ '--delay': '300ms' } as React.CSSProperties}>
           Sans carte bancaire, sans engagement, rien à installer.
         </p>
-        <RhythmBars />
       </div>
-      <figure className="site-rise" style={{ '--delay': '140ms' } as React.CSSProperties}>
-        <Image
-          src={comptoir}
-          alt="Deux commerçants souriants derrière le comptoir de leur boutique, une caisse posée sur le bois."
-          priority
-          placeholder="blur"
-          sizes="(min-width: 1152px) 460px, (min-width: 1024px) 40vw, 100vw"
-          className="aspect-[4/5] w-full rounded-[var(--radius-xl)] object-cover object-[30%_50%]"
-        />
-      </figure>
+      <HeroMark />
     </section>
-  )
-}
-
-// Signature FLŌW : les barres du logo, une par gamme, qui montent au chargement
-function RhythmBars() {
-  const bars: Array<[string, number]> = [
-    ['var(--gamme-corail)', 44],
-    ['var(--gamme-soleil)', 72],
-    ['var(--gamme-menthe)', 56],
-    ['var(--gamme-lagon)', 30],
-    ['var(--gamme-lilas)', 64],
-    ['var(--gamme-pivoine)', 38],
-  ]
-  return (
-    <div aria-hidden className="mt-10 flex h-20 items-end gap-2">
-      {bars.map(([c, h], i) => (
-        <span
-          key={c}
-          className="site-bar w-5 rounded-full"
-          style={{ background: c, height: `${h}px`, '--delay': `${320 + i * 60}ms` } as React.CSSProperties}
-        />
-      ))}
-    </div>
   )
 }
 
@@ -128,11 +97,11 @@ export function Sectors() {
       </div>
 
       <div className="mt-12 grid gap-4 md:grid-cols-6">
-        <SectorFigure gamme="var(--gamme-corail)" image={mode} className="md:col-span-4" ratio="aspect-[3/2]" title="Prêt-à-porter, maroquinerie" text="Tailles et couleurs en grille, stock par variante, collection, saison, matière." alt="Portants de vêtements dans une boutique claire, sous des suspensions en métal." />
-        <SectorFigure gamme="var(--gamme-soleil)" image={patisserie} className="md:col-span-2" ratio="aspect-[3/4] md:aspect-auto md:h-full" title="Pâtisserie, chocolaterie" text="TVA à 5,5 % par défaut, lots et dates limites, origine et conservation." alt="Vitrine de pâtisserie avec des tartes aux fruits rouges et des gâteaux au chocolat." />
-        <SectorFigure gamme="var(--gamme-menthe)" image={bijoux} className="md:col-span-2" ratio="aspect-[4/3]" title="Bijouterie, horlogerie" text="Numéro de série pièce par pièce, métal, pierres, certificat, garantie." alt="Bagues en or présentées sur des supports dans une vitrine." />
-        <SectorFigure gamme="var(--gamme-lagon)" image={cave} className="md:col-span-2" ratio="aspect-[4/3]" title="Cave, spiritueux" text="Millésime, appellation et degré sur chaque fiche." alt="Bouteilles de vin couchées sur des étagères en bois." />
-        <SectorFigure gamme="var(--gamme-lilas)" image={fleuriste} className="md:col-span-2" ratio="aspect-[4/3]" title="Fleurs, concept store" text="Article libre au prix saisi à la main quand rien n'est au catalogue." alt="Boutique de fleuriste remplie de bouquets colorés sous des guirlandes lumineuses." />
+        <SectorFigure shape="fendu" image={mode} className="md:col-span-4" ratio="aspect-[3/2]" title="Prêt-à-porter, maroquinerie" text="Tailles et couleurs en grille, stock par variante, collection, saison, matière." alt="Portants de vêtements dans une boutique claire, sous des suspensions en métal." />
+        <SectorFigure shape="disque" image={patisserie} className="md:col-span-2" ratio="aspect-[3/4] md:aspect-auto md:h-full" title="Pâtisserie, chocolaterie" text="TVA à 5,5 % par défaut, lots et dates limites, origine et conservation." alt="Vitrine de pâtisserie avec des tartes aux fruits rouges et des gâteaux au chocolat." />
+        <SectorFigure shape="losange" image={bijoux} className="md:col-span-2" ratio="aspect-[4/3]" title="Bijouterie, horlogerie" text="Numéro de série pièce par pièce, métal, pierres, certificat, garantie." alt="Bagues en or présentées sur des supports dans une vitrine." />
+        <SectorFigure shape="colonnes" image={cave} className="md:col-span-2" ratio="aspect-[4/3]" title="Cave, spiritueux" text="Millésime, appellation et degré sur chaque fiche." alt="Bouteilles de vin couchées sur des étagères en bois." />
+        <SectorFigure shape="dome" image={fleuriste} className="md:col-span-2" ratio="aspect-[4/3]" title="Fleurs, concept store" text="Article libre au prix saisi à la main quand rien n'est au catalogue." alt="Boutique de fleuriste remplie de bouquets colorés sous des guirlandes lumineuses." />
       </div>
       <p className="mt-6 max-w-2xl text-[15px] text-[var(--color-text-secondary)]">
         Aussi : beauté et parfumerie, décoration et arts de la table, ateliers et prestations. Un code-barres inconnu se transforme en fiche
@@ -149,9 +118,9 @@ function SectorFigure({
   title,
   text,
   alt,
-  gamme,
+  shape,
 }: {
-  gamme: string
+  shape: RayonShape
   image: typeof mode
   className: string
   ratio: string
@@ -166,7 +135,7 @@ function SectorFigure({
       </div>
       <figcaption className="mt-3">
         <span className="flex items-center gap-2 font-display text-[18px] font-bold">
-          <span aria-hidden className="size-3 rounded-full" style={{ background: gamme }} />
+          <RayonGlyph shape={shape} size={16} className="text-[var(--color-accent)]" />
           {title}
         </span>
         <span className="block text-[15px] text-[var(--color-text-secondary)]">{text}</span>
@@ -243,8 +212,7 @@ export function Supply() {
           {SUPPLY.map((s, i) => (
             <li key={s.title} className="reveal grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-5">
               <span
-                className="tabular grid size-8 place-items-center rounded-full font-display text-[15px] font-bold text-[var(--on-gamme)]"
-                style={{ background: GAMMES[i % GAMMES.length].css }}
+                className="tabular grid size-8 place-items-center rounded-full border-2 border-[var(--color-text-primary)] font-display text-[15px] font-bold"
               >
                 {i + 1}
               </span>
@@ -291,8 +259,7 @@ export function Start() {
           {START.map((s, i) => (
             <li key={s.title} className="reveal grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-6">
               <span
-                className="tabular grid size-8 place-items-center rounded-full font-display text-[15px] font-bold text-[var(--on-gamme)]"
-                style={{ background: GAMMES[i % GAMMES.length].css }}
+                className="tabular grid size-8 place-items-center rounded-full border-2 border-[var(--color-text-primary)] font-display text-[15px] font-bold"
               >
                 {i + 1}
               </span>
@@ -330,9 +297,8 @@ export function Pricing() {
                 i === 0 ? 'border-2 border-[var(--color-accent)]' : 'border border-[var(--color-border-strong)]',
               ].join(' ')}
             >
-              <span aria-hidden className="absolute inset-x-0 top-0 h-2.5" style={{ background: PLAN_GAMME[p.code] }} />
+              <span aria-hidden className={`absolute left-6 top-0 h-2.5 w-20 rounded-b-full md:left-8 ${i === 0 ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-primary)]'}`} />
               <h3 className="flex items-center gap-2.5 font-display text-3xl font-bold tracking-tight">
-                <span aria-hidden className="size-4 rounded-full" style={{ background: PLAN_GAMME[p.code] }} />
                 {p.name}
               </h3>
               <p className="mt-1 text-[16px] text-[var(--color-text-secondary)] md:min-h-12">{p.summary}</p>

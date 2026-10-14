@@ -93,7 +93,7 @@ export function GesturesDemo() {
               {STEPS.map((s, i) => (
                 <li key={s.title} data-step>
                   <h3 className="flex items-center gap-3 font-display text-2xl font-bold tracking-tight">
-                    <span aria-hidden className="tabular grid size-8 shrink-0 place-items-center rounded-full text-[15px] text-[var(--on-gamme)]" style={{ background: ['var(--gamme-corail)', 'var(--gamme-soleil)', 'var(--gamme-menthe)'][i] }}>
+                    <span aria-hidden className="tabular grid size-8 shrink-0 place-items-center rounded-full border-2 border-[var(--color-text-primary)] text-[15px]">
                       {i + 1}
                     </span>
                     {s.title}

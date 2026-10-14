@@ -9,7 +9,7 @@ import { homePath } from '@/lib/workspace'
 import { localTerminals } from '@/lib/terminal/terminal'
 import { PinPad } from '@/components/auth/PinPad'
 import { BadgeLogin } from '@/components/auth/BadgeLogin'
-import { FlowLogo } from '@/components/brand/FlowLogo'
+import { FlowLogo, FlowMark } from '@/components/brand/FlowLogo'
 
 const fieldCls =
   'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none'
@@ -63,10 +63,16 @@ export default function LoginPage() {
   )
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg-base)] px-4 py-10 text-[var(--color-text-primary)]">
+    <main className="grid min-h-[100dvh] bg-[var(--color-bg-base)] text-[var(--color-text-primary)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      {/* Grand écran : le signe se forme sur l'aplat Klein, une fois */}
+      <aside aria-hidden className="relative hidden overflow-hidden bg-[var(--color-accent)] lg:flex lg:items-center lg:justify-center">
+        <FlowMark size={300} inverse motion="form" />
+      </aside>
+      <div className="flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm space-y-8">
         <header className="space-y-1 text-center">
-          <FlowLogo size={36} rise className="mb-3" />
+          <FlowLogo size={40} motion="form" className="mb-4 lg:hidden" />
+          <FlowLogo size={40} className="mb-4 hidden lg:inline-flex" />
           <h1 className="font-display text-4xl font-bold tracking-tight">{mode === 'pin' ? 'Qui encaisse ?' : 'Connexion'}</h1>
           {mode === 'pin' && till && <p className="text-[15px] text-[var(--color-text-secondary)]">Code ou badge, sur {till.name}</p>}
         </header>
@@ -170,6 +176,7 @@ export default function LoginPage() {
             </p>
           </form>
         )}
+      </div>
       </div>
     </main>
   )

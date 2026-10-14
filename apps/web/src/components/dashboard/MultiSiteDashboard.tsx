@@ -8,6 +8,7 @@ import { consolidatedDashboardApi } from '@/lib/api/invoices'
 import { useAuthStore } from '@/stores/auth.store'
 import Link from 'next/link'
 import { EASE_OUT } from '@/lib/motion'
+import { FlowMark } from '@/components/brand/FlowLogo'
 
 function ConsolidatedKPI({
   label, value, sub, accent, index,
@@ -18,17 +19,17 @@ function ConsolidatedKPI({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: index * 0.04, ease: EASE_OUT }}
       className={[
-        'p-4 rounded-[var(--radius-lg)] border',
+        'relative overflow-hidden p-5 rounded-[var(--radius-lg)] border',
         accent
-          ? 'bg-[var(--color-accent-muted)] border-[var(--color-accent)]/20'
+          ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-[var(--color-on-accent)]'
           : 'bg-[var(--color-bg-surface)] border-[var(--color-border)]',
       ].join(' ')}
     >
-      <p className="font-body text-xs text-[var(--color-text-muted)] mb-2">{label}</p>
-      <p className={`font-data text-2xl leading-none ${accent ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>
-        {value}
-      </p>
-      {sub && <p className="font-body text-[11px] text-[var(--color-text-muted)] mt-1">{sub}</p>}
+      {/* Le chiffre du jour porte le signe, les autres restent sobres */}
+      {accent && <FlowMark size={88} inverse className="absolute -right-4 -bottom-6 opacity-20" />}
+      <p className={`font-body text-sm mb-3 ${accent ? '' : 'text-[var(--color-text-secondary)]'}`}>{label}</p>
+      <p className="tabular font-display text-3xl font-bold leading-none tracking-[-0.03em]">{value}</p>
+      {sub && <p className={`font-body text-sm mt-1.5 ${accent ? '' : 'text-[var(--color-text-secondary)]'}`}>{sub}</p>}
     </motion.div>
   )
 }
@@ -49,10 +50,10 @@ export function MultiSiteDashboard() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-6 py-5 border-b border-[var(--color-border)]">
-        <h1 className="font-display text-xl text-[var(--color-text-primary)]">
-          {user?.firstName ? `Bonjour, ${user.firstName}` : 'Dashboard'}
+        <h1 className="font-display text-3xl font-bold tracking-[-0.03em] text-[var(--color-text-primary)]">
+          {user?.firstName ? `Bonjour, ${user.firstName}` : 'Tableau de bord'}
         </h1>
-        <p className="font-body text-xs text-[var(--color-text-muted)] mt-0.5 capitalize">{today}</p>
+        <p className="font-body text-sm text-[var(--color-text-secondary)] mt-1 first-letter:uppercase">{today}</p>
       </div>
 
       <div className="p-6 space-y-6">

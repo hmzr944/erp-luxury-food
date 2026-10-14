@@ -13,16 +13,16 @@ const ALLERGEN_COLORS: Record<string, string> = {
   CRUSTACES:    'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   OEUFS:        'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   POISSONS:     'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
-  ARACHIDES:    'bg-orange-500/15 text-orange-400 border-orange-500/25',
+  ARACHIDES:    'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   SOJA:         'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
-  LAIT:         'bg-sky-500/15 text-sky-400 border-sky-500/25',
+  LAIT:         'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   FRUITS_COQUE: 'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
-  CELERI:       'bg-lime-500/15 text-lime-400 border-lime-500/25',
+  CELERI:       'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
   MOUTARDE:     'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
-  SESAME:       'bg-stone-500/15 text-stone-400 border-stone-500/25',
-  SULFITES:     'bg-purple-500/15 text-purple-400 border-purple-500/25',
-  LUPIN:        'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
-  MOLLUSQUES:   'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+  SESAME:       'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
+  SULFITES:     'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
+  LUPIN:        'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
+  MOLLUSQUES:   'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
 }
 
 interface AllergenChipProps {
@@ -34,7 +34,7 @@ interface AllergenChipProps {
 }
 
 function AllergenChip({ allergen, active, traces, onToggle, onToggleTraces }: AllergenChipProps) {
-  const colors = ALLERGEN_COLORS[allergen.code] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25'
+  const colors = ALLERGEN_COLORS[allergen.code] ?? 'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]'
 
   return (
     <div className="flex flex-col items-center gap-1">
@@ -112,10 +112,6 @@ function ProductRow({ product, allergens, siteId }: ProductRowProps) {
         className="w-full flex items-center justify-between py-3 text-left hover:bg-[var(--color-bg-hover)] px-2 rounded-[var(--radius-md)] transition-colors group"
       >
         <div className="flex items-center gap-3">
-          <div
-            className="w-2 h-2 rounded-full shrink-0"
-            style={{ backgroundColor: product.category?.color ?? '#555550' }}
-          />
           <div>
             <p className="font-body text-sm text-[var(--color-text-primary)]">{product.name}</p>
             {product.subtitle && (
@@ -132,7 +128,7 @@ function ProductRow({ product, allergens, siteId }: ProductRowProps) {
                   key={pa.allergenId}
                   className={[
                     'px-1.5 py-0.5 rounded-[var(--radius-sm)] font-data text-[9px] border',
-                    ALLERGEN_COLORS[pa.allergen.code] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25',
+                    ALLERGEN_COLORS[pa.allergen.code] ?? 'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
                     pa.traces ? 'opacity-60' : '',
                   ].join(' ')}
                 >

@@ -40,7 +40,7 @@ export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cas
           <CaretLeft size={20} />
         </Link>
       )}
-      <FlowMark size={28} className="hidden shrink-0 sm:block" />
+      <FlowMark size={30} tile className="hidden sm:block" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-display text-[17px] font-semibold leading-tight">{siteName}</p>
         <p className="truncate text-sm text-[var(--color-text-secondary)]">
