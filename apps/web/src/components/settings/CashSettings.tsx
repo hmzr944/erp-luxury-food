@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { formatPrice } from '@erp/utils'
 import { sitesApi, type ApiSite } from '@/lib/api/sites'
 import { cashApi } from '@/lib/api/cash'
+import { Loading } from '@/components/brand/FlowLogo'
 
 // Fond de caisse : la consigne par boutique et l'historique des comptages
 export function CashSettings() {
@@ -64,7 +65,7 @@ function SiteCash({ site }: { site: ApiSite }) {
     }
   }
 
-  if (!s) return <p className="text-sm text-[var(--color-text-secondary)]">Chargement...</p>
+  if (!s) return <Loading />
 
   return (
     <>

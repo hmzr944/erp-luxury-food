@@ -26,7 +26,7 @@ export function QtyInput({
         onClick={() => set(value - step)}
         disabled={disabled || value <= 0}
         aria-label={`Moins, ${label}`}
-        className="grid size-11 place-items-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] transition-transform duration-100 active:scale-95 disabled:opacity-30"
+        className="grid size-11 place-items-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] disabled:opacity-30 press"
       >
         <Minus size={16} />
       </button>
@@ -47,7 +47,7 @@ export function QtyInput({
         onClick={() => set(value + step)}
         disabled={disabled || (max != null && value >= max)}
         aria-label={`Plus, ${label}`}
-        className="grid size-11 place-items-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] transition-transform duration-100 active:scale-95 disabled:opacity-30"
+        className="grid size-11 place-items-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] disabled:opacity-30 press"
       >
         <Plus size={16} />
       </button>

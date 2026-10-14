@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { CaretDown, CheckCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { allergensApi, type ProductWithAllergens, type AllergenApi } from '@/lib/api/allergens'
+import { EASE_OUT } from '@/lib/motion'
 
 const ALLERGEN_COLORS: Record<string, string> = {
   GLUTEN:       'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
@@ -40,7 +41,7 @@ function AllergenChip({ allergen, active, traces, onToggle, onToggleTraces }: Al
       <button
         onClick={onToggle}
         className={[
-          'px-2.5 py-1.5 rounded-[var(--radius-md)] border font-body text-[11px] font-medium transition-all active:scale-95',
+          'px-2.5 py-1.5 rounded-[var(--radius-md)] border font-body text-[11px] font-medium press',
           active ? colors : 'bg-transparent border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)]',
         ].join(' ')}
       >
@@ -161,7 +162,7 @@ function ProductRow({ product, allergens, siteId }: ProductRowProps) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.2, ease: EASE_OUT }}
             className="overflow-hidden"
           >
             <div className="px-2 pb-4 pt-2">

@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supplyApi, type CatalogItem } from '@/lib/api/supply'
+import { Loading } from '@/components/brand/FlowLogo'
 
 // Ce que le labo propose aux boutiques, avec son prix de cession interne
 export function LaboCatalog({ siteId }: { siteId: string }) {
   const catalog = useQuery({ queryKey: ['supply', siteId, 'catalog'], queryFn: () => supplyApi.catalog(siteId) })
-  if (!catalog.data) return <p className="py-6 text-sm text-[var(--color-text-secondary)]">{catalog.isError ? (catalog.error as Error).message : 'Chargement...'}</p>
+  if (!catalog.data) return catalog.isError ? <p className="py-6 text-sm text-[var(--color-text-secondary)]">{(catalog.error as Error).message}</p> : <Loading className="py-6" />
   if (!catalog.data.length) {
     return <p className="py-6 text-[15px] text-[var(--color-text-secondary)]">Ajoutez d&apos;abord les produits de ce site dans le Catalogue.</p>
   }

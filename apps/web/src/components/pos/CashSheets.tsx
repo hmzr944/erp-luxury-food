@@ -87,7 +87,7 @@ export function CashOpenSheet({ siteId, terminalId, open, onClose }: { siteId: s
               data-autofocus
               disabled={saving || !state.data}
               onClick={() => confirm(suggested)}
-              className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] transition-transform duration-150 active:scale-[0.98] disabled:opacity-50"
+              className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-50 press"
             >
               Confirmer {formatPrice(suggested)}
             </button>

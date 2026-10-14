@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { FlowPulse } from '@/components/brand/FlowLogo'
 import { DeviceMobile, WarningCircle } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import { paymentsApi, type PaymentDevice, type TerminalPayment } from '@/lib/api/payments'
@@ -106,15 +106,10 @@ export function TerminalWait({ siteId, device, amount, clientSaleId: saleId, onA
   return (
     <div className="space-y-5">
       <div className="flex flex-col items-center gap-4 py-4 text-center" role="status" aria-live="polite">
-        {/* L'anneau qui respire indique qu'on attend le client, rien de plus */}
-        <div className="relative grid size-24 place-items-center">
-          <motion.span
-            aria-hidden
-            className="absolute inset-0 rounded-full border-2 border-[var(--color-accent)]"
-            animate={{ scale: [1, 1.12, 1], opacity: [0.9, 0.35, 0.9] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <DeviceMobile size={40} aria-hidden className="text-[var(--color-accent)]" />
+        {/* Le pouls FLŌW bat tant que le client paie sur le terminal */}
+        <div className="relative grid size-24 place-items-center rounded-[var(--radius-xl)] bg-[var(--color-accent-muted)]">
+          <FlowPulse size={40} />
+          <DeviceMobile size={22} aria-hidden className="absolute -bottom-1 -right-1 rounded-full bg-[var(--color-bg-surface)] p-0.5 text-[var(--color-accent)]" />
         </div>
         <p className="tabular text-4xl font-semibold tracking-tight">{formatPrice(amount)}</p>
         <p className="text-[15px] text-[var(--color-text-secondary)]">

@@ -66,7 +66,7 @@ export default function LoginPage() {
     <main className="flex min-h-[100dvh] items-center justify-center bg-[var(--color-bg-base)] px-4 py-10 text-[var(--color-text-primary)]">
       <div className="w-full max-w-sm space-y-8">
         <header className="space-y-1 text-center">
-          <FlowLogo size={36} className="mb-3" />
+          <FlowLogo size={36} rise className="mb-3" />
           <h1 className="font-display text-4xl font-bold tracking-tight">{mode === 'pin' ? 'Qui encaisse ?' : 'Connexion'}</h1>
           {mode === 'pin' && till && <p className="text-[15px] text-[var(--color-text-secondary)]">Code ou badge, sur {till.name}</p>}
         </header>

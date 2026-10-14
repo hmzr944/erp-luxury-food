@@ -29,7 +29,7 @@ export function SiteHeader() {
           </Link>
           <Link
             href="/inscription"
-            className="flex h-11 items-center rounded-[var(--radius-pill)] bg-[var(--color-text-primary)] px-4 text-[15px] font-semibold text-[var(--color-bg-base)] transition-transform duration-150 active:scale-[0.97]"
+            className="flex h-11 items-center rounded-[var(--radius-pill)] bg-[var(--color-text-primary)] px-4 text-[15px] font-semibold text-[var(--color-bg-base)] press"
           >
             Essayer
           </Link>

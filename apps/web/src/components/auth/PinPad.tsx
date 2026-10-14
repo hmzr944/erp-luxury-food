@@ -62,7 +62,7 @@ export function PinPad({
   }, [push])
 
   const key =
-    'tabular grid h-[72px] place-items-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] text-3xl font-semibold transition-transform duration-100 active:scale-[0.96] disabled:opacity-40'
+    'tabular grid h-[72px] place-items-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] text-3xl font-semibold disabled:opacity-40 press'
 
   return (
     <div className="space-y-6">

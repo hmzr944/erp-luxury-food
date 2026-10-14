@@ -7,6 +7,7 @@ import { CheckCircle, Copy, Minus, Plus } from '@phosphor-icons/react'
 import { formatPrice, planRefund } from '@erp/utils'
 import { ordersApi, type ApiOrderDetail, type RefundTo, type StoreCreditView } from '@/lib/api/orders'
 import { Sheet } from '@/components/pos/Sheet'
+import { Loading } from '@/components/brand/FlowLogo'
 
 const n = (v: number | string) => Number(v)
 
@@ -54,7 +55,7 @@ export function OrderDetailSheet({
   return (
     <Sheet open={!!orderId} title={title} onClose={onClose} width="lg">
       {!o ? (
-        <p className="py-8 text-sm text-[var(--color-text-secondary)]">{order.isError ? (order.error as Error).message : 'Chargement...'}</p>
+        order.isError ? <p className="py-8 text-sm text-[var(--color-text-secondary)]">{(order.error as Error).message}</p> : <Loading className="py-8" />
       ) : done ? (
         <RefundDone siteId={siteId} done={done} onUseCredit={onUseCredit} onClose={onClose} />
       ) : refunding ? (
@@ -164,7 +165,7 @@ function OrderView({ order: o, onRefund }: { order: ApiOrderDetail; onRefund: ()
         <button
           type="button"
           onClick={onRefund}
-          className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] transition-transform duration-150 active:scale-[0.98]"
+          className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] press"
         >
           Retour ou échange
         </button>
@@ -397,7 +398,7 @@ function RefundForm({
         <button
           type="submit"
           disabled={!plan || saving}
-          className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] transition-transform duration-150 active:scale-[0.98] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
+          className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] press"
         >
           {saving ? 'Remboursement...' : plan ? `Rembourser ${formatPrice(plan.total)}` : 'Choisissez les articles'}
         </button>

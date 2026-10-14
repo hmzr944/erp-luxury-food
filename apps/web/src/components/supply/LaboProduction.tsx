@@ -6,6 +6,7 @@ import { CaretLeft, CaretRight, CheckCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { STATUS_LABEL, deliveryLabel, qty, supplyApi, untilLabel, type SupplyOrder } from '@/lib/api/supply'
 import { QtyInput } from './QtyInput'
+import { Loading } from '@/components/brand/FlowLogo'
 
 const shift = (day: string, n: number) => {
   const d = new Date(`${day}T00:00:00Z`)
@@ -25,7 +26,7 @@ export function LaboProduction({ siteId }: { siteId: string }) {
   })
   const [busy, setBusy] = useState(false)
   const p = prod.data
-  if (!p) return <p className="py-6 text-sm text-[var(--color-text-secondary)]">{prod.isError ? (prod.error as Error).message : 'Chargement...'}</p>
+  if (!p) return prod.isError ? <p className="py-6 text-sm text-[var(--color-text-secondary)]">{(prod.error as Error).message}</p> : <Loading className="py-6" />
 
   const toStart = p.orders.filter((o) => o.status === 'SENT').length
   const until = untilLabel(p.cutoffAt, Date.now(), p.cutoffLocal)

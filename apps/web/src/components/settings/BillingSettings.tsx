@@ -5,6 +5,7 @@ import { Check } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { PLAN_OFFERS, type PlanCode } from '@erp/types'
 import { billingApi, useBilling } from '@/lib/api/billing'
+import { Loading } from '@/components/brand/FlowLogo'
 
 const day = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -31,7 +32,7 @@ export function BillingSettings() {
     }
   }
 
-  if (isLoading || !data) return <div className="p-8 text-sm text-[var(--color-text-secondary)]">Chargement...</div>
+  if (isLoading || !data) return <Loading className="p-8" />
 
   const owner = data.canManage
   const subscribed = data.status === 'ACTIVE' || data.status === 'PAST_DUE'

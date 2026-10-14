@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react'
 import { SECTOR_PRESETS, Sector } from '@erp/types'
 import { useAuthStore } from '@/stores/auth.store'
+import { EASE_OUT } from '@/lib/motion'
 
 const SECTOR_ICON: Record<Sector, React.ElementType> = {
   [Sector.FOOD]: Cookie,
@@ -81,7 +82,7 @@ export function SignupFlow() {
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -16 }}
-              transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+              transition={{ duration: 0.18, ease: EASE_OUT }}
             >
               {step === 0 && (
                 <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -98,7 +99,7 @@ export function SignupFlow() {
                             setStep(1)
                           }}
                           className={[
-                            'flex h-full min-h-32 w-full flex-col items-start justify-between gap-3 rounded-[var(--radius-lg)] border p-4 text-left transition-[transform,border-color] duration-150 active:scale-[0.98]',
+                            'flex h-full min-h-32 w-full flex-col items-start justify-between gap-3 rounded-[var(--radius-lg)] border p-4 text-left press',
                             sector === s ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)]' : 'border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] hover:border-[var(--color-accent)]',
                           ].join(' ')}
                         >

@@ -1,10 +1,24 @@
 'use client'
 
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useSyncExternalStore } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from '@phosphor-icons/react'
+import { EASE_DRAWER, EASE_OUT } from '@/lib/motion'
 
-export const EASE = [0.2, 0, 0, 1] as const
+export const EASE = EASE_OUT
+
+const WIDE = '(min-width: 768px)'
+function useWide() {
+  return useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia(WIDE)
+      mq.addEventListener('change', cb)
+      return () => mq.removeEventListener('change', cb)
+    },
+    () => window.matchMedia(WIDE).matches,
+    () => true,
+  )
+}
 
 interface SheetProps {
   open: boolean
@@ -22,6 +36,12 @@ export function Sheet({ open, title, onClose, children, locked, width = 'md' }: 
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
+  const wide = useWide()
+  // Téléphone : la feuille monte du bas et y repart (courbe iOS).
+  // Au-delà : fenêtre centrée qui se pose, sans point d'ancrage.
+  const motionProps = wide
+    ? { initial: { opacity: 0, scale: 0.96 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.97 }, transition: { duration: 0.22, ease: EASE_OUT } }
+    : { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: { duration: 0.32, ease: EASE_DRAWER } }
 
   useEffect(() => {
     if (!open) return
@@ -51,7 +71,7 @@ export function Sheet({ open, title, onClose, children, locked, width = 'md' }: 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: EASE }}
+            transition={{ duration: wide ? 0.22 : 0.32, ease: EASE_OUT }}
             onClick={() => !locked && onClose()}
           />
           <motion.div
@@ -64,10 +84,7 @@ export function Sheet({ open, title, onClose, children, locked, width = 'md' }: 
               'rounded-t-[var(--radius-xl)] md:rounded-[var(--radius-xl)] shadow-[0_24px_80px_-24px_color-mix(in_srgb,var(--base-ink)_45%,transparent)]',
               width === 'lg' ? 'md:max-w-[640px]' : 'md:max-w-[460px]',
             ].join(' ')}
-            initial={{ opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 24 }}
-            transition={{ duration: 0.22, ease: EASE }}
+            {...motionProps}
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-4 px-5 pt-4 pb-3 bg-[var(--color-bg-surface)]">
               <h2 id={titleId} className="text-lg font-semibold tracking-tight">

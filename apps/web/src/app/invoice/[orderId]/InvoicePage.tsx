@@ -7,6 +7,7 @@ import { formatPrice, formatDate } from '@erp/utils'
 import { apiClient } from '@/lib/api/client'
 import type { B2BOrder } from '@/lib/api/b2b'
 import { useSiteStore } from '@/stores/site.store'
+import { FlowPulse } from '@/components/brand/FlowLogo'
 
 interface InvoicePageProps { orderId: string }
 
@@ -25,7 +26,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-black animate-spin" />
+      <FlowPulse size={32} />
     </div>
   )
 

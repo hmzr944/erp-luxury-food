@@ -11,7 +11,9 @@ import { productsAdminApi } from '@/lib/api/products-admin'
 import { db } from '@/lib/offline/db'
 import type { RecordedSale } from '@/lib/terminal/terminal'
 import type { CartLine } from '@/stores/cart.store'
-import { EASE, Sheet } from './Sheet'
+import { Sheet } from './Sheet'
+import { FlowBeat } from '@/components/brand/FlowLogo'
+import { EASE_DRAWER } from '@/lib/motion'
 import { TerminalWait } from './TerminalWait'
 import { PartsPayment } from './PartsPayment'
 import { CreditPayment, type PayLine } from './CreditPayment'
@@ -162,7 +164,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
                     type="button"
                     disabled={busy}
                     onClick={() => choose(m)}
-                    className="flex h-24 w-full flex-col items-start justify-between rounded-[var(--radius-md)] border border-[var(--color-border-strong)] p-3 text-left transition-[transform,border-color] duration-150 hover:border-[var(--color-accent)] active:scale-[0.98] disabled:opacity-50"
+                    className="flex h-24 w-full flex-col items-start justify-between rounded-[var(--radius-md)] border border-[var(--color-border-strong)] p-3 text-left hover:border-[var(--color-accent)] disabled:opacity-50 press"
                   >
                     <span aria-hidden className="grid size-9 place-items-center rounded-[var(--radius-pill)] text-[var(--on-gamme)]" style={{ background: methodGamme(m) }}>
                       <Icon size={20} weight="bold" />
@@ -297,11 +299,16 @@ function Receipt({ receipt, siteId, siteName, onNext }: { receipt: ReceiptView; 
 
   return (
     <div className="space-y-4">
+      {/* Le signe bat une fois, le ticket sort de la caisse */}
+      <p className="flex items-center gap-3">
+        <FlowBeat size={30} />
+        <span className="tabular font-display text-3xl font-bold tracking-[-0.03em]">{formatPrice(sale.pricing.total)}</span>
+      </p>
       <div className="overflow-hidden rounded-[var(--radius-md)]">
         <motion.div
           initial={{ y: '-100%' }}
           animate={{ y: 0 }}
-          transition={{ duration: 0.45, ease: EASE }}
+          transition={{ duration: 0.42, ease: EASE_DRAWER, delay: 0.08 }}
           className="border border-[var(--color-border)] bg-[var(--color-bg-base)] px-4 py-4 font-data text-[13px] leading-relaxed"
         >
           <p className="text-center font-body text-[15px] font-semibold">{siteName}</p>
@@ -349,7 +356,7 @@ function Receipt({ receipt, siteId, siteName, onNext }: { receipt: ReceiptView; 
         type="button"
         data-autofocus
         onClick={onNext}
-        className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)]"
+        className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)] press"
       >
         Vente suivante
       </button>

@@ -16,9 +16,9 @@ import labo from '../../../public/site/labo.webp'
 const h2 = 'font-display text-[clamp(2rem,4vw,3.4rem)] font-bold leading-[1.02] tracking-[-0.035em]'
 const lead = 'text-[17px] leading-relaxed text-[var(--color-text-secondary)]'
 const primary =
-  'inline-flex h-12 items-center justify-center rounded-[var(--radius-pill)] bg-[var(--color-accent)] px-6 text-[16px] font-semibold text-[var(--color-on-accent)] transition-[background-color,transform] duration-150 hover:bg-[var(--color-accent-hover)] active:scale-[0.97]'
+  'inline-flex h-12 items-center justify-center rounded-[var(--radius-pill)] bg-[var(--color-accent)] px-6 text-[16px] font-semibold text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)] press'
 const secondary =
-  'inline-flex h-12 items-center justify-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] px-6 text-[16px] font-semibold transition-[border-color,transform] duration-150 hover:border-[var(--color-text-primary)] active:scale-[0.97]'
+  'inline-flex h-12 items-center justify-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] px-6 text-[16px] font-semibold hover:border-[var(--color-text-primary)] press'
 
 export function Hero() {
   return (
@@ -94,7 +94,7 @@ const CHOICES: Array<{ often: string; here: string }> = [
 export function Choices() {
   return (
     <section aria-labelledby="choix-title" className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-      <div className="max-w-2xl">
+      <div className="reveal max-w-2xl">
         <h2 id="choix-title" className={h2}>
           Ce qu&apos;on a refusé de vous imposer.
         </h2>
@@ -104,7 +104,7 @@ export function Choices() {
       </div>
       <dl className="mt-12 border-t border-[var(--color-border-strong)]">
         {CHOICES.map((c) => (
-          <div key={c.here} className="grid gap-1 border-b border-[var(--color-border)] py-5 md:grid-cols-2 md:gap-10">
+          <div key={c.here} className="reveal grid gap-1 border-b border-[var(--color-border)] py-5 md:grid-cols-2 md:gap-10">
             <dt className="text-[16px] text-[var(--color-text-secondary)]">{c.often}</dt>
             <dd className="text-[17px] font-medium">{c.here}</dd>
           </div>
@@ -117,7 +117,7 @@ export function Choices() {
 export function Sectors() {
   return (
     <section aria-labelledby="metiers-title" className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-      <div className="max-w-2xl">
+      <div className="reveal max-w-2xl">
         <h2 id="metiers-title" className={h2}>
           Réglée pour votre métier dès l&apos;inscription.
         </h2>
@@ -160,7 +160,7 @@ function SectorFigure({
   alt: string
 }) {
   return (
-    <figure className={`flex flex-col ${className}`}>
+    <figure className={`reveal flex flex-col ${className}`}>
       <div className={`relative overflow-hidden rounded-[var(--radius-lg)] ${ratio} min-h-56`}>
         <Image src={image} alt={alt} fill placeholder="blur" sizes="(min-width: 768px) 50vw, 100vw" className="object-cover" />
       </div>
@@ -229,7 +229,7 @@ const SUPPLY = [
 export function Supply() {
   return (
     <section aria-labelledby="appro-title" className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-      <div className="max-w-2xl">
+      <div className="reveal max-w-2xl">
         <h2 id="appro-title" className={h2}>
           Les boutiques commandent au labo depuis la caisse.
         </h2>
@@ -241,7 +241,7 @@ export function Supply() {
       <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] lg:items-start lg:gap-14">
         <ol className="border-t border-[var(--color-border-strong)]">
           {SUPPLY.map((s, i) => (
-            <li key={s.title} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-5">
+            <li key={s.title} className="reveal grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-5">
               <span
                 className="tabular grid size-8 place-items-center rounded-full font-display text-[15px] font-bold text-[var(--on-gamme)]"
                 style={{ background: GAMMES[i % GAMMES.length].css }}
@@ -289,7 +289,7 @@ export function Start() {
         </div>
         <ol className="border-t border-[var(--color-border-strong)]">
           {START.map((s, i) => (
-            <li key={s.title} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-6">
+            <li key={s.title} className="reveal grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-b border-[var(--color-border)] py-6">
               <span
                 className="tabular grid size-8 place-items-center rounded-full font-display text-[15px] font-bold text-[var(--on-gamme)]"
                 style={{ background: GAMMES[i % GAMMES.length].css }}
@@ -312,7 +312,7 @@ export function Pricing() {
   return (
     <section id="tarifs" aria-labelledby="tarifs-title" className="bg-[var(--color-bg-surface)]">
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
-        <div className="max-w-2xl">
+        <div className="reveal max-w-2xl">
           <h2 id="tarifs-title" className={h2}>
             Un prix par boutique. Le reste est compris.
           </h2>
@@ -326,7 +326,7 @@ export function Pricing() {
             <div
               key={p.code}
               className={[
-                'relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] p-6 pt-9 md:p-8 md:pt-11',
+                'reveal relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] p-6 pt-9 md:p-8 md:pt-11',
                 i === 0 ? 'border-2 border-[var(--color-accent)]' : 'border border-[var(--color-border-strong)]',
               ].join(' ')}
             >
@@ -430,7 +430,7 @@ export function FinalCall() {
           </p>
           <Link
             href="/inscription"
-            className="mt-8 inline-flex h-12 items-center rounded-[var(--radius-pill)] bg-[var(--color-on-accent)] px-6 text-[16px] font-semibold text-[var(--color-accent)] transition-transform duration-150 active:scale-[0.97]"
+            className="mt-8 inline-flex h-12 items-center rounded-[var(--radius-pill)] bg-[var(--color-on-accent)] px-6 text-[16px] font-semibold text-[var(--color-accent)] press"
           >
             Créer mon compte
           </Link>

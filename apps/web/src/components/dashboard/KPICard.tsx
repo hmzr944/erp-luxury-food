@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import type { ElementType } from 'react'
+import { EASE_OUT } from '@/lib/motion'
 
 interface KPICardProps {
   label: string
@@ -15,7 +16,7 @@ export function KPICard({ label, value, sub, icon: Icon, accent, index = 0 }: KP
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.25, delay: index * 0.04, ease: EASE_OUT }}
       className={[
         'flex flex-col gap-3 p-4 rounded-[var(--radius-lg)] border',
         accent

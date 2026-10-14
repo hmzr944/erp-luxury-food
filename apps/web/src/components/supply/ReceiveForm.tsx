@@ -98,7 +98,7 @@ export function ReceiveForm({ siteId, order, onDone }: { siteId: string; order: 
               type="button"
               disabled={saving}
               onClick={() => submit(true)}
-              className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-lg font-semibold text-[var(--color-on-accent)] transition-transform duration-150 active:scale-[0.98] disabled:opacity-60"
+              className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-60 press"
             >
               {saving ? 'Enregistrement...' : 'Tout réceptionné'}
             </button>

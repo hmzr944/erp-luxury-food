@@ -71,7 +71,7 @@ export function Ticket({ totals, priceIncludesTax, onCheckout }: TicketProps) {
           type="button"
           onClick={onCheckout}
           disabled={empty}
-          className="mt-3 h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] transition-[transform,background-color] duration-150 hover:bg-[var(--color-accent-hover)] active:scale-[0.99] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
+          className="mt-3 h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] press"
         >
           Encaisser
         </button>

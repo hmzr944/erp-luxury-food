@@ -7,6 +7,7 @@ import { formatPrice } from '@erp/utils'
 import { consolidatedDashboardApi } from '@/lib/api/invoices'
 import { useAuthStore } from '@/stores/auth.store'
 import Link from 'next/link'
+import { EASE_OUT } from '@/lib/motion'
 
 function ConsolidatedKPI({
   label, value, sub, accent, index,
@@ -15,7 +16,7 @@ function ConsolidatedKPI({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.04, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.25, delay: index * 0.04, ease: EASE_OUT }}
       className={[
         'p-4 rounded-[var(--radius-lg)] border',
         accent

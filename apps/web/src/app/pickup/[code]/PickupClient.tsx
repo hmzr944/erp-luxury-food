@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle, HourglassMedium, Coffee, Warning } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
+import { EASE_OUT } from '@/lib/motion'
+import { FlowPulse } from '@/components/brand/FlowLogo'
 
 // Fetch public — pas d'auth requise
 async function fetchPickup(code: string) {
@@ -69,7 +71,7 @@ export function PickupClient({ code }: PickupClientProps) {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.4, ease: EASE_OUT }}
         className="w-full max-w-sm"
       >
         {/* Brand */}
@@ -80,11 +82,8 @@ export function PickupClient({ code }: PickupClientProps) {
         <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-xl)] overflow-hidden">
           {loading && (
             <div className="flex items-center justify-center py-16">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                className="w-8 h-8 rounded-full border-2 border-[var(--color-border-strong)] border-t-[var(--color-accent)]"
-              />
+              <FlowPulse size={32} />
+              <span className="sr-only">Chargement de la commande</span>
             </div>
           )}
 

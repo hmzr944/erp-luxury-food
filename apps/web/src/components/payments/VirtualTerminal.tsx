@@ -64,7 +64,7 @@ export function VirtualTerminal({ siteId, deviceId }: { siteId: string; deviceId
           <button
             type="button"
             onClick={() => answer(true)}
-            className="h-20 w-full rounded-[var(--radius-lg)] bg-[var(--color-accent)] text-xl font-semibold text-[var(--color-on-accent)] active:scale-[0.98]"
+            className="h-20 w-full rounded-[var(--radius-lg)] bg-[var(--color-accent)] text-xl font-semibold text-[var(--color-on-accent)] press"
           >
             Présenter la carte
           </button>

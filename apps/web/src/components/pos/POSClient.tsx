@@ -214,9 +214,9 @@ export function POSClient({ siteId }: POSClientProps) {
         <AnimatePresence>
           {totals.itemCount > 0 && !paying && !ticketOpen && (
             <motion.div
-              initial={{ y: 96 }}
+              initial={{ y: '100%' }}
               animate={{ y: 0 }}
-              exit={{ y: 96 }}
+              exit={{ y: '100%' }}
               transition={{ duration: 0.22, ease: EASE }}
               className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-[var(--color-border)] bg-[var(--color-bg-surface)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden"
             >

@@ -134,7 +134,7 @@ function VariantButton({
       onClick={onPick}
       aria-label={`${label}${stock !== null ? `, ${stock} en stock` : ''}`}
       className={[
-        'flex w-full flex-col justify-center rounded-[var(--radius-md)] border px-3 text-left transition-[transform,border-color] duration-150 active:scale-[0.97]',
+        'flex w-full flex-col justify-center rounded-[var(--radius-md)] border px-3 text-left press',
         compact ? 'h-14' : 'min-h-14 py-2',
         out
           ? 'border-dashed border-[var(--color-border-strong)] text-[var(--color-text-muted)]'

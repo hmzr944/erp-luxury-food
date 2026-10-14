@@ -12,6 +12,7 @@ import { LaboProduction } from './LaboProduction'
 import { LaboCatalog } from './LaboCatalog'
 import { LaboStatement } from './LaboStatement'
 import { SupplySetup } from './SupplySetup'
+import { Loading } from '@/components/brand/FlowLogo'
 
 type Tab = { key: string; label: string }
 
@@ -37,7 +38,7 @@ export function SupplyHub() {
   const [tab, setTab] = useState(tabs[0].key)
   useEffect(() => setTab(tabs[0].key), [labo]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!currentSite || !site) return <div className="p-8 text-sm text-[var(--color-text-secondary)]">Chargement...</div>
+  if (!currentSite || !site) return <Loading className="p-8" />
 
   return (
     <div className="flex h-full flex-col">
@@ -98,7 +99,7 @@ export function ShopSide({ siteId, onChange, surface }: { siteId: string; onChan
 
 function ShopHistory({ siteId }: { siteId: string }) {
   const orders = useQuery({ queryKey: ['supply', siteId, 'outgoing'], queryFn: () => supplyApi.outgoing(siteId) })
-  if (!orders.data) return <p className="py-6 text-sm text-[var(--color-text-secondary)]">Chargement...</p>
+  if (!orders.data) return <Loading className="py-6" />
   if (!orders.data.length) return <p className="py-6 text-[15px] text-[var(--color-text-secondary)]">Aucune commande pour l&apos;instant.</p>
   return (
     <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)]">

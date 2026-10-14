@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CaretLeft, CaretRight, Check, SignOut } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useSocket } from '@/hooks/useSocket'
+import { FlowPulse } from '@/components/brand/FlowLogo'
 import { useAuthStore } from '@/stores/auth.store'
 import { sitesApi } from '@/lib/api/sites'
 import { STATUS_LABEL, deliveryLabel, qty, supplyApi, type Production, type SupplyOrder } from '@/lib/api/supply'
@@ -129,7 +130,13 @@ export function AtelierScreen({ siteId }: { siteId: string }) {
 
       <main className="flex-1 px-4 py-6 md:px-8">
         {!p ? (
-          <p className="text-2xl text-[var(--color-text-secondary)]">{prod.isError ? (prod.error as Error).message : 'Chargement...'}</p>
+          prod.isError ? (
+            <p className="text-2xl text-[var(--color-text-secondary)]">{(prod.error as Error).message}</p>
+          ) : (
+            <p className="flex items-center gap-4 text-2xl text-[var(--color-text-secondary)]" role="status">
+              <FlowPulse size={36} /> Chargement des commandes
+            </p>
+          )
         ) : tab === 'total' ? (
           <Totals siteId={siteId} p={p} />
         ) : tab === 'colis' ? (
@@ -142,8 +149,28 @@ export function AtelierScreen({ siteId }: { siteId: string }) {
   )
 }
 
+// Les lignes dont la quantité vient de changer (une boutique a commandé) :
+// elles s'éclairent une seconde pour que l'équipe le voie de loin
+function useChangedTotals(rows: Production['consolidated']) {
+  const prev = useRef<Map<string, number> | null>(null)
+  const [changed, setChanged] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    const now = new Map(rows.map((c) => [`${c.productId}:${c.variantId}`, c.total]))
+    const before = prev.current
+    prev.current = now
+    if (!before) return
+    const diff = new Set([...now].filter(([k, v]) => before.get(k) !== v).map(([k]) => k))
+    if (!diff.size) return
+    setChanged(diff)
+    const t = window.setTimeout(() => setChanged(new Set()), 1300)
+    return () => window.clearTimeout(t)
+  }, [rows])
+  return changed
+}
+
 function Totals({ siteId, p }: { siteId: string; p: Production }) {
   const qc = useQueryClient()
+  const changed = useChangedTotals(p.consolidated)
   const [busy, setBusy] = useState(false)
   const toStart = p.orders.filter((o) => o.status === 'SENT').length
   return (
@@ -158,7 +185,10 @@ function Totals({ siteId, p }: { siteId: string; p: Production }) {
       ) : (
         <ul className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
           {p.consolidated.map((c) => (
-            <li key={`${c.productId}:${c.variantId}`} className="grid grid-cols-[minmax(9rem,auto)_1fr] items-baseline gap-x-8 py-5">
+            <li
+              key={`${c.productId}:${c.variantId}`}
+              className={`grid grid-cols-[minmax(9rem,auto)_1fr] items-baseline gap-x-8 py-5 ${changed.has(`${c.productId}:${c.variantId}`) ? 'kds-flash' : ''}`}
+            >
               <p className="tabular text-right font-display text-7xl font-bold leading-none tracking-tight">
                 {qty(c.total)}
                 {c.unit && c.unit !== 'pièce' ? <span className="text-3xl"> {c.unit}</span> : null}

@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { formatPrice } from '@erp/utils'
 import { STATUS_LABEL, deliveryLabel, qty, supplyApi, untilLabel, type DraftLine } from '@/lib/api/supply'
 import { QtyInput } from './QtyInput'
+import { Loading } from '@/components/brand/FlowLogo'
 
 const key = (l: { productId: string; variantId: string | null }) => `${l.productId}:${l.variantId ?? ''}`
 
@@ -39,7 +40,7 @@ export function ShopOrderForm({ siteId, onSent, surface }: { siteId: string; onS
     return [...g.entries()]
   }, [draft.data])
 
-  if (suppliers.isLoading) return <p className="py-6 text-sm text-[var(--color-text-secondary)]">Chargement...</p>
+  if (suppliers.isLoading) return <Loading className="py-6" />
   if (!suppliers.data?.length) {
     return (
       <p className="py-6 text-[15px] text-[var(--color-text-secondary)]">
@@ -47,7 +48,7 @@ export function ShopOrderForm({ siteId, onSent, surface }: { siteId: string; onS
       </p>
     )
   }
-  if (!draft.data) return <p className="py-6 text-sm text-[var(--color-text-secondary)]">{draft.isError ? (draft.error as Error).message : 'Chargement...'}</p>
+  if (!draft.data) return draft.isError ? <p className="py-6 text-sm text-[var(--color-text-secondary)]">{(draft.error as Error).message}</p> : <Loading className="py-6" />
 
   const d = draft.data
   const until = untilLabel(d.cutoffAt, now, d.cutoffLocal)
@@ -164,7 +165,7 @@ export function ShopOrderForm({ siteId, onSent, surface }: { siteId: string; onS
             type="button"
             disabled={sending || !count || !changed}
             onClick={send}
-            className="ml-auto h-14 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 text-lg font-semibold text-[var(--color-on-accent)] transition-transform duration-150 active:scale-[0.98] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
+            className="ml-auto h-14 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] press"
           >
             {sending ? 'Envoi...' : order ? (changed ? 'Mettre à jour la commande' : 'Commande à jour') : 'Envoyer la commande'}
           </button>

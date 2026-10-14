@@ -3,7 +3,10 @@
 import { useMemo, useRef, useState } from 'react'
 import { MagnifyingGlass, Barcode, X, Plus } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
+import { motion } from 'framer-motion'
 import { rayonColors } from '@/lib/brand'
+import { EASE_OUT } from '@/lib/motion'
+import { useCartStore } from '@/stores/cart.store'
 import type { ApiCategory, ApiProduct, ApiVariant } from '@/lib/api/products'
 
 interface CatalogProps {
@@ -141,18 +144,28 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
                 role="tab"
                 aria-selected={active}
                 onClick={() => setCategory(c.id)}
-                style={active && color ? { background: color, color: 'var(--on-gamme)' } : undefined}
+                style={active && color ? { color: 'var(--on-gamme)' } : undefined}
                 className={[
-                  'flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-pill)] px-5 text-[15px] font-medium transition-colors duration-150',
+                  'relative flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-pill)] px-5 text-[15px] font-medium transition-colors duration-150',
                   active
                     ? color
                       ? 'font-semibold'
-                      : 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]'
+                      : 'text-[var(--color-bg-base)]'
                     : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]',
                 ].join(' ')}
               >
-                {color && !active && <span aria-hidden className="size-2.5 rounded-full" style={{ background: color }} />}
-                {c.name}
+                {/* La pastille du rayon actif glisse d'un rayon à l'autre et prend sa couleur */}
+                {active && (
+                  <motion.span
+                    layoutId="rayon-actif"
+                    aria-hidden
+                    className="absolute inset-0 rounded-[var(--radius-pill)]"
+                    style={{ background: color ?? 'var(--color-text-primary)' }}
+                    transition={{ duration: 0.22, ease: EASE_OUT }}
+                  />
+                )}
+                {color && !active && <span aria-hidden className="relative size-2.5 rounded-full" style={{ background: color }} />}
+                <span className="relative">{c.name}</span>
               </button>
             )
           })}
@@ -176,7 +189,7 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
                 <button
                   type="button"
                   onClick={onCustom}
-                  className="flex h-full min-h-[112px] w-full flex-col items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] p-4 text-left transition-[transform,border-color] duration-150 hover:border-[var(--color-accent)] active:scale-[0.98]"
+                  className="flex h-full min-h-[112px] w-full flex-col items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] p-4 text-left hover:border-[var(--color-accent)] press"
                 >
                   <Plus size={20} aria-hidden className="text-[var(--color-accent)]" />
                   <span>
@@ -211,17 +224,27 @@ function ProductTile({ product, color, onPick }: { product: ApiProduct; color?: 
   const min = Math.min(...prices)
   const varies = Math.max(...prices) !== min
   const choices = product.variants.length
+  // Combien de ce produit dans la vente en cours : on voit ce qu'on a déjà tapé
+  const inCart = useCartStore((st) => st.lines.reduce((n, l) => (l.product.id === product.id ? n + l.quantity : n), 0))
 
   return (
     <button
       type="button"
       onClick={onPick}
       style={color ? { background: `color-mix(in srgb, ${color} 16%, var(--base-surface))`, borderColor: `color-mix(in srgb, ${color} 45%, var(--base-surface))` } : undefined}
-      className="group relative flex h-full min-h-[112px] w-full flex-col justify-between gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4 pt-5 text-left transition-[transform,border-color] duration-150 ease-[var(--ease-standard)] hover:border-[var(--color-border-strong)] active:scale-[0.98]"
+      className="group relative flex h-full min-h-[112px] w-full flex-col justify-between gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4 pt-5 text-left hover:border-[var(--color-border-strong)] press"
     >
       {color && <span aria-hidden className="absolute inset-x-0 top-0 h-1.5" style={{ background: color }} />}
+      {inCart > 0 && (
+        <span
+          className="qty-in tabular absolute right-2.5 top-3.5 grid h-7 min-w-7 place-items-center rounded-[var(--radius-pill)] bg-[var(--color-text-primary)] px-2 text-sm font-semibold text-[var(--color-bg-base)]"
+        >
+          {inCart}
+          <span className="sr-only"> dans la vente</span>
+        </span>
+      )}
       <span className="block">
-        <span className="block text-[15px] font-semibold leading-snug">{product.name}</span>
+        <span className={`block text-[15px] font-semibold leading-snug ${inCart > 0 ? 'pr-9' : ''}`}>{product.name}</span>
         {product.subtitle && (
           <span className="mt-0.5 block text-sm text-[var(--color-text-secondary)]">{product.subtitle}</span>
         )}
