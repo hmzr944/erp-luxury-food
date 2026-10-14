@@ -92,6 +92,12 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(payload.siteId).emit('order:updated', payload.order)
   }
 
+  // Caisse oubliée après la fermeture : alerte en direct sur les écrans du site
+  @OnEvent('routine.alert')
+  emitRoutineAlert(payload: { siteId: string; day: string; pending: string[] }) {
+    this.server.to(payload.siteId).emit('routine:alert', payload)
+  }
+
   // Approvisionnement interne : la boutique et le labo voient le changement
   @OnEvent('supply.updated')
   emitSupplyUpdated(payload: { siteIds: string[]; orderId: string; status: string }) {

@@ -107,6 +107,7 @@ model Site {
   // Réglage automatique (par défaut) : fond et tolérance calculés sur les
   // ventes en espèces ; cashFloat et cashTolerance servent si on le coupe
   cashAuto        Boolean         @default(true)
+  routine         SiteRoutine?
   supplyOrdersOut SupplyOrder[]   @relation("SupplyFrom")
   supplyOrdersIn  SupplyOrder[]   @relation("SupplyTo")
   users           UserSite[]
@@ -915,6 +916,8 @@ model CashSession {
   differenceReason String?
   keptFloat        Decimal?          @db.Decimal(10, 2)
   deposit          Decimal?          @db.Decimal(10, 2)
+  // Clôturée après sa journée (oubli de la veille, rattrapé le lendemain)
+  closedLate       Boolean           @default(false)
 
   @@index([siteId, openedAt])
   @@index([terminalId, status])
@@ -1079,4 +1082,57 @@ model SigningKey {
   publicKey  String // PEM SPKI
   privateKey String // PEM PKCS8 chiffré
   createdAt  DateTime @default(now())
+}
+
+// Routine de fermeture d'une boutique, réglée par le gérant : heure de
+// fermeture, tâches à faire avant (commande fournisseur, clôture de caisse,
+// tâches libres), rappels progressifs sur la caisse et alerte au gérant
+model SiteRoutine {
+  id                String   @id @default(cuid())
+  siteId            String   @unique
+  site              Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  enabled           Boolean  @default(true)
+  // Heures locales « HH:MM » ; avant 05:00, c'est la nuit suivante
+  closingTime       String   @default("19:30")
+  // Commande au fournisseur (labo, dépôt, centrale) avant cette heure ; null : pas de rappel
+  supplyDeadline    String?
+  // Comptage et clôture de la caisse avant cette heure ; null : heure de fermeture
+  cashDeadline      String?
+  // Jours d'ouverture (1 lundi ... 7 dimanche)
+  days              Int[]    @default([1, 2, 3, 4, 5, 6])
+  // Bandeau discret N minutes avant l'échéance
+  reminderMinutes   Int      @default(30)
+  // Alerte au gérant et verrouillage N minutes après la fermeture si la caisse est restée ouverte
+  alertAfterMinutes Int      @default(60)
+  autoLock          Boolean  @default(true)
+  // Destinataires de l'alerte ; vide : propriétaires et gérants
+  notifyEmails      String[] @default([])
+  // Tâches libres : [{ key, label, deadline? }]
+  tasks             Json     @default("[]")
+  updatedAt         DateTime @updatedAt
+}
+
+// Tâche de la routine cochée sur la caisse, pour une journée
+model RoutineCheck {
+  id       String   @id @default(cuid())
+  siteId   String
+  day      String // journée commerciale « AAAA-MM-JJ »
+  key      String
+  doneAt   DateTime @default(now())
+  userId   String?
+  userName String?
+
+  @@unique([siteId, day, key])
+}
+
+// Alerte envoyée au gérant (une par journée et par motif)
+model RoutineAlert {
+  id         String   @id @default(cuid())
+  siteId     String
+  day        String
+  kind       String // UNCLOSED
+  sentAt     DateTime @default(now())
+  recipients String[]
+
+  @@unique([siteId, day, kind])
 }

@@ -19,6 +19,8 @@ export interface CashSession {
 
 export interface CashState {
   session: CashSession | null
+  // Caisse restée ouverte depuis une journée précédente (oubli de clôture)
+  stale?: { day: string; openedAt: string } | null
   suggestedOpening: number
   lastClosedAt: string | null
   floatTarget: number

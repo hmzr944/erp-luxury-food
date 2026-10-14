@@ -33,6 +33,7 @@ const SELLER_DENY: Rule[] = [
   // formation, mais ne voit ni les clôtures ni les archives (chiffres globaux)
   { path: new RegExp(`^${SITE}/compliance/(export|closures|archives|events|summary|verify)`) },
   { path: new RegExp(`^${SITE}/cash/(sessions|settings)`) },
+  { path: new RegExp(`^${SITE}/routine/settings`) },
   { path: /^\/sites\/[^/]+\/printers/ },
   { path: /^\/organizations\/me\/(settings|audit|attestation)/ },
   { path: /^\/billing\/(checkout|portal)/ },

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { formatPrice, priceOrder } from '@erp/utils'
@@ -22,6 +22,7 @@ import { CustomItemSheet, QuickProductSheet } from './QuickSheets'
 import type { PayLine } from './CreditPayment'
 import { ReturnFinder } from './ReturnFinder'
 import { CashCloseSheet, CashOpenSheet, useCashState } from './CashSheets'
+import { ClosingChecklist, LockScreen, RoutineBanner, YesterdayClosure, useIdle, useRoutine } from './Routine'
 import { PinPad } from '@/components/auth/PinPad'
 import { BadgeLogin } from '@/components/auth/BadgeLogin'
 import { useAuthStore } from '@/stores/auth.store'
@@ -51,6 +52,31 @@ export function POSClient({ siteId }: POSClientProps) {
   const sellerName = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : null
   const manager = user?.role === 'OWNER' || user?.role === 'MANAGER'
   const [printerOpen, setPrinterOpen] = useState(false)
+
+  // Routine de fermeture : bandeau, liste de fin de journée, verrouillage
+  const qc = useQueryClient()
+  const routine = useRoutine(siteId, queue.online)
+  const idle = useIdle(2 * 60_000)
+  const [checklist, setChecklist] = useState<null | 'auto' | 'manual' | 'lock'>(null)
+  const [checklistSnooze, setChecklistSnooze] = useState(0)
+  const [locked, setLocked] = useState<null | 'manual' | 'unclosed'>(null)
+  const [lockSnooze, setLockSnooze] = useState(0)
+  const [lockError, setLockError] = useState<string | null>(null)
+  const [retroClosing, setRetroClosing] = useState(false)
+  const level = routine.data?.level ?? 0
+  const pendingTasks = routine.data?.tasks.filter((t) => !t.done).length ?? 0
+  // Niveau 2 : la liste s'ouvre quand la caisse est inactive, jamais en pleine vente
+  useEffect(() => {
+    if (level >= 2 && idle && !checklist && !locked && Date.now() > checklistSnooze) setChecklist('auto')
+  }, [level, idle, checklist, locked, checklistSnooze])
+  // Niveau 3 : caisse oubliée après la fermeture, verrouillée
+  useEffect(() => {
+    if (level === 3 && routine.data?.autoLock && !locked && Date.now() > lockSnooze) setLocked('unclosed')
+  }, [level, routine.data?.autoLock, locked, lockSnooze])
+  const requestLock = () => {
+    if (pendingTasks && level >= 1) setChecklist('lock')
+    else setLocked('manual')
+  }
   // Mode formation : propre à cet appareil, activé par un responsable.
   // Les ventes sont fictives : ni grand livre, ni stock, ni caisse.
   const trainingKey = `flow-training:${siteId}`
@@ -282,7 +308,9 @@ export function POSClient({ siteId }: POSClientProps) {
           training={training}
           onTraining={manager ? () => void toggleTraining() : undefined}
           onPrinter={() => setPrinterOpen(true)}
+          onLock={requestLock}
         />
+        <RoutineBanner status={routine.data} onOpen={() => setChecklist('manual')} />
         {training && (
           <div role="status" className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-2 text-sm font-semibold text-[var(--color-text-inverse)]">
             <span>Mode formation : ventes fictives, ni comptées, ni déstockées. Tickets marqués « fictif ».</span>
@@ -404,8 +432,72 @@ export function POSClient({ siteId }: POSClientProps) {
                 setCashSheet(null)
               }}
             />
-            <CashCloseSheet siteId={siteId} terminalId={terminalId} open={cashSheet === 'close'} pendingSales={queue.pending} onClose={() => setCashSheet(null)} />
+            <CashCloseSheet
+              siteId={siteId}
+              terminalId={terminalId}
+              open={cashSheet === 'close'}
+              pendingSales={queue.pending}
+              onClose={() => {
+                void qc.invalidateQueries({ queryKey: ['routine', siteId] })
+                // Clôture de la veille faite : on ouvre la journée du jour
+                if (retroClosing) {
+                  setRetroClosing(false)
+                  setCashSheet('open')
+                } else setCashSheet(null)
+              }}
+            />
+            {cash.data?.stale && cashSheet !== 'close' && !locked && (
+              <YesterdayClosure
+                day={cash.data.stale.day}
+                onStart={() => {
+                  setRetroClosing(true)
+                  setCashSheet('close')
+                }}
+              />
+            )}
           </>
+        )}
+
+        <ClosingChecklist
+          open={!!checklist && !locked}
+          siteId={siteId}
+          status={routine.data}
+          lockIntent={checklist === 'lock'}
+          onUpdate={(s) => qc.setQueryData(['routine', siteId], s)}
+          onClose={() => {
+            // Refermée : elle ne revient pas avant dix minutes
+            setChecklistSnooze(Date.now() + 10 * 60_000)
+            setChecklist(null)
+          }}
+          onCloseCash={() => {
+            setChecklist(null)
+            setCashSheet('close')
+          }}
+          onLock={() => {
+            setChecklist(null)
+            setLocked('manual')
+          }}
+        />
+        {locked && (
+          <LockScreen
+            reason={locked}
+            error={lockError}
+            onUnlock={async (pin) => {
+              try {
+                await pinLogin(siteId, pin)
+                setLockError(null)
+                if (locked === 'unclosed') {
+                  // Le temps de clôturer : pas de nouveau verrouillage avant 30 minutes
+                  setLockSnooze(Date.now() + 30 * 60_000)
+                  setChecklist('manual')
+                }
+                setLocked(null)
+              } catch (e) {
+                setLockError((e as Error).message)
+                throw e
+              }
+            }}
+          />
         )}
 
         <Sheet open={switching} title="Qui encaisse ?" onClose={() => setSwitching(false)}>

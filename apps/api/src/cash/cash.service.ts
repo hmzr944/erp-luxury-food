@@ -3,6 +3,10 @@ import { Decimal } from '@prisma/client/runtime/library'
 import { CashCountError, closingPlan, countCash, recommendCash, splitFloat } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
+import { businessDate } from '@erp/utils'
+
+const frDate = (d: Date, timeZone: string) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone })
+const frTime = (d: Date, timeZone: string) => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone })
 
 const cents = (d: Decimal | number | null | undefined) => Math.round(Number(d ?? 0) * 100)
 const euros = (c: number) => new Decimal(c).div(100)
@@ -57,8 +61,12 @@ export class CashService {
       orderBy: { closedAt: 'desc' },
       select: { keptFloat: true, closedAt: true },
     })
+    // Caisse restée ouverte depuis une journée précédente : à clôturer avant de vendre
+    const tz = (await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { timezone: true } })).timezone
+    const openedDay = open ? businessDate(open.openedAt, tz) : null
     return {
       session: open ? this.view(open) : null,
+      stale: open && openedDay! < businessDate(new Date(), tz) ? { day: openedDay!, openedAt: open.openedAt } : null,
       // Fond annoncé par la dernière fermeture, sinon le fond habituel du site
       suggestedOpening: last?.keptFloat != null ? Number(last.keptFloat) : Number(site.cashFloat),
       lastClosedAt: last?.closedAt ?? null,
@@ -115,11 +123,15 @@ export class CashService {
         difference: plan.difference / 100,
       })
     }
+    const now = new Date()
+    const tz = (await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { timezone: true } })).timezone
+    const late = businessDate(session.openedAt, tz) < businessDate(now, tz)
     const closed = await this.prisma.cashSession.update({
       where: { id: session.id, status: 'OPEN' },
       data: {
         status: 'CLOSED',
-        closedAt: new Date(),
+        closedAt: now,
+        closedLate: late,
         closedById: userId,
         denominations: dto.denominations,
         counted: euros(plan.counted),
@@ -134,10 +146,10 @@ export class CashService {
     await this.audit.log({
       organizationId: site2.organizationId,
       userId,
-      action: 'cash.closed',
+      action: late ? 'cash.closed_late' : 'cash.closed',
       target: closed.id,
       terminalId: dto.terminalId,
-      detail: `compté ${(plan.counted / 100).toFixed(2)} €, écart ${(plan.difference / 100).toFixed(2)} €${reason ? `, ${reason}` : ''}`,
+      detail: `${late ? `clôture du ${frDate(session.openedAt, tz)} effectuée le ${frDate(now, tz)} à ${frTime(now, tz)}, ` : ''}compté ${(plan.counted / 100).toFixed(2)} €, écart ${(plan.difference / 100).toFixed(2)} €${reason ? `, ${reason}` : ''}`,
     })
     return { ...this.view(closed), withinTolerance: plan.withinTolerance, keep: split.keep, depositDetail: split.deposit, exactFloat: split.exact }
   }

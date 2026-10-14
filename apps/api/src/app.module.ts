@@ -29,6 +29,7 @@ import { PlatformModule } from './platform/platform.module'
 import { MailModule } from './common/mail/mail.module'
 import { ReceiptsModule } from './receipts/receipts.module'
 import { CompaniesModule } from './companies/companies.module'
+import { RoutinesModule } from './routines/routines.module'
 import { TerminalsModule } from './terminals/terminals.module'
 import { DataModule } from './data/data.module'
 import { PaymentsModule } from './payments/payments.module'
@@ -58,6 +59,7 @@ import { HealthController } from './health/health.controller'
     MailModule,
     ReceiptsModule,
     CompaniesModule,
+    RoutinesModule,
     AuditModule,
     AuthModule,
     OrganizationsModule,
