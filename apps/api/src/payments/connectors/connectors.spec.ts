@@ -127,3 +127,29 @@ describe('SumUp Solo', () => {
     await expect(sumupConnector.pair({ credentials, http: expired.http }, { code: 'X', name: 'A' })).rejects.toThrow('expiré')
   })
 })
+
+describe('Stripe Checkout (paiement par QR)', () => {
+  const credentials = { secretKey: 'sk_test_abc' }
+
+  it('crée une page de paiement au montant exact, valable jusqu’à l’échéance', async () => {
+    const { http, calls } = fakeHttp([[/POST .*\/checkout\/sessions$/, 200, { id: 'cs_1', url: 'https://checkout.stripe.com/c/pay/cs_1' }]])
+    const expiresAt = new Date('2026-10-14T12:31:00Z')
+    const r = await stripeConnector.createLink!({ credentials, http }, { amount: 1250, currency: 'EUR', reference: 'tp_1', description: 'Achat chez Bistro', doneUrl: 'https://x/paiement/merci', testUrl: '', expiresAt })
+    expect(r).toEqual({ providerRef: 'cs_1', url: 'https://checkout.stripe.com/c/pay/cs_1' })
+    const body = new URLSearchParams(calls[0].body)
+    expect(body.get('mode')).toBe('payment')
+    expect(body.get('line_items[0][price_data][unit_amount]')).toBe('1250')
+    expect(body.get('line_items[0][price_data][currency]')).toBe('eur')
+    expect(body.get('expires_at')).toBe(String(expiresAt.getTime() / 1000))
+    expect(body.get('metadata[reference]')).toBe('tp_1')
+  })
+
+  it('payé : garde la référence du paiement ; expiré : annulé', async () => {
+    const paid = fakeHttp([[/GET .*\/checkout\/sessions\/cs_1/, 200, { status: 'complete', payment_status: 'paid', payment_intent: 'pi_9' }]])
+    expect(await stripeConnector.linkStatus!({ credentials, http: paid.http }, { providerRef: 'cs_1' })).toEqual({ status: 'SUCCEEDED', paymentRef: 'pi_9' })
+    const open = fakeHttp([[/GET .*\/checkout\/sessions\/cs_1/, 200, { status: 'open', payment_status: 'unpaid', payment_intent: null }]])
+    expect((await stripeConnector.linkStatus!({ credentials, http: open.http }, { providerRef: 'cs_1' })).status).toBe('PENDING')
+    const expired = fakeHttp([[/GET .*\/checkout\/sessions\/cs_1/, 200, { status: 'expired', payment_status: 'unpaid', payment_intent: null }]])
+    expect((await stripeConnector.linkStatus!({ credentials, http: expired.http }, { providerRef: 'cs_1' })).status).toBe('CANCELED')
+  })
+})

@@ -18,6 +18,14 @@ export const simulatorConnector: PaymentConnector = {
     return { status: 'PENDING' }
   },
   async cancel() {},
+  // QR de test : la page explique que le paiement se valide depuis la caisse
+  async createLink(_ctx, input) {
+    return { providerRef: `simqr_${randomUUID()}`, url: input.testUrl }
+  },
+  async linkStatus() {
+    return { status: 'PENDING' }
+  },
+  async cancelLink() {},
   async refund() {
     return { refundRef: `simrefund_${randomUUID()}` }
   },

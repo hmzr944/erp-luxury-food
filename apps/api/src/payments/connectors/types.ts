@@ -34,6 +34,14 @@ export interface PaymentConnector {
   cancel(ctx: ConnectorContext, input: { readerId: string; providerRef: string }): Promise<void>
   // Rembourse tout ou partie d'un paiement accepté (montant en centimes)
   refund(ctx: ConnectorContext, input: { providerRef: string; amount: number }): Promise<{ refundRef: string }>
+  // Paiement par QR : page de paiement du prestataire, ouverte par le client
+  // sur son téléphone. paymentRef : référence à garder pour un remboursement
+  createLink?(
+    ctx: ConnectorContext,
+    input: { amount: number; currency: string; reference: string; description: string; doneUrl: string; testUrl: string; expiresAt: Date },
+  ): Promise<{ providerRef: string; url: string }>
+  linkStatus?(ctx: ConnectorContext, input: { providerRef: string }): Promise<{ status: RemoteStatus; paymentRef?: string; failureReason?: string }>
+  cancelLink?(ctx: ConnectorContext, input: { providerRef: string }): Promise<void>
   // Mode test uniquement : simule le passage d'une carte
   simulate?(ctx: ConnectorContext, input: { readerId: string; providerRef: string; approve: boolean }): Promise<void>
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowUUpLeft, CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle, Printer } from '@phosphor-icons/react'
+import { ArrowUUpLeft, CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle, Printer, QrCode } from '@phosphor-icons/react'
 import { CASH_LIMIT_NON_RESIDENT, CASH_LIMIT_RESIDENT, checkPayments, formatPrice, mealVoucherAllowance, type RuleLine } from '@erp/utils'
 import { PaymentKind } from '@erp/types'
 import type { PlatformConfig } from '@/lib/api/platform'
@@ -20,6 +20,7 @@ import { DigitalReceipt } from './DigitalReceipt'
 import { BusinessInvoice } from './BusinessInvoice'
 import { EASE_DRAWER } from '@/lib/motion'
 import { TerminalWait } from './TerminalWait'
+import { QrPayWait } from './QrPayWait'
 import { BridgeTerminalWait } from './BridgeTerminalWait'
 import { getBridgeTpe } from '@/lib/bridge'
 import { PartsPayment } from './PartsPayment'
@@ -75,10 +76,16 @@ interface PaymentSheetProps {
   creditCode?: string
   onPay: (payments: PayLine[], email?: string, clientId?: string, options?: PayOptions) => void
   onClose: () => void
+  // Paiement par QR disponible (Stripe relié, ou TPE virtuel) et QR montré à l'écran client
+  qrAvailable?: boolean
+  onQrShow?: (qr: { url: string; expiresAt: string | null } | null) => void
 }
 
-export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, siteName, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose }: PaymentSheetProps) {
+export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, siteName, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose, qrAvailable, onQrShow }: PaymentSheetProps) {
   const [split, setSplit] = useState(false)
+  // Paiement par QR : enregistré sur le moyen « carte » de l'organisation
+  const [qr, setQr] = useState(false)
+  const qrMethod = methods.find((m) => m.kind === PaymentKind.CARD)
   const [terminal, setTerminal] = useState<Method | null>(null)
   // TPE bancaire branché sur FLŌW-Bridge (Caisse-AP)
   const [bridgeCard, setBridgeCard] = useState<Method | null>(null)
@@ -98,6 +105,7 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
   useEffect(() => {
     if (!open) {
       setSplit(false)
+      setQr(false)
       setTerminal(null)
       setBridgeCard(null)
       setParts(false)
@@ -154,7 +162,7 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
   return (
     // Pendant l'attente du TPE, on ne ferme qu'en annulant : sinon le client
     // pourrait payer sans que la vente soit enregistrée
-    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || !!bridgeCard || partsLocked))}>
+    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || !!bridgeCard || qr || partsLocked))}>
       {receipt ? (
         <Receipt receipt={receipt} siteId={siteId} siteName={siteName} settings={receiptSettings} sellerName={sellerName} onNext={onClose} />
       ) : terminal && device ? (
@@ -172,6 +180,21 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
             onApproved={(clientId) => onPay([{ code: terminal.code, amount: total }], mail, clientId)}
             onPaidElsewhere={() => onPay([{ code: terminal.code, amount: total }], mail)}
             onBack={() => setTerminal(null)}
+          />
+        </>
+      ) : qr && qrMethod ? (
+        <>
+          {error && (
+            <p role="alert" className="mb-4 alert-box">
+              Paiement accepté, mais la vente n&apos;a pas pu être enregistrée : {error}
+            </p>
+          )}
+          <QrPayWait
+            siteId={siteId}
+            amount={total}
+            onShow={(q) => onQrShow?.(q)}
+            onApproved={(clientId) => onPay([{ code: qrMethod.code, amount: total }], mail, clientId)}
+            onBack={() => setQr(false)}
           />
         </>
       ) : bridgeCard ? (
@@ -267,6 +290,18 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
               )
             })}
           </ul>
+
+          {qrAvailable && qrMethod && (
+            <button
+              type="button"
+              disabled={busy || total < 1}
+              onClick={() => setQr(true)}
+              className="flex h-14 w-full items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-3 text-left hover:border-[var(--color-accent)] disabled:opacity-50 press"
+            >
+              <QrCode size={26} aria-hidden className="shrink-0 text-[var(--color-accent)]" />
+              <span className="text-[15px] font-semibold">QR code, paiement sur le téléphone du client</span>
+            </button>
+          )}
 
           {notice && (
             <p role="status" className="alert-box">

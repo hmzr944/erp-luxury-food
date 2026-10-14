@@ -64,6 +64,18 @@ class StartDto {
   force?: boolean
 }
 
+class StartQrDto {
+  // En centimes : 1 € minimum
+  @IsInt()
+  @Min(100)
+  @Max(5_000_000)
+  amount!: number
+
+  @IsOptional()
+  @IsString()
+  clientSaleId?: string
+}
+
 class SimulateDto {
   @IsBoolean()
   approve!: boolean
@@ -138,6 +150,17 @@ export class TerminalPaymentsController {
   @Post()
   start(@Param('siteId') siteId: string, @Body() dto: StartDto, @CurrentUser() user: { id: string }) {
     return this.payments.start(siteId, dto, user.id)
+  }
+
+  // Paiement par QR : prestataire disponible pour cette boutique
+  @Get('qr')
+  async qr(@Param('siteId') siteId: string) {
+    return { provider: await this.payments.qrProvider(siteId) }
+  }
+
+  @Post('qr')
+  startQr(@Param('siteId') siteId: string, @Body() dto: StartQrDto, @CurrentUser() user: { id: string }) {
+    return this.payments.startQr(siteId, dto, user.id)
   }
 
   @Get(':id')

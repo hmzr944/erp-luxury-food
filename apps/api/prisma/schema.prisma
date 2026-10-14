@@ -874,8 +874,12 @@ model PaymentDevice {
 model TerminalPayment {
   id            String                @id @default(cuid())
   siteId        String
-  deviceId      String
-  device        PaymentDevice         @relation(fields: [deviceId], references: [id])
+  // Absent : paiement par QR code, le client paie sur son téléphone
+  deviceId      String?
+  device        PaymentDevice?        @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  // Paiement par QR : page de paiement du prestataire et fin de validité
+  checkoutUrl   String?
+  expiresAt     DateTime?
   provider      PaymentProvider
   amount        Int // en centimes
   currency      String                @default("EUR")

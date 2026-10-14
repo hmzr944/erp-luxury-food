@@ -12,7 +12,10 @@ export interface PaymentDevice {
 
 export interface TerminalPayment {
   id: string
-  deviceId: string
+  // Absent : paiement par QR code
+  deviceId: string | null
+  checkoutUrl?: string | null
+  expiresAt?: string | null
   provider: PaymentProvider
   amount: number // centimes
   status: TerminalPaymentStatus
@@ -46,6 +49,10 @@ export const paymentsApi = {
 
   start: (siteId: string, body: { deviceId: string; amount: number; clientSaleId?: string; force?: boolean }) =>
     apiClient<TerminalPayment>(`/sites/${siteId}/terminal-payments`, json(body)),
+  // Paiement par QR : prestataire disponible (Stripe, ou TPE virtuel pour essayer)
+  qrProvider: (siteId: string) => apiClient<{ provider: PaymentProvider | null }>(`/sites/${siteId}/terminal-payments/qr`),
+  startQr: (siteId: string, body: { amount: number; clientSaleId?: string }) =>
+    apiClient<TerminalPayment>(`/sites/${siteId}/terminal-payments/qr`, json(body)),
   get: (siteId: string, id: string) => apiClient<TerminalPayment>(`/sites/${siteId}/terminal-payments/${id}`),
   cancel: (siteId: string, id: string) => apiClient<TerminalPayment>(`/sites/${siteId}/terminal-payments/${id}/cancel`, json({})),
   simulate: (siteId: string, id: string, approve: boolean) =>

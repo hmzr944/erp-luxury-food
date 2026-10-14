@@ -111,6 +111,34 @@ export const stripeConnector: PaymentConnector = {
     return { refundRef: refund.id }
   },
 
+  // Paiement par QR : session Stripe Checkout, page de paiement hébergée par Stripe
+  // https://docs.stripe.com/api/checkout/sessions/create
+  async createLink(ctx, input) {
+    const session = await call<{ id: string; url: string }>(ctx, 'POST', '/checkout/sessions', {
+      mode: 'payment',
+      success_url: input.doneUrl,
+      'line_items[0][quantity]': 1,
+      'line_items[0][price_data][currency]': input.currency.toLowerCase(),
+      'line_items[0][price_data][unit_amount]': input.amount,
+      'line_items[0][price_data][product_data][name]': input.description,
+      'metadata[reference]': input.reference,
+      'payment_intent_data[metadata][reference]': input.reference,
+      expires_at: Math.floor(input.expiresAt.getTime() / 1000),
+    })
+    return { providerRef: session.id, url: session.url }
+  },
+
+  async linkStatus(ctx, input) {
+    const session = await call<{ status: string; payment_status: string; payment_intent: string | null }>(ctx, 'GET', `/checkout/sessions/${input.providerRef}`)
+    if (session.status === 'complete' && session.payment_status === 'paid') return { status: 'SUCCEEDED', paymentRef: session.payment_intent ?? undefined }
+    if (session.status === 'expired') return { status: 'CANCELED', failureReason: 'QR code expiré' }
+    return { status: 'PENDING' }
+  },
+
+  async cancelLink(ctx, input) {
+    await call(ctx, 'POST', `/checkout/sessions/${input.providerRef}/expire`, {})
+  },
+
   // Lecteur simulé Stripe (mode test) : carte acceptée ou refusée
   async simulate(ctx, input) {
     await call(ctx, 'POST', `/test_helpers/terminal/readers/${input.readerId}/present_payment_method`, {

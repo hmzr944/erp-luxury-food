@@ -58,6 +58,8 @@ export function POSClient({ siteId }: POSClientProps) {
   const manager = user?.role === 'OWNER' || user?.role === 'MANAGER'
   const [printerOpen, setPrinterOpen] = useState(false)
   const [displayOpen, setDisplayOpen] = useState(false)
+  // QR de paiement montré à l'écran client
+  const [qrShown, setQrShown] = useState<{ url: string; expiresAt: string | null } | null>(null)
 
   // Routine de fermeture : bandeau, liste de fin de journée, verrouillage
   const qc = useQueryClient()
@@ -154,6 +156,7 @@ export function POSClient({ siteId }: POSClientProps) {
   // TPE connecté de cette caisse : celui choisi sur cet appareil, sinon le premier
   const devices = useQuery({ queryKey: ['payment-devices', siteId], queryFn: () => paymentsApi.devices(siteId), staleTime: 60_000 })
   const device = useTerminalDevice(siteId, devices.data ?? [])
+  const qrProvider = useQuery({ queryKey: ['qr-provider', siteId], queryFn: () => paymentsApi.qrProvider(siteId), staleTime: 5 * 60_000, enabled: queue.online })
 
   // Cet appareil devient une caisse du site à sa première ouverture
   useEffect(() => {
@@ -173,7 +176,9 @@ export function POSClient({ siteId }: POSClientProps) {
   // TTC de chaque ligne, remise globale répartie : base des règles d'encaissement
   // Écran client : ce que voit le client, à chaque changement de la vente
   const lastAddedKey = useCartStore((st) => st.lastAddedKey)
-  const displayState: DisplayState = receipt
+  const displayState: DisplayState = qrShown && !receipt
+    ? { kind: 'pay', shop: siteName, amount: totals.total, url: qrShown.url, expiresAt: qrShown.expiresAt, training }
+    : receipt
     ? {
         kind: 'done',
         shop: siteName,
@@ -641,6 +646,8 @@ export function POSClient({ siteId }: POSClientProps) {
           creditCode={creditCode}
           onPay={pay}
           onClose={closePayment}
+          qrAvailable={queue.online && !training && !!qrProvider.data?.provider}
+          onQrShow={setQrShown}
         />
       </div>
     </MotionConfig>
