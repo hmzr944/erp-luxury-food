@@ -2,8 +2,8 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { Minus, Plus, Trash } from '@phosphor-icons/react'
-import { formatPrice } from '@erp/utils'
-import { useCartStore, type CartLine } from '@/stores/cart.store'
+import { formatPrice, modifiersLabel, weightLabel } from '@erp/utils'
+import { isFixedLine, useCartStore, type CartLine } from '@/stores/cart.store'
 import { EASE } from './Sheet'
 
 interface TicketProps {
@@ -95,13 +95,10 @@ function TicketLine({ line }: { line: CartLine }) {
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-medium">{line.product.name}</p>
-        <p className="truncate text-sm text-[var(--color-text-secondary)]">
-          {[line.variantName, line.serialNumber && `N° ${line.serialNumber}`].filter(Boolean).join(', ') ||
-            formatPrice(line.product.price)}
-        </p>
+        <p className="line-clamp-2 text-sm text-[var(--color-text-secondary)]">{lineDetail(line) || formatPrice(line.product.price)}</p>
       </div>
 
-      {line.serialNumber ? (
+      {isFixedLine(line) ? (
         <button
           type="button"
           onClick={() => removeLine(line.key)}
@@ -137,4 +134,20 @@ function TicketLine({ line }: { line: CartLine }) {
       <span className="tabular w-20 text-right text-[15px] font-medium">{formatPrice(lineTotal)}</span>
     </motion.li>
   )
+}
+
+// Variante, composants d'une formule, options, poids, n° de série
+function lineDetail(line: CartLine) {
+  const menu = line.menu?.parts
+    .map((p) => [p.name, p.variantName, p.modifiers.length ? `(${modifiersLabel(p.modifiers)})` : null, p.supplement ? `+${formatPrice(p.supplement)}` : null].filter(Boolean).join(' '))
+    .join(', ')
+  return [
+    line.variantName,
+    menu,
+    line.modifiers?.length ? modifiersLabel(line.modifiers) : null,
+    line.weight !== undefined ? weightLabel(line.weight, line.pricePerKg) : line.label ? 'Prix de l’étiquette de balance' : null,
+    line.serialNumber && `N° ${line.serialNumber}`,
+  ]
+    .filter(Boolean)
+    .join(', ')
 }

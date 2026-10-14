@@ -68,6 +68,12 @@ export interface ApiOrderItem {
   taxRate: number
   quantity: number
   discount: number
+  // Options, composant de formule, pesée
+  modifiers?: Array<{ id: string; name: string; price: number }> | null
+  menuName?: string | null
+  menuGroup?: number | null
+  weight?: number | string | null
+  pricePerKg?: number | string | null
 }
 
 export function buildCheckoutPayload(

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { MagnifyingGlass, Barcode, X, Plus } from '@phosphor-icons/react'
-import { formatPrice } from '@erp/utils'
+import { formatPrice, parseScaleBarcode, type ScaleBarcode, type ScaleBarcodeRule } from '@erp/utils'
 import { motion } from 'framer-motion'
 import { rayonShapes, type RayonShape } from '@/lib/brand'
 import { RayonGlyph } from '@/components/brand/RayonGlyph'
@@ -15,7 +15,9 @@ interface CatalogProps {
   categories: ApiCategory[]
   isLoading: boolean
   isError: boolean
-  onPick: (product: ApiProduct, variant?: ApiVariant) => void
+  onPick: (product: ApiProduct, variant?: ApiVariant, label?: ScaleBarcode) => void
+  // Étiquettes de balance de l'organisation
+  scaleRules?: ScaleBarcodeRule[]
   // Vendre un article hors catalogue (nom et prix saisis)
   onCustom: () => void
   // Créer un produit à partir d'un code-barres ou d'un nom introuvable
@@ -25,7 +27,7 @@ interface CatalogProps {
 const normalize = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-export function Catalog({ products, categories, isLoading, isError, onPick, onCustom, onCreate }: CatalogProps) {
+export function Catalog({ products, categories, isLoading, isError, onPick, scaleRules, onCustom, onCreate }: CatalogProps) {
   const [category, setCategory] = useState<string | null>(null)
   // Une forme par rayon (choisie, sinon attribuée dans l'ordre)
   const shapeOf = useMemo(() => rayonShapes(categories), [categories])
@@ -55,12 +57,18 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
       if (variant) return done(p, variant)
       if (p.barcode === code) return done(p)
     }
+    // Étiquette de balance : code article du produit, prix ou poids imprimé
+    const label = parseScaleBarcode(code, scaleRules)
+    if (label) {
+      const p = products.find((x) => x.soldByWeight && x.scaleCode && x.scaleCode.replace(/^0+(?=\d)/, '') === label.code)
+      if (p) return done(p, undefined, label)
+    }
     if (visible.length === 1) return done(visible[0])
     setNotFound(code)
   }
 
-  const done = (p: ApiProduct, v?: ApiVariant) => {
-    onPick(p, v)
+  const done = (p: ApiProduct, v?: ApiVariant, label?: ScaleBarcode) => {
+    onPick(p, v, label)
     setQuery('')
     setNotFound(null)
     search.current?.focus()
@@ -253,10 +261,11 @@ function ProductTile({ product, shape, onPick }: { product: ApiProduct; shape?: 
         <span className="tabular text-[15px] font-medium">
           {varies && <span className="text-[var(--color-text-secondary)]">dès </span>}
           {formatPrice(min)}
+          {product.soldByWeight && <span className="text-[var(--color-text-secondary)]"> /kg</span>}
         </span>
-        {choices > 0 && (
+        {(choices > 0 || product.isMenu) && (
           <span className="text-xs text-[var(--color-text-muted)]">
-            {choices} choix
+            {product.isMenu ? 'Formule' : `${choices} choix`}
           </span>
         )}
       </span>

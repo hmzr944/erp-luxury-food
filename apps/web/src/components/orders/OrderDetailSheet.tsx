@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle, Copy, Minus, Plus, Printer } from '@phosphor-icons/react'
-import { formatPrice, planRefund, priceOrder } from '@erp/utils'
+import { formatPrice, planRefund, priceOrder, soldItemDetail, soldItemView, ticketLinesFromItems } from '@erp/utils'
 import { ordersApi, type ApiOrderDetail, type RefundTo, type StoreCreditView } from '@/lib/api/orders'
 import { Sheet } from '@/components/pos/Sheet'
 import { Loading } from '@/components/brand/FlowLogo'
@@ -106,10 +106,10 @@ function OrderView({ siteId, order: o, onRefund }: { siteId: string; order: ApiO
             <li key={i.id} className="flex items-start justify-between gap-4 py-3">
               <div className="min-w-0">
                 <p className="text-[15px] font-medium">
-                  <span className="tabular">{i.quantity} ×</span> {i.name}
-                  {i.variantName ? `, ${i.variantName}` : ''}
+                  <span className="tabular">{i.quantity} ×</span> {i.menuName ? `${i.menuName} : ` : ''}
+                  {i.name}
                 </p>
-                {i.serialNumber && <p className="font-data text-sm text-[var(--color-text-secondary)]">N° {i.serialNumber}</p>}
+                {soldItemDetail(soldItemView(i)) && <p className="text-sm text-[var(--color-text-secondary)]">{soldItemDetail(soldItemView(i))}</p>}
                 {back > 0 && o.kind !== 'REFUND' && (
                   <p className="text-sm font-medium text-[var(--color-accent)]">{back === i.quantity ? 'Rendu' : `${back} rendu${back > 1 ? 's' : ''}`}</p>
                 )}
@@ -205,14 +205,8 @@ function DuplicateButton({ siteId, order: o }: { siteId: string; order: ApiOrder
         // Même numéro que le ticket d'origine, imprimé par la caisse
         number: String(o.receiptChain!.terminalCounter ?? o.receiptChain!.counter),
         signedAt: new Date(o.receiptChain!.signedAt),
-        lines: o.items.map((i, k) => ({
-          quantity: i.quantity,
-          name: i.name,
-          detail: [i.variantName, i.serialNumber ? `N° de série ${i.serialNumber}` : null].filter(Boolean).join(', ') || undefined,
-          unit: sign * Math.round((priced.lines[k].ttc / i.quantity) * 100) / 100,
-          total: sign * priced.lines[k].ttc,
-          taxRate: n(i.taxRate),
-        })),
+        // Une formule regroupe ses composants, comme sur le ticket d'origine
+        lines: ticketLinesFromItems(o.items.map(soldItemView), priced.lines.map((l) => l.ttc), sign),
         discount: n(o.discount) || undefined,
         total: n(o.total),
         taxBreakdown: priced.taxBreakdown.map((t) => ({ rate: t.rate, ht: sign * t.ht, tax: sign * t.tax })),
@@ -372,6 +366,7 @@ function RefundForm({
               <li key={i.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                   <p className="truncate text-[15px] font-medium">
+                    {i.menuName ? `${i.menuName} : ` : ''}
                     {i.name}
                     {i.variantName ? `, ${i.variantName}` : ''}
                   </p>

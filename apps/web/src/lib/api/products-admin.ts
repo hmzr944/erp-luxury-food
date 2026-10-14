@@ -13,6 +13,11 @@ export interface CreateProductPayload {
   categoryId?: string
   imageUrl?: string
   variants?: Array<{ name: string; price: number; barcode?: string }>
+  isMenu?: boolean
+  soldByWeight?: boolean
+  scaleCode?: string | null
+  modifierGroupIds?: string[]
+  menuSteps?: Array<{ name: string; minSelect: number; maxSelect: number; choices: Array<{ productId: string; supplement: number }> }>
 }
 
 export interface CreateCategoryPayload {

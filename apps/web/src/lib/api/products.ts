@@ -29,6 +29,30 @@ export interface ApiProduct {
   stockItem: { quantity: string; alertAt: string | null } | null
   isActive: boolean
   imageUrl: string | null
+  // Options et suppléments proposés à la vente
+  modifierGroups?: Array<{ group: ApiModifierGroup }>
+  // Formule : étapes de choix
+  isMenu?: boolean
+  menuSteps?: ApiMenuStep[]
+  // Vente au poids : price est le prix au kilo
+  soldByWeight?: boolean
+  scaleCode?: string | null
+}
+
+export interface ApiModifierGroup {
+  id: string
+  name: string
+  minSelect: number
+  maxSelect: number | null
+  modifiers: Array<{ id: string; name: string; price: number | string }>
+}
+
+export interface ApiMenuStep {
+  id: string
+  name: string
+  minSelect: number
+  maxSelect: number
+  choices: Array<{ id: string; productId: string; variantId: string | null; supplement: number | string }>
 }
 
 export interface ProductSuggestion {

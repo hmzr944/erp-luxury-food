@@ -4,17 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { formatPrice, priceOrder } from '@erp/utils'
+import { formatPrice, priceForWeight, priceMenu, priceOrder, priceWithModifiers, type ModifierChoice, type ScaleBarcode } from '@erp/utils'
 import { productsApi, type ApiProduct, type ApiVariant } from '@/lib/api/products'
 import { sitesApi } from '@/lib/api/sites'
 import { paymentsApi, type PaymentDevice } from '@/lib/api/payments'
 import { usePlatformConfig } from '@/lib/api/platform'
 import { ensureTerminal, recordSale, type TerminalNotRegisteredError } from '@/lib/terminal/terminal'
-import { useCartStore, computeCartTotals } from '@/stores/cart.store'
+import { useCartStore, computeCartTotals, saleItems, signedItem, type CartMenuPart } from '@/stores/cart.store'
 import { POSHeader } from './POSHeader'
 import { Catalog } from './Catalog'
 import { Ticket } from './Ticket'
 import { VariantPicker } from './VariantPicker'
+import { MenuComposer, ModifierSheet, WeightSheet, groupsOf } from './Composition'
 import { PaymentSheet, type PayOptions, type ReceiptView } from './PaymentSheet'
 import { Sheet, EASE } from './Sheet'
 import { useSaleQueue } from './useSaleQueue'
@@ -106,6 +107,9 @@ export function POSClient({ siteId }: POSClientProps) {
     toast(next ? 'Mode formation : les ventes sont fictives' : 'Mode formation terminé')
   }
   const [picking, setPicking] = useState<ApiProduct | null>(null)
+  const [modifying, setModifying] = useState<{ product: ApiProduct; variant?: ApiVariant; serialNumber?: string } | null>(null)
+  const [composing, setComposing] = useState<ApiProduct | null>(null)
+  const [weighing, setWeighing] = useState<ApiProduct | null>(null)
   const [paying, setPaying] = useState(false)
   const [ticketOpen, setTicketOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -162,44 +166,79 @@ export function POSClient({ siteId }: POSClientProps) {
   const totals = computeCartTotals(lines, orderDiscount, priceIncludesTax)
   const methods = (config?.paymentMethods ?? []).filter((m) => m.isActive)
   // TTC de chaque ligne, remise globale répartie : base des règles d'encaissement
-  const ruleLines = useMemo(() => {
-    const priced = priceOrder(
-      lines.map((l) => ({ unitPrice: l.product.price, quantity: l.quantity, discount: l.discount, taxRate: l.product.taxRate })),
-      { priceIncludesTax, orderDiscount },
-    )
-    return lines.map((l, i) => ({ total: priced.lines[i]?.ttc ?? 0, mealVoucherEligible: !!l.product.mealVoucher }))
-  }, [lines, orderDiscount, priceIncludesTax])
+  // Formule : chaque composant compte pour son montant et son éligibilité
+  const ruleLines = useMemo(
+    () => totals.items.map((it, i) => ({ total: totals.lines[i]?.ttc ?? 0, mealVoucherEligible: it.mealVoucher })),
+    [totals],
+  )
+
+  const cartProduct = (product: ApiProduct, price: number) => ({
+    id: product.id,
+    name: product.name,
+    subtitle: product.subtitle ?? undefined,
+    price,
+    taxRate: Number(product.taxRate),
+    categoryId: product.categoryId ?? undefined,
+    mealVoucher: !!product.mealVoucherEligible,
+  })
 
   const add = useCallback(
-    (product: ApiProduct, variant?: ApiVariant, serialNumber?: string) => {
-      addProduct(
-        {
-          id: product.id,
-          name: product.name,
-          subtitle: product.subtitle ?? undefined,
-          price: Number(variant?.price ?? product.price),
-          taxRate: Number(product.taxRate),
-          categoryId: product.categoryId ?? undefined,
-          mealVoucher: !!product.mealVoucherEligible,
-        },
-        { variantId: variant?.id, variantName: variant?.name, serialNumber },
-      )
+    (product: ApiProduct, variant?: ApiVariant, serialNumber?: string, modifiers: ModifierChoice[] = []) => {
+      addProduct(cartProduct(product, priceWithModifiers(Number(variant?.price ?? product.price), modifiers)), {
+        variantId: variant?.id,
+        variantName: variant?.name,
+        serialNumber,
+        ...(modifiers.length ? { modifiers } : {}),
+      })
       setPicking(null)
+      setModifying(null)
     },
     [addProduct],
   )
 
-  // Produit simple : ajouté d'un geste. Variantes ou n° de série : on demande.
-  const pick = (product: ApiProduct, variant?: ApiVariant) => {
-    if (variant && product.tracking !== 'SERIAL') return add(product, variant)
+  // Variante et n° de série choisis : reste les options, s'il y en a
+  const chosen = (product: ApiProduct, variant?: ApiVariant, serialNumber?: string) => {
+    if (groupsOf(product).length) {
+      setPicking(null)
+      return setModifying({ product, variant, serialNumber })
+    }
+    add(product, variant, serialNumber)
+  }
+
+  const addMenu = (menu: ApiProduct, parts: CartMenuPart[]) => {
+    const price = Number(menu.price)
+    addProduct({ ...cartProduct(menu, priceMenu(price, parts).total), mealVoucher: parts.every((p) => p.mealVoucher) }, { menu: { price, parts } })
+    setComposing(null)
+  }
+
+  // Pesée : poids saisi, ou étiquette de balance (prix ou poids imprimé)
+  const addWeighed = (product: ApiProduct, weight?: number, label?: ScaleBarcode) => {
+    const perKg = Number(product.price)
+    const kg = label?.weight ?? weight
+    const price = label?.price ?? priceForWeight(kg ?? 0, perKg)
+    addProduct(cartProduct(product, price), {
+      ...(kg !== undefined ? { weight: kg } : {}),
+      pricePerKg: perKg,
+      ...(label ? { label: label.barcode } : {}),
+    })
+    setWeighing(null)
+  }
+
+  // Produit simple : ajouté d'un geste. Variantes, n° de série, options,
+  // formule ou pesée : on demande.
+  const pick = (product: ApiProduct, variant?: ApiVariant, label?: ScaleBarcode) => {
+    if (product.isMenu) return setComposing(product)
+    if (product.soldByWeight) return label ? addWeighed(product, undefined, label) : setWeighing(product)
+    if (variant && product.tracking !== 'SERIAL') return chosen(product, variant)
     if (product.variants.length || product.tracking === 'SERIAL') return setPicking(product)
-    add(product)
+    chosen(product)
   }
 
   const pay = async (payments: PayLine[], email?: string, clientId?: string, options: PayOptions = {}) => {
     setBusy(true)
     setPayError(null)
     const sold = [...lines]
+    const items = saleItems(sold)
     const labels = new Map(methods.map((m) => [m.code, m.label]))
     const cashCodes = new Set(methods.filter((m) => m.kind === 'CASH').map((m) => m.code))
     const cardCodes = new Set(methods.filter((m) => m.kind === 'CARD').map((m) => m.code))
@@ -210,14 +249,14 @@ export function POSClient({ siteId }: POSClientProps) {
     if (training) {
       try {
         const pricing = priceOrder(
-          sold.map((l) => ({ unitPrice: l.product.price, quantity: l.quantity, discount: l.discount, taxRate: l.product.taxRate })),
+          items.map((i) => ({ unitPrice: i.unitPrice, quantity: i.quantity, discount: i.discount, taxRate: i.taxRate })),
           { priceIncludesTax, orderDiscount },
         )
         const t = await fiscalApi.trainingTicket(siteId, {
           total: pricing.total,
           terminalId,
           content: {
-            lines: sold.map((l) => ({ name: l.customName ?? l.product.name, variant: l.variantName ?? null, quantity: l.quantity, price: l.product.price, taxRate: l.product.taxRate })),
+            lines: items.map((i) => ({ name: i.menuName ? `${i.menuName} : ${i.name}` : i.name, variant: i.variantName ?? null, quantity: i.quantity, price: i.unitPrice, taxRate: i.taxRate })),
             payments,
           },
         })
@@ -245,16 +284,7 @@ export function POSClient({ siteId }: POSClientProps) {
     }
     try {
       const sale = await recordSale(siteId, {
-        items: sold.map((l) => ({
-          productId: l.product.id,
-          ...(l.variantId ? { variantId: l.variantId } : {}),
-          quantity: l.quantity,
-          unitPrice: l.product.price,
-          taxRate: l.product.taxRate,
-          ...(l.discount > 0 ? { discount: l.discount } : {}),
-          ...(l.serialNumber ? { serialNumber: l.serialNumber } : {}),
-          ...(l.customName ? { customName: l.customName } : {}),
-        })),
+        items: items.map(signedItem),
         payments,
         orderDiscount: orderDiscount || undefined,
         customerEmail: email,
@@ -329,6 +359,7 @@ export function POSClient({ siteId }: POSClientProps) {
             isLoading={products.isLoading}
             isError={products.isError}
             onPick={pick}
+            scaleRules={config?.scaleBarcodes}
             onCustom={() => setCustomOpen(true)}
             onCreate={setCreateSeed}
           />
@@ -386,7 +417,14 @@ export function POSClient({ siteId }: POSClientProps) {
           </div>
         </Sheet>
 
-        <VariantPicker product={picking} onClose={() => setPicking(null)} onChoose={add} />
+        <VariantPicker product={picking} onClose={() => setPicking(null)} onChoose={chosen} />
+        <ModifierSheet
+          target={modifying}
+          onClose={() => setModifying(null)}
+          onAdd={(mods) => modifying && add(modifying.product, modifying.variant, modifying.serialNumber, mods)}
+        />
+        <MenuComposer menu={composing} products={products.data ?? []} onClose={() => setComposing(null)} onAdd={addMenu} />
+        <WeightSheet product={weighing} onClose={() => setWeighing(null)} onAdd={(kg) => weighing && addWeighed(weighing, kg)} />
 
         <CustomItemSheet
           open={customOpen}

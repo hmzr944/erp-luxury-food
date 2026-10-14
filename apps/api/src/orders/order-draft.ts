@@ -25,6 +25,7 @@ export interface DraftProduct {
   variants: Array<{ id: string; name: string; price: number }>
   // Options proposées par ses groupes d'options
   modifiers?: ModifierChoice[]
+  modifierGroups?: Array<{ name: string; minSelect: number; maxSelect: number | null; modifierIds: string[] }>
   // Formule : étapes et articles proposés
   isMenu?: boolean
   menuSteps?: Array<{
@@ -143,6 +144,14 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
       priceDifferences.push(`${product.name} : option ${id} inconnue du catalogue`)
       return { id, name: 'Option retirée du catalogue', price: 0 }
     })
+    // Choix obligatoires et maximums de chaque groupe (la vente signée a déjà eu lieu)
+    if (!signed) {
+      for (const g of product.modifierGroups ?? []) {
+        const n = modifiers.filter((m) => g.modifierIds.includes(m.id)).length
+        if (n < g.minSelect) throw new OrderDraftError(`${product.name} : choisissez ${g.name.toLowerCase()}`)
+        if (g.maxSelect !== null && n > g.maxSelect) throw new OrderDraftError(`${product.name} : ${g.maxSelect} choix au plus pour ${g.name.toLowerCase()}`)
+      }
+    }
 
     // Vente au poids : poids saisi ou lu sur l'étiquette de la balance
     let weight: number | null = null

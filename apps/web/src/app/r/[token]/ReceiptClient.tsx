@@ -135,10 +135,19 @@ function Ticket({ token, view }: { token: string; view: Extract<View, { status: 
                   {l.quantity} × {l.name}
                 </span>
                 <span className="tabular shrink-0">
-                  {euros(l.total)} {codes.get(l.taxRate)}
+                  {euros(l.total)} {l.parts ? '' : codes.get(l.taxRate)}
                 </span>
               </div>
               {l.detail && <p className="pl-4 text-[var(--color-text-secondary)]">{l.detail}</p>}
+              {/* Formule : chaque composant à son taux de TVA */}
+              {l.parts?.map((p, k) => (
+                <div key={k} className="flex justify-between gap-3 pl-4 text-[var(--color-text-secondary)]">
+                  <span>{p.name}</span>
+                  <span className="tabular shrink-0">
+                    {euros(p.total)} {codes.get(p.taxRate)}
+                  </span>
+                </div>
+              ))}
             </li>
           ))}
           {t.discount ? (

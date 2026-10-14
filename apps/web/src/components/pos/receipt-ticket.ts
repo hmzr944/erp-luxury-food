@@ -2,6 +2,8 @@ import type { ReceiptSettings } from '@/lib/api/platform'
 import { buildSaleTicket, SERVICE_NOTE_THRESHOLD, type TicketModel } from '@/lib/printing/ticket'
 import type { ReceiptView } from './PaymentSheet'
 import { receiptUrl } from '@/lib/receipts'
+import { ticketLinesFromItems } from '@erp/utils'
+import { saleItems, soldView } from '@/stores/cart.store'
 
 // Ticket imprimable d'une vente de la caisse (ou d'une vente de formation)
 export function ticketForSale(
@@ -18,17 +20,8 @@ export function ticketForSale(
     sellerName: ctx.sellerName,
     number: view.training ? `F-${view.training.number}` : String(sale.receipt.counter),
     signedAt: new Date(sale.receipt.signedAt),
-    lines: view.lines.map((l, i) => {
-      const ttc = priced[i]?.ttc ?? l.product.price * l.quantity - l.discount
-      return {
-        quantity: l.quantity,
-        name: l.customName ?? l.product.name,
-        detail: [l.variantName, l.serialNumber ? `N° de série ${l.serialNumber}` : null].filter(Boolean).join(', ') || undefined,
-        unit: Math.round((ttc / l.quantity) * 100) / 100,
-        total: ttc,
-        taxRate: l.product.taxRate,
-      }
-    }),
+    // Mêmes lignes que celles signées : une formule regroupe ses composants
+    lines: ticketLinesFromItems(saleItems(view.lines).map(soldView), priced.map((l) => l.ttc)),
     discount: sale.pricing.discount || undefined,
     total: sale.pricing.total,
     taxBreakdown: sale.pricing.taxBreakdown,

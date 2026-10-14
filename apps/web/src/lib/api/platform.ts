@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import type { Pack, PaymentKind, Sector, TrackingMode } from '@erp/types'
+import type { ScaleBarcodeRule } from '@erp/utils'
 import { apiClient } from './client'
 import { db } from '@/lib/offline/db'
 
@@ -44,6 +45,8 @@ export interface PlatformConfig {
   suggestedOptions: Array<{ name: string; values: string[] }>
   taxRates: Array<{ id: string; label: string; rate: string; isDefault: boolean }>
   paymentMethods: PaymentMethodConfig[]
+  // Étiquettes de balance (EAN-13 à prix ou poids intégré)
+  scaleBarcodes?: ScaleBarcodeRule[]
   attributeDefinitions: Array<{
     id: string
     key: string

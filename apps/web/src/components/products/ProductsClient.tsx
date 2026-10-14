@@ -75,7 +75,12 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
       taxRate: data.taxRate,
       mealVoucherEligible: data.mealVoucherEligible,
       categoryId: data.categoryId || undefined,
-      variants: data.variants?.filter((v) => v.name && v.price > 0),
+      variants: data.saleMode === 'UNIT' ? data.variants?.filter((v) => v.name && v.price > 0) : [],
+      isMenu: data.saleMode === 'MENU',
+      soldByWeight: data.saleMode === 'WEIGHT',
+      scaleCode: data.saleMode === 'WEIGHT' && data.scaleCode ? data.scaleCode : null,
+      modifierGroupIds: data.modifierGroupIds,
+      menuSteps: data.menuSteps.filter((st) => st.name.trim() && st.choices.length).map((st) => ({ ...st, name: st.name.trim() })),
     }
 
     if (drawerProduct === 'new') {
@@ -258,6 +263,8 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
       <AnimatePresence>
         {drawerProduct !== null && (
           <ProductDrawer
+            siteId={siteId}
+            products={products}
             product={drawerProduct === 'new' ? null : drawerProduct}
             isNew={drawerProduct === 'new'}
             categories={categories}

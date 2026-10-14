@@ -166,7 +166,18 @@ describe('vente avec formule, options et pesée', () => {
     expect(() => draft({ items: [{ productId: 'menu', quantity: 1 }] })).toThrow('formule')
   })
 
-  it('option inconnue refusée', () => {
+  it('choix obligatoire et maximum d’un groupe d’options', () => {
+    const steak: DraftProduct = {
+      ...burger, id: 'steak', name: 'Steak',
+      modifierGroups: [{ name: 'Cuisson', minSelect: 1, maxSelect: 1, modifierIds: ['saignant', 'cheddar'] }],
+    }
+    const run = (modifiers: string[]) => buildOrderDraft({ items: [{ productId: 'steak', quantity: 1, modifiers }], products: [steak], priceIncludesTax: true, paymentMethods: methods })
+    expect(() => run([])).toThrow('choisissez cuisson')
+    expect(() => run(['saignant', 'cheddar'])).toThrow('1 choix au plus')
+    expect(run(['saignant']).items[0].price).toBe(12)
+  })
+
+    it('option inconnue refusée', () => {
     expect(() => draft({ items: [{ productId: 'beer', quantity: 1, modifiers: ['cheddar'] }] })).toThrow('Option inconnue')
   })
 

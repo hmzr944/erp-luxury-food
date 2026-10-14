@@ -291,7 +291,7 @@ export class OrdersService {
         // Vente signée : une option désactivée depuis reste reconnue
         modifierGroups: {
           where: activeOnly ? { group: { isActive: true } } : {},
-          select: { group: { select: { modifiers: { where: activeOnly ? { isActive: true } : {}, select: { id: true, name: true, price: true } } } } },
+          select: { group: { select: { name: true, minSelect: true, maxSelect: true, modifiers: { where: activeOnly ? { isActive: true } : {}, select: { id: true, name: true, price: true } } } } },
         },
         menuSteps: {
           orderBy: { position: 'asc' },
@@ -312,6 +312,7 @@ export class OrdersService {
         taxRate: Number(p.taxRate),
         variants: p.variants.map((v) => ({ ...v, price: Number(v.price) })),
         modifiers: modifierGroups.flatMap((g) => g.group.modifiers.map((m) => ({ ...m, price: Number(m.price) }))),
+        modifierGroups: modifierGroups.map(({ group: g }) => ({ name: g.name, minSelect: g.minSelect, maxSelect: g.maxSelect, modifierIds: g.modifiers.map((m) => m.id) })),
         menuSteps: menuSteps.map((st) => ({ ...st, choices: st.choices.map((c) => ({ ...c, supplement: Number(c.supplement) })) })),
       })),
     }
