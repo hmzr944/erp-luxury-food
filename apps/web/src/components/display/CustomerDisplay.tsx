@@ -17,7 +17,7 @@ export function CustomerDisplay({ state, waiting }: { state: DisplayState | null
       <main className="relative flex h-[100dvh] cursor-none flex-col overflow-hidden bg-[var(--color-bg-base)] text-[var(--color-text-primary)] [overscroll-behavior:none]">
         <FullscreenButton />
         <header className="flex items-center justify-between gap-6 px-[clamp(1.25rem,4vw,3.5rem)] pt-[clamp(1rem,3vh,2.25rem)]">
-          <p className="truncate font-display text-[clamp(1.25rem,2.2vw,1.9rem)] font-semibold tracking-[-0.02em]">{state?.shop ?? ''}</p>
+          <h1 className="truncate font-display text-[clamp(1.25rem,2.2vw,1.9rem)] font-semibold tracking-[-0.02em]">{state?.shop || 'Écran client'}</h1>
           <FlowMark size={28} className="shrink-0 opacity-70" />
         </header>
         {state && 'training' in state && state.training && (
@@ -74,7 +74,8 @@ function Sale({ state }: { state: SaleState }) {
   const list = useRef<HTMLOListElement>(null)
   const last = lines?.lastKey
   useEffect(() => {
-    list.current?.querySelector(`[data-key="${CSS.escape(last ?? '')}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    list.current?.querySelector(`[data-key="${CSS.escape(last ?? '')}"]`)?.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' })
   }, [last, lines])
 
   return (
@@ -115,7 +116,7 @@ function Sale({ state }: { state: SaleState }) {
         )}
       </ol>
 
-      <aside className="flex flex-col justify-end rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)] p-[clamp(1.5rem,3vw,2.75rem)] text-[var(--color-text-inverse)]">
+      <div role="group" aria-label={state.kind === 'pay' ? 'Paiement' : 'Total'} className="flex flex-col justify-end rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)] p-[clamp(1.5rem,3vw,2.75rem)] text-[var(--color-text-inverse)]">
         {state.kind === 'pay' ? (
           <PayByQr state={state} />
         ) : (
@@ -136,7 +137,7 @@ function Sale({ state }: { state: SaleState }) {
             </p>
           </>
         )}
-      </aside>
+      </div>
     </motion.section>
   )
 }
