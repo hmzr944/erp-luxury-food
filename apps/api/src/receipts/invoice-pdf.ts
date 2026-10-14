@@ -29,9 +29,10 @@ const pct = (r: number) => `${String(r).replace('.', ',')} %`
 export function renderInvoicePdf(inv: InvoiceDoc): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `Facture ${inv.number}`, Author: inv.seller.name, Producer: inv.software, Creator: inv.software } })
-    doc.registerFont('r', join(FONTS, 'Geist-Regular.ttf'))
-    doc.registerFont('m', join(FONTS, 'Geist-Medium.ttf'))
-    doc.registerFont('b', join(FONTS, 'Geist-SemiBold.ttf'))
+    doc.registerFont('r', join(FONTS, 'FunnelSans-Regular.ttf'))
+    doc.registerFont('m', join(FONTS, 'FunnelSans-Medium.ttf'))
+    doc.registerFont('b', join(FONTS, 'FunnelSans-SemiBold.ttf'))
+    doc.registerFont('d', join(FONTS, 'FunnelDisplay-SemiBold.ttf'))
     const chunks: Buffer[] = []
     doc.on('data', (c: Buffer) => chunks.push(c))
     doc.on('end', () => resolve(Buffer.concat(chunks)))
@@ -45,11 +46,11 @@ export function renderInvoicePdf(inv: InvoiceDoc): Promise<Buffer> {
     doc.fillColor(ink)
 
     // En-tête : vendeur à gauche, facture à droite
-    doc.font('b').fontSize(16).text(inv.seller.name, left, 48, { width: width * 0.55 })
+    doc.font('d').fontSize(16).text(inv.seller.name, left, 48, { width: width * 0.55 })
     doc.font('r').fontSize(9).fillColor(muted)
     inv.seller.lines.forEach((l) => doc.text(l, { width: width * 0.55 }))
     const sellerBottom = doc.y
-    doc.fillColor(ink).font('b').fontSize(22).text('Facture', left + width * 0.6, 48, { width: width * 0.4, align: 'right' })
+    doc.fillColor(ink).font('d').fontSize(22).text('Facture', left + width * 0.6, 48, { width: width * 0.4, align: 'right' })
     doc.font('m').fontSize(10).text(`N° ${inv.number}`, { width: width * 0.4, align: 'right' })
     doc.font('r').fillColor(muted).text(`Date : ${inv.date.toLocaleDateString('fr-FR', { timeZone: inv.timeZone })}`, { width: width * 0.4, align: 'right' })
 

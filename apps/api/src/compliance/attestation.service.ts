@@ -145,9 +145,9 @@ export class AttestationService {
       doc.on('end', () => resolve(Buffer.concat(chunks)))
       doc.on('error', reject)
 
-      doc.registerFont('regular', join(FONTS, 'Geist-Regular.ttf'))
-      doc.registerFont('medium', join(FONTS, 'Geist-Medium.ttf'))
-      doc.registerFont('semibold', join(FONTS, 'Geist-SemiBold.ttf'))
+      doc.registerFont('regular', join(FONTS, 'FunnelSans-Regular.ttf'))
+      doc.registerFont('medium', join(FONTS, 'FunnelSans-Medium.ttf'))
+      doc.registerFont('semibold', join(FONTS, 'FunnelSans-SemiBold.ttf'))
       const width = doc.page.width - 128
 
       // Le nom FLŌW dessiné, comme dans l'application

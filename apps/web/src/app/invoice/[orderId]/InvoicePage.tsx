@@ -77,7 +77,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
         <div
           id="invoice"
           className="bg-white mx-auto max-w-2xl shadow-lg print:shadow-none print:max-w-none p-10 print:p-8"
-          style={{ fontFamily: 'system-ui, sans-serif', color: '#14141A' }}
+          style={{ fontFamily: 'var(--font-body)', color: '#14141A' }}
         >
           {/* En-tête */}
           <div className="flex justify-between items-start mb-10">
@@ -106,7 +106,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
                 </p>
               )}
               {order.receiptChain && (
-                <p style={{ fontSize: '10px', color: '#727276', marginTop: '4px', fontFamily: 'monospace' }}>
+                <p style={{ fontSize: '10px', color: '#727276', marginTop: '4px', fontFamily: 'var(--font-data)' }}>
                   Ticket n° {order.receiptChain.counter}
                 </p>
               )}
@@ -167,13 +167,13 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
                     <td style={{ padding: '10px 0', fontSize: '13px', textAlign: 'center' }}>
                       {item.quantity}
                     </td>
-                    <td style={{ padding: '10px 0', fontSize: '13px', textAlign: 'right', fontFamily: 'monospace' }}>
+                    <td style={{ padding: '10px 0', fontSize: '13px', textAlign: 'right', fontFamily: 'var(--font-data)' }}>
                       {formatPrice(ht / item.quantity)}
                     </td>
                     <td style={{ padding: '10px 0', fontSize: '12px', textAlign: 'right', color: '#727276' }}>
                       {Number(item.taxRate)}%
                     </td>
-                    <td style={{ padding: '10px 0', fontSize: '13px', textAlign: 'right', fontFamily: 'monospace', fontWeight: '500' }}>
+                    <td style={{ padding: '10px 0', fontSize: '13px', textAlign: 'right', fontFamily: 'var(--font-data)', fontWeight: '500' }}>
                       {formatPrice(ttc)}
                     </td>
                   </tr>
@@ -187,15 +187,15 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
             <div style={{ width: '220px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '13px', color: '#4A4A4F' }}>
                 <span>Sous-total HT</span>
-                <span style={{ fontFamily: 'monospace' }}>{formatPrice(subtotal)}</span>
+                <span style={{ fontFamily: 'var(--font-data)' }}>{formatPrice(subtotal)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '13px', color: '#4A4A4F', borderBottom: '1px solid #E3E3E4' }}>
                 <span>TVA</span>
-                <span style={{ fontFamily: 'monospace' }}>{formatPrice(taxTotal)}</span>
+                <span style={{ fontFamily: 'var(--font-data)' }}>{formatPrice(taxTotal)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: '16px', fontWeight: '700' }}>
                 <span>Total TTC</span>
-                <span style={{ fontFamily: 'monospace' }}>{formatPrice(total)}</span>
+                <span style={{ fontFamily: 'var(--font-data)' }}>{formatPrice(total)}</span>
               </div>
               {order.paymentTerms !== undefined && (
                 <div style={{ padding: '8px', background: '#F4F2ED', borderRadius: '6px', fontSize: '11px', color: '#4A4A4F', marginTop: '8px' }}>
@@ -211,7 +211,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
             <div style={{ fontSize: '10px', color: '#727276' }}>
               <p>Facture émise depuis le logiciel de caisse de {order.site?.organization?.name ?? 'la boutique'}</p>
               {order.receiptChain && (
-                <p style={{ fontFamily: 'monospace', marginTop: '2px' }}>
+                <p style={{ fontFamily: 'var(--font-data)', marginTop: '2px' }}>
                   Ticket n° {order.receiptChain ? order.receiptChain.counter : '-'}
                 </p>
               )}
