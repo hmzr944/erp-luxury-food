@@ -200,7 +200,7 @@ export function ProductDrawer({
                 id="pd-description" {...register('description')}
                 rows={2}
                 className={inputCls + ' h-auto py-2 resize-none'}
-                placeholder="Description courte du produit..."
+                placeholder="Description courte du produit…"
               />
             </div>
           </div>
@@ -253,7 +253,7 @@ export function ProductDrawer({
           {saleMode === 'WEIGHT' && (
             <div className="space-y-1.5">
               <label htmlFor="pd-scaleCode" className="font-body text-xs text-[var(--color-text-secondary)]">Code article de la balance</label>
-              <input id="pd-scaleCode" inputMode="numeric" aria-invalid={!!errors.scaleCode} {...register('scaleCode')} className={inputCls} placeholder="123" />
+              <input id="pd-scaleCode" inputMode="numeric" aria-invalid={!!errors.scaleCode} {...register('scaleCode')} autoComplete="off" spellCheck={false} className={inputCls} placeholder="123…" />
               {errors.scaleCode && <FieldError id="pd-scaleCode-err">{errors.scaleCode.message}</FieldError>}
               <p className="font-body text-xs text-[var(--color-text-muted)]">
                 Le code programmé sur la balance étiqueteuse : la caisse reconnaît alors ses étiquettes. Sans balance, la caisse demande le poids.
@@ -365,7 +365,7 @@ export function ProductDrawer({
             whileTap={{ scale: 0.98 }}
             className="flex-1 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] transition-colors"
           >
-            {isSaving ? 'Enregistrement...' : isNew ? 'Créer' : 'Enregistrer'}
+            {isSaving ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}
           </motion.button>
         </div>
       </motion.div>
@@ -395,7 +395,7 @@ function MenuSteps({ steps, onChange, products }: { steps: MenuStepForm[]; onCha
           <div className="grid grid-cols-[1fr_64px_64px_28px] items-end gap-2">
             <label className="space-y-1">
               <span className="block font-body text-xs text-[var(--color-text-secondary)]">Étape</span>
-              <input value={st.name} onChange={(e) => set(i, { name: e.target.value })} className={inputCls} placeholder={['Plat', 'Boisson', 'Dessert'][i] ?? 'Étape'} />
+              <input value={st.name} onChange={(e) => set(i, { name: e.target.value })} className={inputCls} autoComplete="off" placeholder={`${['Plat', 'Boisson', 'Dessert'][i] ?? 'Étape'}…`} />
             </label>
             <label className="space-y-1">
               <span className="block font-body text-xs text-[var(--color-text-secondary)]">Min.</span>
@@ -415,6 +415,7 @@ function MenuSteps({ steps, onChange, products }: { steps: MenuStepForm[]; onCha
                 <span className="truncate font-body text-sm">{byId.get(c.productId)?.name ?? 'Article retiré du catalogue'}</span>
                 <input
                   type="number"
+                  inputMode="decimal"
                   step="0.01"
                   min={0}
                   aria-label={`Supplément pour ${byId.get(c.productId)?.name ?? 'cet article'}`}

@@ -96,6 +96,8 @@ function Groups({ siteId }: { siteId: string }) {
 function GroupEditor({ siteId, initial, products, onDone }: { siteId: string; initial: Draft; products?: number; onDone?: () => void }) {
   const qc = useQueryClient()
   const [d, setD] = useState<Draft>(initial)
+  // Suppression en deux gestes : un groupe retiré disparaît de tous ses produits
+  const [confirming, setConfirming] = useState(false)
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['modifier-groups', siteId] })
     void qc.invalidateQueries({ queryKey: ['products', siteId] })
@@ -140,7 +142,7 @@ function GroupEditor({ siteId, initial, products, onDone }: { siteId: string; in
       <div className="grid gap-3 sm:grid-cols-[1fr_120px_120px]">
         <label className="space-y-1.5">
           <span className="block text-sm font-medium">Nom du groupe</span>
-          <input value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="Cuisson" className={field} />
+          <input value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="Cuisson…" autoComplete="off" className={field} />
         </label>
         <label className="space-y-1.5">
           <span className="block text-sm font-medium">Minimum</span>
@@ -169,10 +171,11 @@ function GroupEditor({ siteId, initial, products, onDone }: { siteId: string; in
         </div>
         {d.modifiers.map((m, i) => (
           <div key={m.id ?? `n${i}`} className="grid grid-cols-[1fr_110px_44px] items-center gap-2">
-            <input aria-label={`Option ${i + 1}`} value={m.name} onChange={(e) => setMod(i, { name: e.target.value })} placeholder={i === 0 ? 'Saignante' : 'Option'} className={field} />
+            <input aria-label={`Option ${i + 1}`} value={m.name} onChange={(e) => setMod(i, { name: e.target.value })} placeholder={i === 0 ? 'Saignante…' : 'Option…'} autoComplete="off" className={field} />
             <input
               aria-label={`Supplément de l'option ${i + 1}`}
               type="number"
+              inputMode="decimal"
               step="0.01"
               min={0}
               value={m.price}
@@ -202,8 +205,14 @@ function GroupEditor({ siteId, initial, products, onDone }: { siteId: string; in
         </span>
         <div className="flex gap-2">
           {d.id ? (
-            <button type="button" disabled={remove.isPending} onClick={() => remove.mutate()} className="h-11 rounded-[var(--radius-md)] px-4 text-[15px] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]">
-              Supprimer
+            <button
+              type="button"
+              disabled={remove.isPending}
+              onClick={() => (confirming ? remove.mutate() : setConfirming(true))}
+              onBlur={() => setConfirming(false)}
+              className={`h-11 rounded-[var(--radius-md)] px-4 text-[15px] hover:bg-[var(--color-bg-hover)] ${confirming ? 'font-semibold text-[var(--color-danger)]' : 'text-[var(--color-text-secondary)]'}`}
+            >
+              {remove.isPending ? 'Suppression…' : confirming ? `Confirmer : retirer de ${products ?? 0} produit${(products ?? 0) > 1 ? 's' : ''}` : 'Supprimer'}
             </button>
           ) : (
             <button type="button" onClick={onDone} className="h-11 rounded-[var(--radius-md)] px-4 text-[15px] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]">

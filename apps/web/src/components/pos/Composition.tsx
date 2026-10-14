@@ -243,7 +243,7 @@ function MenuBody({ menu, products, onAdd }: { menu: ApiProduct; products: ApiPr
                 )
               })}
             </ul>
-            {/* Options des articles choisis à cette étape (cuisson, sauce...) */}
+            {/* Options des articles choisis à cette étape (cuisson, sauce…) */}
             {selected
               .filter((s) => s.step.id === st.id && groupsOf(s.option.product).length)
               .map((s) => (
