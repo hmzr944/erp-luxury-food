@@ -33,6 +33,7 @@ import { RoutinesModule } from './routines/routines.module'
 import { TerminalsModule } from './terminals/terminals.module'
 import { DataModule } from './data/data.module'
 import { PaymentsModule } from './payments/payments.module'
+import { DisplaysModule } from './displays/displays.module'
 import { HealthController } from './health/health.controller'
 
 @Module({
@@ -56,6 +57,7 @@ import { HealthController } from './health/health.controller'
     }),
 
     PrismaModule,
+    DisplaysModule,
     MailModule,
     ReceiptsModule,
     CompaniesModule,

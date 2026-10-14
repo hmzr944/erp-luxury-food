@@ -615,7 +615,7 @@ export function POSClient({ siteId }: POSClientProps) {
           onClose={() => setReturning(false)}
         />
 
-        <DisplaySheet siteId={siteId} open={displayOpen} onClose={() => setDisplayOpen(false)} />
+        <DisplaySheet siteId={siteId} terminalId={terminalId} open={displayOpen} onClose={() => setDisplayOpen(false)} />
 
         <Sheet open={printerOpen} title="Imprimante, tiroir et TPE" onClose={() => setPrinterOpen(false)} width="lg">
           <div className="pb-2">

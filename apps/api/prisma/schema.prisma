@@ -92,27 +92,27 @@ model InvoiceSequence {
 }
 
 model Site {
-  id              String          @id @default(cuid())
+  id              String            @id @default(cuid())
   organizationId  String
-  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name            String
   address         String?
-  timezone        String          @default("Europe/Paris")
+  timezone        String            @default("Europe/Paris")
   // Approvisionnement interne : un labo, une cuisine centrale ou un dépôt
   // fournit les autres sites de l'organisation
-  isSupplier      Boolean         @default(false)
+  isSupplier      Boolean           @default(false)
   // Heure limite (heure locale « HH:MM ») pour une livraison dans leadDays jours
-  orderCutoff     String          @default("18:00")
-  leadDays        Int             @default(1)
+  orderCutoff     String            @default("18:00")
+  leadDays        Int               @default(1)
   // Caisse : fond laissé dans le tiroir et écart toléré sans justification
-  cashFloat       Decimal         @default(150) @db.Decimal(10, 2)
-  cashTolerance   Decimal         @default(2) @db.Decimal(10, 2)
+  cashFloat       Decimal           @default(150) @db.Decimal(10, 2)
+  cashTolerance   Decimal           @default(2) @db.Decimal(10, 2)
   // Réglage automatique (par défaut) : fond et tolérance calculés sur les
   // ventes en espèces ; cashFloat et cashTolerance servent si on le coupe
-  cashAuto        Boolean         @default(true)
+  cashAuto        Boolean           @default(true)
   routine         SiteRoutine?
-  supplyOrdersOut SupplyOrder[]   @relation("SupplyFrom")
-  supplyOrdersIn  SupplyOrder[]   @relation("SupplyTo")
+  supplyOrdersOut SupplyOrder[]     @relation("SupplyFrom")
+  supplyOrdersIn  SupplyOrder[]     @relation("SupplyTo")
   users           UserSite[]
   receiptChains   ReceiptChain[]
   terminals       Terminal[]
@@ -120,9 +120,10 @@ model Site {
   categories      Category[]
   products        Product[]
   modifierGroups  ModifierGroup[]
+  displays        CustomerDisplay[]
   orders          Order[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   cashSessions    CashSession[]
   fiscalClosures  FiscalClosure[]
 
@@ -1231,4 +1232,22 @@ model RoutineAlert {
   recipients String[]
 
   @@unique([siteId, day, kind])
+}
+
+// Écran client sur une tablette séparée, appairé à une caisse par un code
+model CustomerDisplay {
+  id            String    @id @default(cuid())
+  // Empreinte du jeton gardé par la tablette (le jeton n'est jamais stocké)
+  tokenHash     String    @unique
+  // Code à 6 chiffres affiché par la tablette tant qu'elle n'est pas appairée
+  pairCode      String?   @unique
+  pairExpiresAt DateTime?
+  siteId        String?
+  site          Site?     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  terminalId    String?
+  pairedAt      DateTime?
+  lastSeenAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([siteId])
 }
