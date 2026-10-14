@@ -248,6 +248,8 @@ model Product {
   attributes          Json                   @default("{}") // valeurs des AttributeDefinition, par clé
   tracking            TrackingMode           @default(NONE)
   // Produit technique « Article libre » du site : nom et prix saisis en caisse
+  // Article du catalogue d'exemple chargé à l'inscription (retirable d'un geste)
+  isSample            Boolean                @default(false)
   isCustom            Boolean                @default(false)
   // Produit d'un labo ou d'un dépôt proposé aux boutiques, à son prix de cession
   orderable           Boolean                @default(false)

@@ -18,8 +18,10 @@ export interface RegisterInput {
   sector: string
   businessName: string
   siteName?: string
-  firstName: string
-  lastName: string
+  // Métier choisi : catalogue d'exemple et réglages fins
+  metier?: string
+  firstName?: string
+  lastName?: string
   email: string
   password: string
 }

@@ -1,5 +1,5 @@
-import { IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
-import { Sector } from '@erp/types'
+import { IsEmail, IsEnum, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
+import { METIERS, Sector } from '@erp/types'
 
 export class RegisterDto {
   @IsEnum(Sector)
@@ -16,15 +16,21 @@ export class RegisterDto {
   @MaxLength(80)
   siteName?: string
 
+  // Facultatifs : l'inscription ne demande que l'e-mail, le mot de passe et le nom de la boutique
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(60)
-  firstName!: string
+  firstName?: string
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(60)
-  lastName!: string
+  lastName?: string
+
+  // Métier choisi (boulangerie, mode...) : catalogue d'exemple et réglages fins
+  @IsOptional()
+  @IsIn(METIERS.map((m) => m.key))
+  metier?: string
 
   @IsEmail()
   email!: string

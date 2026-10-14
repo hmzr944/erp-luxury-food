@@ -5,6 +5,10 @@ import {
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
 import { ProductsService } from './products.service'
+import { StarterService } from './starter.service'
+import { RolesGuard } from '../common/guards/roles.guard'
+import { Roles } from '../common/decorators/roles.decorator'
+import { Role } from '@erp/types'
 import {
   CategoryDto,
   CreateProductDto,
@@ -30,7 +34,10 @@ class PreviewVariantsDto {
 @Controller('sites/:siteId')
 @UseGuards(JwtAuthGuard, SiteGuard)
 export class ProductsController {
-  constructor(private products: ProductsService) {}
+  constructor(
+    private products: ProductsService,
+    private starter: StarterService,
+  ) {}
 
   // ── Produits ────────────────────────────────────────────────
 
@@ -50,6 +57,20 @@ export class ProductsController {
   @Get('products/custom')
   customProduct(@Param('siteId') siteId: string) {
     return this.products.customProduct(siteId)
+  }
+
+  // Catalogue d'exemple de l'inscription : combien il en reste, et les retirer
+  @Get('products/samples')
+  samples(@Param('siteId') siteId: string) {
+    return this.starter.count(siteId).then((count) => ({ count }))
+  }
+
+  @Delete('products/samples')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER)
+  removeSamples(@Param('siteId') siteId: string) {
+    return this.starter.remove(siteId)
   }
 
   @Get('products/lookup/:code')

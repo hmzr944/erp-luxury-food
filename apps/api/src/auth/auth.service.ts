@@ -1,4 +1,5 @@
-import { TRIAL_DAYS } from '@erp/types'
+import { TRIAL_DAYS, metierByKey } from '@erp/types'
+import { StarterService } from '../products/starter.service'
 import {
   BadRequestException,
   Injectable,
@@ -27,6 +28,7 @@ export class AuthService {
     private config: ConfigService,
     private platform: PlatformService,
     private audit: AuditService,
+    private starter: StarterService,
   ) {}
 
   // Inscription d'un commerce : organisation, première boutique et compte
@@ -52,15 +54,24 @@ export class AuthService {
           organizationId: org.id,
           email,
           passwordHash,
-          firstName: dto.firstName.trim(),
-          lastName: dto.lastName.trim(),
+          firstName: dto.firstName?.trim() ?? '',
+          lastName: dto.lastName?.trim() ?? '',
           role: 'OWNER',
         },
         select: { id: true, email: true, firstName: true, lastName: true, role: true, organizationId: true },
       })
       return { org, site, user }
     })
-    await this.platform.applySector(org.id, dto.sector)
+    const metier = metierByKey(dto.metier)
+    await this.platform.applySector(org.id, metier?.sector ?? dto.sector)
+    // Restauration : 10 % par défaut plutôt que le 5,5 % de l'alimentaire
+    if (metier?.defaultTaxRate) {
+      await this.prisma.$transaction([
+        this.prisma.taxRate.updateMany({ where: { organizationId: org.id }, data: { isDefault: false } }),
+        this.prisma.taxRate.updateMany({ where: { organizationId: org.id, rate: metier.defaultTaxRate }, data: { isDefault: true } }),
+      ])
+    }
+    if (metier) await this.starter.load(site.id, metier.key)
 
     return { ...this.issue(user), user, siteId: site.id }
   }

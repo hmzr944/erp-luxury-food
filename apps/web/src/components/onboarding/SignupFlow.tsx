@@ -5,63 +5,83 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import {
-  Armchair, CaretLeft, Cookie, Diamond, Drop, Eye, EyeSlash, Scissors, Storefront, TShirt, Wine,
+  Armchair, Bread, CaretLeft, Diamond, Eye, EyeSlash, Hamburger, Jar, Scissors, Storefront, TShirt, Wine, Wrench,
 } from '@phosphor-icons/react'
-import { SECTOR_PRESETS, Sector } from '@erp/types'
+import { METIERS, Sector, type Metier } from '@erp/types'
 import { useAuthStore } from '@/stores/auth.store'
 import { EASE_OUT } from '@/lib/motion'
-import { FlowLogo } from '@/components/brand/FlowLogo'
+import { FlowLogo, FlowPulse } from '@/components/brand/FlowLogo'
 
-const SECTOR_ICON: Record<Sector, React.ElementType> = {
-  [Sector.FOOD]: Cookie,
-  [Sector.FASHION]: TShirt,
-  [Sector.BEAUTY]: Drop,
-  [Sector.JEWELRY]: Diamond,
-  [Sector.WINE]: Wine,
-  [Sector.HOME]: Armchair,
-  [Sector.SERVICES]: Scissors,
-  [Sector.GENERAL]: Storefront,
+const ICON: Record<string, React.ElementType> = {
+  boulangerie: Bread,
+  restauration: Hamburger,
+  epicerie: Jar,
+  mode: TShirt,
+  beaute: Scissors,
+  detail: Storefront,
+  bijouterie: Diamond,
+  maison: Armchair,
+  cave: Wine,
+  services: Wrench,
 }
-
-const ORDER = [Sector.FOOD, Sector.FASHION, Sector.BEAUTY, Sector.JEWELRY, Sector.WINE, Sector.HOME, Sector.SERVICES, Sector.GENERAL]
 
 const fieldCls =
   'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]'
 
-// Inscription en trois écrans, une seule question par écran
+// Inscription en deux écrans : le compte (trois champs, sans carte
+// bancaire), puis le métier en un geste. La caisse s'ouvre aussitôt, réglée
+// pour le métier et garnie d'un catalogue d'exemple.
 export function SignupFlow() {
   const router = useRouter()
   const { register, isLoading } = useAuthStore()
   const [step, setStep] = useState(0)
-  const [sector, setSector] = useState<Sector | null>(null)
-  const [business, setBusiness] = useState({ businessName: '', siteName: '' })
-  const [account, setAccount] = useState({ firstName: '', lastName: '', email: '', password: '' })
+  const [account, setAccount] = useState({ businessName: '', email: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
+  const [others, setOthers] = useState(false)
+  const [chosen, setChosen] = useState<Metier | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const submit = async () => {
-    if (!sector) return
+  const submit = async (metier: Metier | null) => {
+    setChosen(metier)
     setError(null)
     try {
       const { siteId } = await register({
-        sector,
-        businessName: business.businessName.trim(),
-        siteName: business.siteName.trim() || undefined,
-        ...account,
+        sector: metier?.sector ?? Sector.GENERAL,
+        ...(metier ? { metier: metier.key } : {}),
+        businessName: account.businessName.trim(),
         email: account.email.trim(),
+        password: account.password,
       })
-      router.push(`/onboarding?site=${siteId}`)
+      // Directement en caisse, en mode découverte : ventes d'essai fictives
+      router.push(`/pos/${siteId}?decouverte=1`)
     } catch (e) {
+      setChosen(null)
       setError((e as Error).message)
     }
   }
 
-  const titles = ['Quel est votre commerce\u00a0?', 'Le nom de votre commerce', 'Votre compte']
+  const main = METIERS.filter((m) => !m.secondary)
+  const secondary = METIERS.filter((m) => m.secondary)
+  const titles = ['Essayez FLŌW gratuitement', 'Quel est votre commerce ?']
+
+  if (isLoading || chosen) {
+    return (
+      <main className="grid min-h-[100dvh] place-items-center bg-[var(--color-bg-base)] px-4 text-[var(--color-text-primary)]">
+        <div className="max-w-sm space-y-4 text-center" role="status" aria-live="polite">
+          <FlowPulse size={44} className="mx-auto" />
+          <p className="font-display text-2xl font-bold tracking-[-0.03em]">Votre caisse se prépare</p>
+          <p className="text-[15px] text-[var(--color-text-secondary)]">
+            {chosen ? `${chosen.label} : TVA, moyens de paiement et catalogue d’exemple.` : 'TVA et moyens de paiement.'}
+          </p>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <MotionConfig reducedMotion="user">
       <main className="flex min-h-[100dvh] justify-center bg-[var(--color-bg-base)] px-4 py-10 text-[var(--color-text-primary)] md:items-center">
-        <div className="w-full max-w-xl space-y-6">
+        <div className="w-full max-w-2xl space-y-6">
           <Link href="/" aria-label="FLŌW, accueil" className="inline-flex">
             <FlowLogo size={18} />
           </Link>
@@ -69,16 +89,29 @@ export function SignupFlow() {
             {step > 0 && (
               <button
                 type="button"
-                onClick={() => setStep(step - 1)}
+                onClick={() => setStep(0)}
                 aria-label="Étape précédente"
                 className="-ml-3 grid size-11 place-items-center rounded-[var(--radius-pill)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]"
               >
                 <CaretLeft size={20} />
               </button>
             )}
-            <p className="text-sm text-[var(--color-text-secondary)]">Étape {step + 1} sur 3</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">Étape {step + 1} sur 2</p>
           </div>
-          <h1 className="font-display text-4xl font-bold tracking-[-0.035em]">{titles[step]}</h1>
+          <div className="space-y-2">
+            <h1 className="font-display text-4xl font-bold tracking-[-0.035em]">{titles[step]}</h1>
+            <p className="text-[15px] text-[var(--color-text-secondary)]">
+              {step === 0
+                ? '30 jours d’essai, sans carte bancaire. Votre caisse est prête en moins de trois minutes.'
+                : 'Un geste : la TVA, les moyens de paiement et un catalogue d’exemple se règlent pour votre métier.'}
+            </p>
+          </div>
+
+          {error && (
+            <p role="alert" className="alert-box">
+              {error}
+            </p>
+          )}
 
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -89,98 +122,33 @@ export function SignupFlow() {
               transition={{ duration: 0.18, ease: EASE_OUT }}
             >
               {step === 0 && (
-                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {ORDER.map((s) => {
-                    const Icon = SECTOR_ICON[s]
-                    const preset = SECTOR_PRESETS[s]
-                    return (
-                      <li key={s}>
-                        <button
-                          type="button"
-                          aria-pressed={sector === s}
-                          onClick={() => {
-                            setSector(s)
-                            setStep(1)
-                          }}
-                          className={[
-                            'flex h-full min-h-32 w-full flex-col items-start justify-start gap-4 rounded-[var(--radius-lg)] border p-4 text-left press',
-                            sector === s ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)]' : 'border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] hover:border-[var(--color-accent)]',
-                          ].join(' ')}
-                        >
-                          <Icon size={28} aria-hidden className="text-[var(--color-accent)]" />
-                          <span>
-                            <span className="block text-[15px] font-semibold">{preset.label}</span>
-                            <span className="block text-sm text-[var(--color-text-secondary)]">{preset.description}</span>
-                          </span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-
-              {step === 1 && (
                 <form
                   className="space-y-4"
                   onSubmit={(e) => {
                     e.preventDefault()
-                    if (business.businessName.trim().length >= 2) setStep(2)
+                    if (account.businessName.trim().length >= 2) setStep(1)
                   }}
                 >
                   <div className="space-y-2">
                     <label htmlFor="business" className="block text-sm font-medium">
-                      Nom du commerce
+                      Nom de la boutique
                     </label>
                     <input
                       id="business"
                       autoFocus
                       required
                       minLength={2}
-                      value={business.businessName}
-                      onChange={(e) => setBusiness({ ...business, businessName: e.target.value })}
+                      autoComplete="organization"
+                      value={account.businessName}
+                      onChange={(e) => setAccount({ ...account, businessName: e.target.value })}
                       className={fieldCls}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <label htmlFor="site" className="block text-sm font-medium">
-                      Nom de la boutique (facultatif)
-                    </label>
-                    <input id="site" value={business.siteName} onChange={(e) => setBusiness({ ...business, siteName: e.target.value })} className={fieldCls} />
-                    <p className="text-sm text-[var(--color-text-secondary)]">Si vous en avez plusieurs, par exemple « Boutique Opéra ». Les autres s&apos;ajoutent plus tard.</p>
-                  </div>
-                  <button type="submit" className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)]">
-                    Continuer
-                  </button>
-                </form>
-              )}
-
-              {step === 2 && (
-                <form
-                  className="space-y-4"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    void submit()
-                  }}
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <label htmlFor="first" className="block text-sm font-medium">
-                        Prénom
-                      </label>
-                      <input id="first" autoFocus required autoComplete="given-name" value={account.firstName} onChange={(e) => setAccount({ ...account, firstName: e.target.value })} className={fieldCls} />
-                    </div>
-                    <div className="space-y-2">
-                      <label htmlFor="last" className="block text-sm font-medium">
-                        Nom
-                      </label>
-                      <input id="last" required autoComplete="family-name" value={account.lastName} onChange={(e) => setAccount({ ...account, lastName: e.target.value })} className={fieldCls} />
-                    </div>
                   </div>
                   <div className="space-y-2">
                     <label htmlFor="email" className="block text-sm font-medium">
                       E-mail
                     </label>
-                    <input id="email" type="email" required autoComplete="email" value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} className={fieldCls} />
+                    <input id="email" type="email" required autoComplete="email" spellCheck={false} value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} className={fieldCls} />
                   </div>
                   <div className="space-y-2">
                     <label htmlFor="password" className="block text-sm font-medium">
@@ -211,19 +179,42 @@ export function SignupFlow() {
                       10 caractères minimum.
                     </p>
                   </div>
-                  {error && (
-                    <p role="alert" className="alert-box">
-                      {error}
-                    </p>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
-                  >
-                    {isLoading ? 'Création...' : 'Créer mon espace'}
+                  <button type="submit" className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] press">
+                    Continuer
                   </button>
+                  <p className="text-center text-sm text-[var(--color-text-secondary)]">Aucune carte bancaire demandée. Rien n’est prélevé pendant l’essai.</p>
                 </form>
+              )}
+
+              {step === 1 && (
+                <div className="space-y-4">
+                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {main.map((m) => (
+                      <MetierTile key={m.key} metier={m} onPick={() => void submit(m)} />
+                    ))}
+                  </ul>
+                  {others ? (
+                    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {secondary.map((m) => (
+                        <MetierTile key={m.key} metier={m} onPick={() => void submit(m)} />
+                      ))}
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => void submit(null)}
+                          className="flex h-full min-h-36 w-full flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] p-4 text-left hover:border-[var(--color-accent)] press"
+                        >
+                          <span className="text-[15px] font-semibold">Autre</span>
+                          <span className="text-sm text-[var(--color-text-secondary)]">Caisse vide, réglages généraux</span>
+                        </button>
+                      </li>
+                    </ul>
+                  ) : (
+                    <button type="button" onClick={() => setOthers(true)} className="h-11 text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
+                      Autre activité
+                    </button>
+                  )}
+                </div>
               )}
             </motion.div>
           </AnimatePresence>
@@ -237,5 +228,26 @@ export function SignupFlow() {
         </div>
       </main>
     </MotionConfig>
+  )
+}
+
+function MetierTile({ metier, onPick }: { metier: Metier; onPick: () => void }) {
+  const Icon = ICON[metier.key] ?? Storefront
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onPick}
+        className="flex h-full min-h-36 w-full flex-col items-start gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] p-4 text-left hover:border-[var(--color-accent)] press"
+      >
+        <span className="grid size-12 place-items-center rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] text-[var(--color-accent)]">
+          <Icon size={28} aria-hidden />
+        </span>
+        <span>
+          <span className="block text-[15px] font-semibold leading-snug">{metier.label}</span>
+          <span className="mt-1 block text-sm text-[var(--color-text-secondary)]">{metier.hint}</span>
+        </span>
+      </button>
+    </li>
   )
 }
