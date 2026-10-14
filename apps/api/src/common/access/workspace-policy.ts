@@ -29,10 +29,12 @@ const SELLER_DENY: Rule[] = [
   { path: /^\/invoices/ },
   { path: /^\/b2b/ },
   { path: new RegExp(`^${SITE}/b2b`) },
-  { path: new RegExp(`^${SITE}/compliance/export`) },
+  // Conformité : le vendeur imprime ses duplicatas et ses tickets de
+  // formation, mais ne voit ni les clôtures ni les archives (chiffres globaux)
+  { path: new RegExp(`^${SITE}/compliance/(export|closures|archives|events|summary|verify)`) },
   { path: new RegExp(`^${SITE}/cash/(sessions|settings)`) },
   { path: /^\/sites\/[^/]+\/printers/ },
-  { path: /^\/organizations\/me\/(settings|audit)/ },
+  { path: /^\/organizations\/me\/(settings|audit|attestation)/ },
   { path: /^\/billing\/(checkout|portal)/ },
   { path: /^\/api-tokens/ },
   { path: /^\/webhooks/ },

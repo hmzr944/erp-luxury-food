@@ -44,8 +44,8 @@ export class TerminalsController {
 
   @Delete(':id')
   @Roles(Role.OWNER, Role.MANAGER)
-  deactivate(@Param('siteId') siteId: string, @Param('id') id: string) {
-    return this.terminals.deactivate(siteId, id)
+  deactivate(@Param('siteId') siteId: string, @Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.terminals.deactivate(siteId, id, user.id)
   }
 
   @Get(':id/verify')

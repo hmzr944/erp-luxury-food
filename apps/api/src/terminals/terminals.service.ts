@@ -2,10 +2,14 @@ import { webcrypto } from 'node:crypto'
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { ECDSA_PARAMS, RECEIPT_GENESIS_HASH } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { FiscalEventsService } from '../compliance/fiscal-events.service'
 
 @Injectable()
 export class TerminalsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private events: FiscalEventsService,
+  ) {}
 
   async register(siteId: string, data: { name: string; publicKey: webcrypto.JsonWebKey }, userId?: string) {
     // Refuse tout ce qui n'est pas une clé publique ECDSA P-256 valide
@@ -19,10 +23,13 @@ export class TerminalsService {
       throw new BadRequestException('Clé publique illisible')
     }
     const publicKey = JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y })
-    return this.prisma.terminal.create({
+    const terminal = await this.prisma.terminal.create({
       data: { siteId, name: data.name, publicKey, createdBy: userId },
-      select: { id: true, name: true, siteId: true, createdAt: true },
+      select: { id: true, name: true, siteId: true, createdAt: true, site: { select: { organizationId: true } } },
     })
+    await this.events.log({ organizationId: terminal.site.organizationId, siteId, code: 'TERMINAL_REGISTERED', userId, terminalId: terminal.id, detail: { name: terminal.name } })
+    const { site: _site, ...out } = terminal
+    return out
   }
 
   findBySite(siteId: string) {
@@ -36,10 +43,12 @@ export class TerminalsService {
     })
   }
 
-  async deactivate(siteId: string, id: string) {
-    const t = await this.prisma.terminal.findFirst({ where: { id, siteId } })
+  async deactivate(siteId: string, id: string, userId?: string) {
+    const t = await this.prisma.terminal.findFirst({ where: { id, siteId }, include: { site: { select: { organizationId: true } } } })
     if (!t) throw new NotFoundException('Caisse introuvable')
-    return this.prisma.terminal.update({ where: { id }, data: { isActive: false }, select: { id: true, isActive: true } })
+    const out = await this.prisma.terminal.update({ where: { id }, data: { isActive: false }, select: { id: true, isActive: true } })
+    await this.events.log({ organizationId: t.site.organizationId, siteId, code: 'TERMINAL_REVOKED', userId, terminalId: id, detail: { name: t.name } })
+    return out
   }
 
   // Contrôle d'intégrité de la chaîne d'une caisse : compteurs continus,

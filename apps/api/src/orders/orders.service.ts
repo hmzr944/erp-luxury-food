@@ -13,10 +13,10 @@ import { PrintingService } from '../printing/printing.service'
 import { StockService } from '../stock/stock.service'
 import type { CheckoutDto } from './dto/checkout.dto'
 import type { Channel, PaymentKind, PaymentMode, Prisma } from '@prisma/client'
-import { RECEIPT_GENESIS_HASH } from '@erp/utils'
+import { RECEIPT_GENESIS_HASH, businessDate, canonicalSaleContent } from '@erp/utils'
 import { verifyTerminalReceipt } from '../compliance/terminal-receipt'
 import type { SyncSaleDto } from './dto/sync-sale.dto'
-import { buildOrderDraft, OrderDraftError, type DraftInput, type OrderDraft } from './order-draft'
+import { buildOrderDraft, draftContent, OrderDraftError, type DraftInput, type OrderDraft } from './order-draft'
 import { redeemCredit } from './credits'
 
 const ORDER_INCLUDE = {
@@ -54,7 +54,7 @@ export class OrdersService {
       await this.takeSerials(tx, siteId, draft, true)
 
       const total = new Decimal(draft.pricing.total)
-      const receipt = await this.compliance.signReceipt(tx, siteId, total)
+      const receipt = await this.compliance.signReceipt(tx, siteId, { total, kind: 'SALE', content: draftContent(draft) })
       const order = await this.persistOrder(tx, siteId, draft, {
         channel: dto.channel ?? 'IN_STORE',
         customerEmail: dto.customerEmail,
@@ -145,13 +145,19 @@ export class OrdersService {
 
       const signedAt = new Date(dto.receipt.signedAt)
       const total = new Decimal(draft.pricing.total)
-      const receipt = await this.compliance.signReceipt(tx, siteId, total, {
-        terminalId: terminal.id,
-        terminalCounter: dto.receipt.counter,
-        terminalHash: dto.receipt.hash,
-        terminalPreviousHash: dto.receipt.previousHash,
-        terminalSignature: dto.receipt.signature,
-        terminalSignedAt: signedAt,
+      const receipt = await this.compliance.signReceipt(tx, siteId, {
+        total,
+        kind: 'SALE',
+        // Contenu exact signé par la caisse : son empreinte est déjà dans le ticket
+        content: canonicalSaleContent(content),
+        terminal: {
+          terminalId: terminal.id,
+          terminalCounter: dto.receipt.counter,
+          terminalHash: dto.receipt.hash,
+          terminalPreviousHash: dto.receipt.previousHash,
+          terminalSignature: dto.receipt.signature,
+          terminalSignedAt: signedAt,
+        },
       })
       await tx.terminal.update({ where: { id: terminal.id }, data: { lastSeenAt: new Date() } })
 
@@ -227,12 +233,14 @@ export class OrdersService {
 
   // Une vente est comptée le jour où elle a eu lieu, sauf si ce jour est déjà
   // clôturé (ticket Z émis) : elle entre alors dans la journée en cours
+  // Vente hors ligne remontée après la clôture de son jour : elle est
+  // comptée à la date de synchronisation (le Z déjà scellé ne bouge pas)
   private async bookingDate(tx: Prisma.TransactionClient, siteId: string, soldAt: Date) {
     const now = new Date()
     if (soldAt > now) return now
-    const day = new Date(soldAt)
-    day.setHours(0, 0, 0, 0)
-    const closed = await tx.dayClosure.findUnique({ where: { siteId_date: { siteId, date: day } } })
+    const site = await tx.site.findUniqueOrThrow({ where: { id: siteId }, select: { timezone: true } })
+    const label = businessDate(soldAt, site.timezone)
+    const closed = await tx.fiscalClosure.findUnique({ where: { siteId_period_label: { siteId, period: 'DAY', label } } })
     return closed ? now : soldAt
   }
 

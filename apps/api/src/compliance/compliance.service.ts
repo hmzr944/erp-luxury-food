@@ -1,29 +1,40 @@
 import { createHash } from 'crypto'
 import { Injectable } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
-import type { Decimal } from '@prisma/client/runtime/library'
+import type { OrderKind, Prisma } from '@prisma/client'
+import { Decimal } from '@prisma/client/runtime/library'
 import type { SignedReceipt } from '@erp/types'
+import { RECEIPT_GENESIS_HASH, ledgerEntryInput, ledgerEntryInputV1 } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
 
+export interface TerminalSeal {
+  terminalId: string
+  terminalCounter: number
+  terminalHash: string
+  terminalPreviousHash: string
+  terminalSignature: string
+  terminalSignedAt: Date
+}
+
+export interface SignReceiptInput {
+  total: Decimal
+  kind: OrderKind
+  // Représentation canonique du contenu (lignes, paiements) : son empreinte
+  // entre dans le maillon, toute modification ultérieure se verrait
+  content: string
+  terminal?: TerminalSeal
+}
+
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
+
+// Grand livre fiscal (art. 286 I 3° bis CGI) : chaque ticket du site est un
+// maillon numéroté sans trou, chaîné au précédent, avec le total perpétuel.
+// La table est protégée en ajout seul au niveau de la base.
 @Injectable()
 export class ComplianceService {
   constructor(private prisma: PrismaService) {}
 
-  // Appelé dans une Prisma.$transaction — jamais standalone
-  async signReceipt(
-    tx: Prisma.TransactionClient,
-    siteId: string,
-    serverTotal: Decimal,
-    // Ticket déjà signé par la caisse : rattaché au maillon du site
-    terminal?: {
-      terminalId: string
-      terminalCounter: number
-      terminalHash: string
-      terminalPreviousHash: string
-      terminalSignature: string
-      terminalSignedAt: Date
-    },
-  ): Promise<SignedReceipt> {
+  // Appelé dans une Prisma.$transaction, jamais seul
+  async signReceipt(tx: Prisma.TransactionClient, siteId: string, input: SignReceiptInput): Promise<SignedReceipt> {
     // Verrou par site jusqu'à la fin de la transaction : les ventes simultanées
     // prennent leur numéro l'une après l'autre (compteur sans trou ni doublon)
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'receipt:' + siteId}))`
@@ -31,128 +42,153 @@ export class ComplianceService {
     const last = await tx.receiptChain.findFirst({
       where: { siteId },
       orderBy: { counter: 'desc' },
-      select: { counter: true, hash: true },
+      select: { counter: true, hash: true, perpetualTotal: true, perpetualAbsTotal: true },
     })
 
+    // Premier maillon v2 après un historique v1 : les totaux perpétuels
+    // reprennent tout l'historique, ils ne repartent jamais de zéro
+    let previousPerpetual = new Decimal(0)
+    let previousAbs = new Decimal(0)
+    if (last?.perpetualTotal != null && last.perpetualAbsTotal != null) {
+      previousPerpetual = last.perpetualTotal
+      previousAbs = last.perpetualAbsTotal
+    } else if (last) {
+      const sums = await this.historicSums(tx, siteId, last.counter)
+      previousPerpetual = sums.total
+      previousAbs = sums.abs
+    }
+
     const counter = (last?.counter ?? 0) + 1
-    const previousHash = last?.hash ?? '0'.repeat(64)
+    const previousHash = last?.hash ?? RECEIPT_GENESIS_HASH
     const signedAt = new Date()
+    const perpetualTotal = previousPerpetual.add(input.total)
+    const perpetualAbsTotal = previousAbs.add(input.total.abs())
+    const contentDigest = sha256(input.content)
+    const ledgerKind = input.kind === 'REFUND' ? 'REFUND' : 'SALE'
 
-    const data = [
-      previousHash,
-      serverTotal.toString(),
-      signedAt.toISOString(),
-      counter.toString(),
-    ].join('|')
-
-    const hash = createHash('sha256').update(data).digest('hex')
+    const hash = sha256(
+      ledgerEntryInput({
+        previousHash,
+        counter,
+        signedAt: signedAt.toISOString(),
+        siteId,
+        terminalId: input.terminal?.terminalId,
+        kind: ledgerKind,
+        total: input.total.toFixed(2),
+        perpetualTotal: perpetualTotal.toFixed(2),
+        perpetualAbsTotal: perpetualAbsTotal.toFixed(2),
+        contentDigest,
+        terminalSignature: input.terminal?.terminalSignature,
+      }),
+    )
 
     const receipt = await tx.receiptChain.create({
-      data: { siteId, counter, hash, previousHash, total: serverTotal, signedAt, ...terminal },
+      data: {
+        siteId,
+        counter,
+        hash,
+        previousHash,
+        total: input.total,
+        signedAt,
+        version: 2,
+        kind: input.kind,
+        contentDigest,
+        perpetualTotal,
+        perpetualAbsTotal,
+        ...input.terminal,
+      },
     })
 
     return { id: receipt.id, counter, hash, previousHash, signedAt }
   }
 
-  // Clôture journalière NF525 — génère le ticket Z
-  async closeDay(siteId: string, closedBy?: string) {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-
-    return this.prisma.$transaction(async (tx) => {
-      // Vérifie qu'une clôture n'existe pas déjà pour ce jour
-      const existing = await tx.dayClosure.findUnique({
-        where: { siteId_date: { siteId, date: today } },
-      })
-      if (existing) throw new Error('Clôture journalière déjà effectuée pour cette date')
-
-      // Agrège toutes les ventes du jour
-      const agg = await tx.order.aggregate({
-        where: { siteId, status: 'COMPLETED', createdAt: { gte: today, lt: tomorrow } },
-        _count: true,
-        _sum: { total: true },
-      })
-
-      // Récupère le dernier maillon NF525 de la journée
-      const lastReceipt = await tx.receiptChain.findFirst({
-        where: { siteId, signedAt: { gte: today, lt: tomorrow } },
-        orderBy: { counter: 'desc' },
-        select: { counter: true, hash: true },
-      })
-
-      const totalAmount = agg._sum.total ?? 0
-      const lastCounter = lastReceipt?.counter ?? 0
-
-      // Hash de clôture: SHA-256(siteId|date|totalOrders|totalAmount|lastCounter)
-      const closureData = [
-        siteId,
-        today.toISOString(),
-        String(agg._count),
-        totalAmount.toString(),
-        String(lastCounter),
-      ].join('|')
-      const hash = createHash('sha256').update(closureData).digest('hex')
-
-      return tx.dayClosure.create({
-        data: {
-          siteId,
-          date: today,
-          totalOrders: agg._count,
-          totalAmount,
-          lastCounter,
-          hash,
-          closedBy,
-        },
-      })
-    })
+  // Cumuls de l'historique jusqu'au ticket n° `upTo` inclus
+  async historicSums(db: Prisma.TransactionClient | PrismaService, siteId: string, upTo: number) {
+    const rows = await db.$queryRaw<Array<{ total: Decimal | null; abs: Decimal | null }>>`
+      SELECT COALESCE(SUM("total"), 0) AS total, COALESCE(SUM(ABS("total")), 0) AS abs
+      FROM "ReceiptChain" WHERE "siteId" = ${siteId} AND "counter" <= ${upTo}`
+    return { total: new Decimal(rows[0]?.total ?? 0), abs: new Decimal(rows[0]?.abs ?? 0) }
   }
 
-  // Récupère les clôtures d'un site
-  getClosures(siteId: string, limit = 30) {
-    return this.prisma.dayClosure.findMany({
-      where: { siteId },
-      orderBy: { date: 'desc' },
-      take: limit,
+  // Totaux perpétuels au ticket n° `counter` (ou au dernier ticket)
+  async perpetualAt(db: Prisma.TransactionClient | PrismaService, siteId: string, counter?: number | null) {
+    const receipt = await db.receiptChain.findFirst({
+      where: { siteId, ...(counter != null ? { counter } : {}) },
+      orderBy: { counter: 'desc' },
+      select: { counter: true, perpetualTotal: true, perpetualAbsTotal: true },
     })
+    if (!receipt) return { counter: 0, total: new Decimal(0), abs: new Decimal(0) }
+    if (receipt.perpetualTotal != null && receipt.perpetualAbsTotal != null) {
+      return { counter: receipt.counter, total: receipt.perpetualTotal, abs: receipt.perpetualAbsTotal }
+    }
+    const sums = await this.historicSums(db, siteId, receipt.counter)
+    return { counter: receipt.counter, ...sums }
   }
 
-  // Vérifie l'intégrité de la chaîne NF525 pour un jour donné
-  async verifyDayChain(siteId: string, date: Date) {
-    const start = new Date(date)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(start)
-    end.setDate(end.getDate() + 1)
-
-    const receipts = await this.prisma.receiptChain.findMany({
-      where: { siteId, signedAt: { gte: start, lt: end } },
-      orderBy: { counter: 'asc' },
-    })
-
-    if (receipts.length === 0) return { valid: true, checked: 0, errors: [] }
+  // Revérifie le grand livre d'un site : numérotation continue, chaînage,
+  // empreinte de chaque maillon (v1 et v2) et continuité du total perpétuel
+  async verifyChain(siteId: string, range: { from?: number; to?: number } = {}) {
+    const where = {
+      siteId,
+      ...(range.from || range.to ? { counter: { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) } } : {}),
+    }
+    const receipts = await this.prisma.receiptChain.findMany({ where, orderBy: { counter: 'asc' } })
+    if (receipts.length === 0) return { valid: true, checked: 0, firstCounter: null, lastCounter: null, errors: [] as string[] }
 
     const errors: string[] = []
+    // Point de départ : le maillon précédant la plage vérifiée
+    const before = receipts[0].counter > 1
+      ? await this.prisma.receiptChain.findUnique({ where: { siteId_counter: { siteId, counter: receipts[0].counter - 1 } } })
+      : null
+    if (receipts[0].counter > 1 && !before) errors.push(`Ticket n° ${receipts[0].counter - 1} introuvable`)
+    let previousHash = before?.hash ?? RECEIPT_GENESIS_HASH
+    let previousCounter = receipts[0].counter - 1
+    let perpetual: Decimal | null = null
+    let perpetualAbs: Decimal | null = null
+    if (before) {
+      const p = await this.perpetualAt(this.prisma, siteId, before.counter)
+      perpetual = p.total
+      perpetualAbs = p.abs
+    } else {
+      perpetual = new Decimal(0)
+      perpetualAbs = new Decimal(0)
+    }
 
-    for (let i = 0; i < receipts.length; i++) {
-      const r = receipts[i]
+    for (const r of receipts) {
+      if (r.counter !== previousCounter + 1) errors.push(`Trou dans la numérotation : ${previousCounter} puis ${r.counter}`)
+      if (r.previousHash !== previousHash) errors.push(`Chaîne rompue au ticket n° ${r.counter}`)
 
-      // Vérifie le compteur séquentiel
-      if (i > 0 && r.counter !== receipts[i - 1].counter + 1) {
-        errors.push(`Gap dans les counters : ${receipts[i - 1].counter} → ${r.counter}`)
+      let expected: string
+      if (r.version >= 2) {
+        expected = sha256(
+          ledgerEntryInput({
+            previousHash: r.previousHash,
+            counter: r.counter,
+            signedAt: r.signedAt.toISOString(),
+            siteId: r.siteId,
+            terminalId: r.terminalId,
+            kind: r.kind === 'REFUND' ? 'REFUND' : 'SALE',
+            total: r.total.toFixed(2),
+            perpetualTotal: r.perpetualTotal?.toFixed(2) ?? '0.00',
+            perpetualAbsTotal: r.perpetualAbsTotal?.toFixed(2) ?? '0.00',
+            contentDigest: r.contentDigest ?? '',
+            terminalSignature: r.terminalSignature,
+          }),
+        )
+        const nextTotal = perpetual!.add(r.total)
+        const nextAbs = perpetualAbs!.add(r.total.abs())
+        if (!r.perpetualTotal?.equals(nextTotal) || !r.perpetualAbsTotal?.equals(nextAbs)) {
+          errors.push(`Total perpétuel incohérent au ticket n° ${r.counter}`)
+        }
+      } else {
+        expected = sha256(ledgerEntryInputV1({ previousHash: r.previousHash, total: r.total.toString(), signedAt: r.signedAt.toISOString(), counter: r.counter }))
       }
+      if (expected !== r.hash) errors.push(`Empreinte incorrecte au ticket n° ${r.counter}`)
 
-      // Vérifie le lien previousHash
-      if (i > 0 && r.previousHash !== receipts[i - 1].hash) {
-        errors.push(`Chaîne rompue au counter ${r.counter}`)
-      }
-
-      // Recalcule le hash
-      const data = [r.previousHash, r.total.toString(), r.signedAt.toISOString(), r.counter.toString()].join('|')
-      const expected = createHash('sha256').update(data).digest('hex')
-      if (expected !== r.hash) {
-        errors.push(`Hash incorrect au counter ${r.counter}`)
-      }
+      perpetual = perpetual!.add(r.total)
+      perpetualAbs = perpetualAbs!.add(r.total.abs())
+      previousHash = r.hash
+      previousCounter = r.counter
     }
 
     return {
@@ -160,7 +196,9 @@ export class ComplianceService {
       checked: receipts.length,
       firstCounter: receipts[0].counter,
       lastCounter: receipts[receipts.length - 1].counter,
-      errors,
+      perpetualTotal: perpetual!.toFixed(2),
+      perpetualAbsTotal: perpetualAbs!.toFixed(2),
+      errors: errors.slice(0, 50),
     }
   }
 }

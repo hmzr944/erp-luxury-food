@@ -29,20 +29,25 @@ const BCRYPT_ROUNDS = 12
 async function main() {
   console.log('Seeding Sprint 4 data...')
 
-  await prisma.productAllergen.deleteMany()
-  await prisma.stockMovement.deleteMany()
-  await prisma.stockItem.deleteMany()
-  await prisma.dayClosure.deleteMany()
-  await prisma.orderItem.deleteMany()
-  await prisma.order.deleteMany()
-  await prisma.variant.deleteMany()
-  await prisma.product.deleteMany()
-  await prisma.category.deleteMany()
-  await prisma.userSite.deleteMany()
-  await prisma.receiptChain.deleteMany()
-  await prisma.user.deleteMany()
-  await prisma.site.deleteMany()
-  await prisma.organization.deleteMany()
+  // Base de démonstration remise à zéro : purge explicite des tables
+  // fiscales (protégées en ajout seul), dans une seule transaction
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL flow.allow_purge = 'on'`)
+    await tx.productAllergen.deleteMany()
+    await tx.stockMovement.deleteMany()
+    await tx.stockItem.deleteMany()
+    await tx.dayClosure.deleteMany()
+    await tx.orderItem.deleteMany()
+    await tx.order.deleteMany()
+    await tx.variant.deleteMany()
+    await tx.product.deleteMany()
+    await tx.category.deleteMany()
+    await tx.userSite.deleteMany()
+    await tx.receiptChain.deleteMany()
+    await tx.user.deleteMany()
+    await tx.site.deleteMany()
+    await tx.organization.deleteMany()
+  })
   // Allergènes INCO : idempotent — on garde si déjà présents
   await prisma.allergen.deleteMany()
 

@@ -1,4 +1,5 @@
 import { priceOrder, type PricedOrder } from '@erp/utils'
+import { stableStringify } from '@erp/utils'
 
 // Construit le contenu d'une vente à partir des données en base.
 // Fonction pure : utilisée à l'encaissement en ligne et pour vérifier les
@@ -162,4 +163,25 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
   const paymentMode = single && LEGACY_MODES.includes(single) ? single : 'MIXED'
 
   return { items, pricing, payments, paymentMode, priceDifferences }
+}
+
+// Contenu canonique d'une vente pour le grand livre : lignes telles que
+// facturées, paiements, remise globale. Son empreinte est scellée.
+export function draftContent(draft: OrderDraft): string {
+  return stableStringify({
+    items: draft.items.map((i) => ({
+      productId: i.productId,
+      variantId: i.variantId,
+      name: i.name,
+      variantName: i.variantName,
+      serialNumber: i.serialNumber,
+      price: i.price.toFixed(2),
+      taxRate: i.taxRate.toFixed(2),
+      quantity: i.quantity,
+      discount: i.discount.toFixed(2),
+    })),
+    payments: draft.payments.map((p) => ({ code: p.code, amount: p.amount.toFixed(2), reference: p.reference ?? null })),
+    discount: draft.pricing.discount.toFixed(2),
+    total: draft.pricing.total.toFixed(2),
+  })
 }

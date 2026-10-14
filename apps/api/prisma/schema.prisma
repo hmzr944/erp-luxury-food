@@ -68,6 +68,11 @@ model OrganizationSettings {
   pdpEndpoint    String? // URL endpoint PDP
   pdpApiKey      String? // Clé API chiffrée (at-rest)
   pdpEnabled     Boolean      @default(false)
+  // Ticket : sur demande du client (AGEC), toujours, ou jamais ; note de
+  // service imprimée en double à partir de 25 € TTC (restauration, services)
+  receiptPolicy  String       @default("ASK")
+  serviceNote    Boolean      @default(false)
+  receiptFooter  String?
   updatedAt      DateTime     @updatedAt
 }
 
@@ -114,6 +119,7 @@ model Site {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   cashSessions    CashSession[]
+  fiscalClosures  FiscalClosure[]
 
   @@index([organizationId])
 }
@@ -162,26 +168,35 @@ model UserSite {
 // ============================================================
 
 model ReceiptChain {
-  id                   String    @id @default(cuid())
+  id                   String     @id @default(cuid())
   siteId               String
-  site                 Site      @relation(fields: [siteId], references: [id])
+  site                 Site       @relation(fields: [siteId], references: [id])
   counter              Int
   hash                 String // SHA-256(previousHash|total|signedAt|counter)
   previousHash         String // "0"×64 pour le premier ticket
-  total                Decimal   @db.Decimal(10, 2) // calculé serveur uniquement
-  signedAt             DateTime  @default(now())
+  total                Decimal    @db.Decimal(10, 2) // calculé serveur uniquement
+  signedAt             DateTime   @default(now())
   // Lien vers la commande (FK sur Order — pas sur ReceiptChain)
   order                Order?
   // Ticket signé par la caisse au moment de la vente (en ligne ou non).
   // La chaîne du site est prolongée à la synchronisation ; la chaîne de la
   // caisse est vérifiée puis conservée telle quelle.
   terminalId           String?
-  terminal             Terminal? @relation(fields: [terminalId], references: [id], onDelete: Restrict)
+  terminal             Terminal?  @relation(fields: [terminalId], references: [id], onDelete: Restrict)
   terminalCounter      Int?
   terminalHash         String?
   terminalPreviousHash String?
   terminalSignature    String? // ECDSA P-256 (r||s) en base64
   terminalSignedAt     DateTime?
+  // Grand livre v2 : l'empreinte couvre aussi le site, la caisse, le sens de
+  // l'opération, le contenu et les totaux perpétuels (v1 : maillons anciens)
+  version              Int        @default(1)
+  kind                 OrderKind?
+  contentDigest        String?
+  // Total perpétuel (somme algébrique depuis le premier ticket du site) et
+  // cumul en valeur absolue : jamais remis à zéro, même à une mise à jour
+  perpetualTotal       Decimal?   @db.Decimal(14, 2)
+  perpetualAbsTotal    Decimal?   @db.Decimal(14, 2)
 
   @@unique([siteId, counter])
   @@unique([terminalId, terminalCounter])
@@ -205,38 +220,40 @@ model Category {
 }
 
 model Product {
-  id          String            @id @default(cuid())
-  siteId      String
-  site        Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  name        String
-  subtitle    String? // ex. "Origine Ghana 72%"
-  description String?
-  sku         String?
-  barcode     String?
-  price       Decimal           @db.Decimal(10, 2)
-  taxRate     Decimal           @default(5.5) @db.Decimal(5, 2)
-  categoryId  String?
-  category    Category?         @relation(fields: [categoryId], references: [id])
-  variants    Variant[]
-  orderItems  OrderItem[]
+  id                  String            @id @default(cuid())
+  siteId              String
+  site                Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name                String
+  subtitle            String? // ex. "Origine Ghana 72%"
+  description         String?
+  sku                 String?
+  barcode             String?
+  price               Decimal           @db.Decimal(10, 2)
+  taxRate             Decimal           @default(5.5) @db.Decimal(5, 2)
+  categoryId          String?
+  category            Category?         @relation(fields: [categoryId], references: [id])
+  variants            Variant[]
+  orderItems          OrderItem[]
   // Back-relations Sprint 4 — ajoutées via migration additive
-  stockItem   StockItem?
-  allergens   ProductAllergen[]
+  stockItem           StockItem?
+  allergens           ProductAllergen[]
   // Cœur multi-secteurs
-  options     ProductOption[]
-  attributes  Json              @default("{}") // valeurs des AttributeDefinition, par clé
-  tracking    TrackingMode      @default(NONE)
+  options             ProductOption[]
+  attributes          Json              @default("{}") // valeurs des AttributeDefinition, par clé
+  tracking            TrackingMode      @default(NONE)
   // Produit technique « Article libre » du site : nom et prix saisis en caisse
-  isCustom    Boolean           @default(false)
+  isCustom            Boolean           @default(false)
   // Produit d'un labo ou d'un dépôt proposé aux boutiques, à son prix de cession
-  orderable   Boolean           @default(false)
-  supplyPrice Decimal?          @db.Decimal(10, 2)
-  supplyUnit  String? // « pièce », « kg », « bac de 12 »
-  lots        StockLot[]
-  isActive    Boolean           @default(true)
-  imageUrl    String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  orderable           Boolean           @default(false)
+  supplyPrice         Decimal?          @db.Decimal(10, 2)
+  supplyUnit          String? // « pièce », « kg », « bac de 12 »
+  // Payable en titre-restaurant (aliments et boissons non alcoolisées)
+  mealVoucherEligible Boolean           @default(false)
+  lots                StockLot[]
+  isActive            Boolean           @default(true)
+  imageUrl            String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@index([siteId])
   @@index([siteId, isActive])
@@ -585,14 +602,20 @@ model TaxRate {
 
 // Moyens de paiement proposés en caisse
 model PaymentMethod {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  code           String // ex. "CARD", "CASH", "TICKET_RESTO", "GIFT_CARD"
-  label          String
-  kind           PaymentKind
-  isActive       Boolean      @default(true)
-  position       Int          @default(0)
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code              String // ex. "CARD", "CASH", "TICKET_RESTO", "GIFT_CARD"
+  label             String
+  kind              PaymentKind
+  isActive          Boolean      @default(true)
+  position          Int          @default(0)
+  // Règles françaises : titre-restaurant (articles éligibles, plafond par
+  // transaction, pas de rendu), chèque (numéro), espèces (rendu de monnaie)
+  mealVoucher       Boolean      @default(false)
+  giveChange        Boolean      @default(false)
+  maxAmount         Decimal?     @db.Decimal(10, 2)
+  requiresReference Boolean      @default(false)
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -923,4 +946,132 @@ model AuditLog {
 
   @@index([organizationId, createdAt])
   @@index([action, createdAt])
+}
+
+// ============================================================
+// CONFORMITÉ FISCALE (art. 286 I 3° bis CGI, BOI-TVA-DECLA-30-10-30)
+// Tables en ajout seul : l'application n'y fait jamais de mise à jour ni
+// de suppression. Chaque table est chaînée par empreinte.
+// ============================================================
+
+enum ClosurePeriod {
+  DAY
+  MONTH
+  YEAR
+}
+
+// Clôtures cumulatives : le Z du jour couvre une plage de tickets sans trou,
+// le Z du mois cumule les Z du jour, le Z de l'année cumule les Z du mois
+model FiscalClosure {
+  id                String        @id @default(cuid())
+  siteId            String
+  site              Site          @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  period            ClosurePeriod
+  label             String // 2026-10-14, 2026-10 ou 2026
+  seq               Int // numéro de clôture du site pour cette période
+  firstCounter      Int?
+  lastCounter       Int?
+  ticketCount       Int
+  salesCount        Int
+  refundCount       Int
+  salesTotal        Decimal       @db.Decimal(14, 2)
+  refundsTotal      Decimal       @db.Decimal(14, 2)
+  periodTotal       Decimal       @db.Decimal(14, 2) // grand total de la période (TTC)
+  totalHT           Decimal       @db.Decimal(14, 2)
+  totalTax          Decimal       @db.Decimal(14, 2)
+  taxBreakdown      Json // [{ rate, ht, tax, ttc }]
+  paymentBreakdown  Json // [{ code, label, amount }]
+  perpetualTotal    Decimal       @db.Decimal(14, 2)
+  perpetualAbsTotal Decimal       @db.Decimal(14, 2)
+  previousHash      String
+  hash              String
+  auto              Boolean       @default(false)
+  closedAt          DateTime      @default(now())
+  closedById        String?
+
+  @@unique([siteId, period, label])
+  @@unique([siteId, period, seq])
+  @@index([siteId, period, closedAt])
+}
+
+// Journal des événements techniques : clôtures, archives, duplicatas, mode
+// formation, caisses, vérifications, attestations, démarrages
+model FiscalEvent {
+  id             String   @id @default(cuid())
+  organizationId String?
+  siteId         String?
+  seq            Int
+  code           String // ex. CLOSURE_DAY, ARCHIVE_CREATED, DUPLICATE_PRINTED
+  label          String
+  detail         Json?
+  userId         String?
+  terminalId     String?
+  previousHash   String
+  hash           String
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, seq])
+  @@index([siteId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+// Réimpressions : chaque duplicata porte son numéro et reste tracé
+model ReceiptDuplicate {
+  id         String   @id @default(cuid())
+  orderId    String
+  siteId     String
+  number     Int
+  userId     String?
+  terminalId String?
+  createdAt  DateTime @default(now())
+
+  @@unique([orderId, number])
+  @@index([siteId, createdAt])
+}
+
+// Mode formation : ventes fictives, numérotées à part, opérateur identifié,
+// hors chaîne fiscale, hors stock et hors caisse
+model TrainingTicket {
+  id         String   @id @default(cuid())
+  siteId     String
+  number     Int
+  userId     String
+  userName   String
+  terminalId String?
+  total      Decimal  @db.Decimal(10, 2)
+  content    Json
+  createdAt  DateTime @default(now())
+
+  @@unique([siteId, number])
+  @@index([siteId, createdAt])
+}
+
+// Archives fiscales figées, en format ouvert (JSON), signées par l'éditeur
+model FiscalArchive {
+  id          String        @id @default(cuid())
+  siteId      String
+  period      ClosurePeriod
+  label       String
+  fromCounter Int?
+  toCounter   Int?
+  sha256      String
+  signature   String // ECDSA P-256 (DER) en base64, clé publique de l'éditeur
+  keyId       String
+  size        Int
+  content     Bytes // JSON compressé (gzip)
+  createdById String?
+  createdAt   DateTime      @default(now())
+
+  @@unique([siteId, period, label])
+  @@index([siteId, createdAt])
+}
+
+// Clé de signature de l'éditeur (archives, attestations) : la clé privée
+// est chiffrée au repos ; FISCAL_SIGNING_KEY la remplace en production
+model SigningKey {
+  id         String   @id @default(cuid())
+  keyId      String   @unique
+  publicKey  String // PEM SPKI
+  privateKey String // PEM PKCS8 chiffré
+  createdAt  DateTime @default(now())
 }

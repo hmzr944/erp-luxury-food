@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service'
 import { creditCode, normalizeCreditCode } from './credits'
 import { planRefund, RefundPlanError } from './refund-plan'
 import type { RefundDto } from './dto/refund.dto'
+import { stableStringify } from '@erp/utils'
 
 // Retours et avoirs. Un remboursement est un ticket négatif signé dans la
 // même chaîne que les ventes : rien n'est effacé, tout se retrouve à l'audit.
@@ -77,7 +78,15 @@ export class RefundsService {
           : null
       if (credit) method.reference = credit.code
 
-      const receipt = await this.compliance.signReceipt(tx, siteId, new Decimal(-plan.total))
+      const receipt = await this.compliance.signReceipt(tx, siteId, {
+        total: new Decimal(-plan.total),
+        kind: 'REFUND',
+        content: stableStringify({
+          refundOf: sale.id,
+          lines: plan.lines.map((l) => ({ orderItemId: l.orderItemId, quantity: l.quantity, ttc: l.ttc.toFixed(2), taxRate: Number(l.taxRate).toFixed(2) })),
+          payment: { code: method.code, amount: (-plan.total).toFixed(2), reference: method.reference ?? null },
+        }),
+      })
       const byItem = new Map(sale.items.map((i) => [i.id, i]))
       const refund = await tx.order.create({
         data: {
