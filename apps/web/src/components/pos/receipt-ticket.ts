@@ -37,10 +37,12 @@ export function ticketForSale(
 }
 
 // Impression automatique : ticket demandé par la politique du commerce, ou
-// obligatoire (pièce numérotée sous garantie, note de service dès 25 €)
+// obligatoire (pièce numérotée sous garantie, produit pesé, note de service dès 25 €)
 export function printPlan(view: ReceiptView, receipt?: ReceiptSettings): { auto: boolean; copies: Array<'CLIENT' | 'DOUBLE' | undefined> } {
   const note = !!receipt?.serviceNote && view.sale.pricing.total >= SERVICE_NOTE_THRESHOLD && !view.training
   const warranty = view.lines.some((l) => l.serialNumber)
-  const auto = note || warranty || receipt?.policy === 'ALWAYS'
+  // Produits pesés : ticket remis d'office (reports/, règles DGCCRF du ticket sur demande)
+  const weighed = view.lines.some((l) => l.weight !== undefined || !!l.label)
+  const auto = note || warranty || weighed || receipt?.policy === 'ALWAYS'
   return { auto, copies: note ? ['CLIENT', 'DOUBLE'] : [undefined] }
 }
