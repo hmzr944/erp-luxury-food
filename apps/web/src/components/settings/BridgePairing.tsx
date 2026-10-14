@@ -25,6 +25,30 @@ export function BridgePairing() {
         Le pont s’installe sur un ordinateur de la boutique et pilote l’imprimante, le tiroir et le terminal de paiement. Au démarrage, il affiche un code à six chiffres.
       </p>
       {bridge?.lastError && status !== 'ready' && <p className="text-sm text-[var(--color-text-secondary)]">{bridge.lastError.message}</p>}
+      {status === 'off' && (
+        <div className="space-y-2 rounded-[var(--radius-md)] bg-[var(--color-bg-base)] p-3 text-sm">
+          <p className="font-medium">Pas encore installé sur cet ordinateur ?</p>
+          <ol className="list-decimal space-y-1 pl-5 text-[var(--color-text-secondary)]">
+            <li>
+              Installez Node.js 22 depuis{' '}
+              <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="font-medium text-[var(--color-accent)] underline underline-offset-4">
+                nodejs.org
+              </a>{' '}
+              (version LTS).
+            </li>
+            <li>Téléchargez FLŌW-Bridge, décompressez-le et double-cliquez sur « Démarrer FLŌW-Bridge ».</li>
+            <li>Saisissez ici le code à six chiffres qui s’affiche.</li>
+          </ol>
+          <a
+            href="/downloads/flow-bridge.zip"
+            download
+            className="inline-flex h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-4 text-[15px] font-semibold text-[var(--color-on-accent)] press"
+          >
+            Télécharger FLŌW-Bridge
+          </a>
+          <p className="text-[var(--color-text-secondary)]">Windows, macOS et Linux. Sur iPad ou tablette Android, le pont tourne sur un ordinateur de la boutique.</p>
+        </div>
+      )}
       {status !== 'ready' && (
         <div className="flex flex-wrap gap-2">
           <input

@@ -7,6 +7,7 @@ import { CaretDown, CaretUp, CheckCircle, Circle, Confetti } from '@phosphor-ico
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api/client'
 import { EASE_OUT } from '@/lib/motion'
+import { InstallApp } from './InstallApp'
 
 // Mode découverte : juste après l'inscription, la caisse s'ouvre en mode
 // formation (ventes fictives, hors grand livre). Une liste accompagne les
@@ -166,6 +167,7 @@ export function DiscoveryChecklist({
               <button type="button" onClick={onPrinter} className="inline-flex h-10 items-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] px-3 text-sm font-medium press">
                 Imprimante et tiroir
               </button>
+              <InstallApp />
               {canManage && !!samples && (
                 <button
                   type="button"

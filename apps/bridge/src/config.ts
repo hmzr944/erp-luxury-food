@@ -22,8 +22,12 @@ export function normalizeOrigin(o: string): string {
   return o.trim().replace(/\/+$/, '').toLowerCase()
 }
 
+// Adresse de la caisse inscrite à la construction du paquet téléchargeable
+// (scripts/package.mjs) : le pont téléchargé depuis la caisse l'accepte d'office
+const BUILT_IN_ORIGINS = process.env.FLOW_BRIDGE_BUILD_ORIGINS || 'http://localhost:3000'
+
 export function parseOrigins(value: string | undefined): string[] {
-  const list = (value ?? 'http://localhost:3000')
+  const list = (value ?? BUILT_IN_ORIGINS)
     .split(',')
     .map(normalizeOrigin)
     .filter((o) => o.length > 0)

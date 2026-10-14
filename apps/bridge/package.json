@@ -18,7 +18,8 @@
     "pair": "node dist/index.js pair",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "package": "node scripts/package.mjs"
   },
   "dependencies": {
     "ws": "8.21.0"
@@ -27,7 +28,9 @@
     "@erp/config": "workspace:*",
     "@types/node": "22.19.19",
     "@types/ws": "8.18.1",
+    "esbuild": "0.27.7",
     "eslint": "9.39.4",
+    "fflate": "0.8.3",
     "typescript": "5.9.3",
     "vitest": "3.2.4"
   }
