@@ -55,7 +55,7 @@ export function AuditSettings() {
   return (
     <div className="max-w-3xl space-y-5 p-6 md:p-8">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Journal de sécurité</h1>
+        <h1 className="page-title">Journal de sécurité</h1>
         <p className="text-[15px] text-[var(--color-text-secondary)]">Les actions sensibles, horodatées. Rien ne peut y être modifié ni effacé depuis l&apos;application.</p>
       </header>
       <div role="radiogroup" aria-label="Filtre" className="flex flex-wrap gap-2">
@@ -66,7 +66,7 @@ export function AuditSettings() {
             role="radio"
             aria-checked={filter === k}
             onClick={() => setFilter(k)}
-            className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', filter === k ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
+            className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', filter === k ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
           >
             {l}
           </button>

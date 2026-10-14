@@ -100,7 +100,7 @@ export function OrdersHub({ siteId }: OrdersHubProps) {
                 wsStatus === 'connected' ? 'bg-[var(--color-success)] animate-pulse' : 'bg-[var(--color-text-muted)]',
               ].join(' ')}
             />
-            <span className="font-data text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide">
+            <span className="font-data text-xs text-[var(--color-text-secondary)]">
               {wsStatus === 'connected' ? 'Temps réel' : 'Hors ligne'}
             </span>
           </div>
@@ -127,7 +127,7 @@ export function OrdersHub({ siteId }: OrdersHubProps) {
               {count > 0 && (
                 <span
                   className={[
-                    'font-data text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
+                    'tabular text-xs px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
                     active
                       ? 'bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)]'
                       : 'bg-[var(--color-bg-elevated)] ' + color,

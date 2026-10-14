@@ -22,8 +22,8 @@ export function OrdersHubWithSite() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3 md:px-6">
-        <h1 className="text-xl font-semibold tracking-tight">Commandes</h1>
-        <div role="tablist" aria-label="Affichage" className="flex rounded-[var(--radius-pill)] bg-[var(--color-bg-hover)] p-0.5">
+        <h1 className="page-title">Commandes</h1>
+        <div role="group" aria-label="Affichage" className="flex rounded-[var(--radius-pill)] bg-[var(--color-bg-hover)] p-0.5">
           {(
             [
               ['history', 'Historique et retours'],
@@ -33,8 +33,7 @@ export function OrdersHubWithSite() {
             <button
               key={key}
               type="button"
-              role="tab"
-              aria-selected={view === key}
+              aria-pressed={view === key}
               onClick={() => setView(key)}
               className={[
                 'h-10 rounded-[var(--radius-pill)] px-4 text-sm font-medium transition-colors duration-150',

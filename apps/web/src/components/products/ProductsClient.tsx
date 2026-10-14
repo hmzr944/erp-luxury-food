@@ -97,7 +97,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
         <div>
-          <h1 className="font-display text-xl text-[var(--color-text-primary)]">Catalogue</h1>
+          <h1 className="page-title">Catalogue</h1>
           <p className="font-body text-xs text-[var(--color-text-muted)] mt-0.5">
             {activeCount} produit{activeCount > 1 ? 's' : ''} actif{activeCount > 1 ? 's' : ''}
           </p>
@@ -105,7 +105,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
         <motion.button
           onClick={() => setDrawerProduct('new')}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           <Plus size={13} weight="bold" />
           Nouveau produit
@@ -119,19 +119,22 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Rechercher un produit"
             placeholder="Nom, SKU..."
-            className="w-full h-8 pl-7 pr-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 transition-colors"
+            className="w-full h-8 pl-7 pr-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors"
           />
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto">
+        <div role="group" aria-label="Rayons" className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
           <button
+            type="button"
+            aria-pressed={!categoryFilter}
             onClick={() => setCategoryFilter(null)}
             className={[
-              'px-2.5 py-1 rounded-[var(--radius-sm)] font-body text-xs whitespace-nowrap transition-colors',
+              'flex h-10 shrink-0 items-center rounded-[var(--radius-pill)] px-4 font-body text-sm font-medium whitespace-nowrap transition-colors',
               !categoryFilter
-                ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)]'
-                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)]',
+                ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]'
+                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]',
             ].join(' ')}
           >
             Toutes
@@ -139,17 +142,19 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
           {categories.map((c) => (
             <button
               key={c.id}
+              type="button"
+              aria-pressed={c.id === categoryFilter}
               onClick={() => setCategoryFilter(c.id === categoryFilter ? null : c.id)}
               className={[
-                'flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] font-body text-xs whitespace-nowrap transition-colors',
+                'flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-pill)] px-4 font-body text-sm font-medium whitespace-nowrap transition-colors',
                 c.id === categoryFilter
-                  ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)]'
-                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)]',
+                  ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]',
               ].join(' ')}
             >
-              {shapeOf.get(c.id) && <RayonGlyph shape={shapeOf.get(c.id)!} size={12} className="text-[var(--color-accent)]" />}
+              {shapeOf.get(c.id) && <RayonGlyph shape={shapeOf.get(c.id)!} size={16} />}
               {c.name}
-              <span className="font-data text-[9px] opacity-60">{c._count.products}</span>
+              <span className="tabular text-xs opacity-60">{c._count.products}</span>
             </button>
           ))}
         </div>
@@ -165,7 +170,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-20">
-            <Tag size={28} weight="regular" className="text-[var(--color-text-muted)]/40" />
+            <Tag size={28} weight="regular" className="text-[var(--color-text-muted)]" />
             <p className="font-body text-sm text-[var(--color-text-muted)]">
               {search ? `Aucun résultat pour "${search}"` : 'Aucun produit. Créez le premier.'}
             </p>
@@ -182,49 +187,52 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
                 ].join(' ')}
               >
                 {/* Forme du rayon */}
-                <span className="mr-3 grid w-4 shrink-0 place-items-center text-[var(--color-accent)]">
-                  {product.categoryId && shapeOf.get(product.categoryId) && <RayonGlyph shape={shapeOf.get(product.categoryId)!} size={14} />}
+                <span className="mr-3 grid w-5 shrink-0 place-items-center">
+                  {product.categoryId && shapeOf.get(product.categoryId) && <RayonGlyph shape={shapeOf.get(product.categoryId)!} size={16} />}
                 </span>
 
                 {/* Name + sub */}
                 <div className="flex-1 min-w-0 mr-4">
-                  <p className="font-body text-[13px] text-[var(--color-text-primary)] truncate">
+                  <p className="font-body text-sm text-[var(--color-text-primary)] truncate">
                     {product.name}
                     {!product.isActive && (
-                      <span className="ml-2 font-data text-[9px] text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 rounded-full">
+                      <span className="ml-2 tabular text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 rounded-full">
                         désactivé
                       </span>
                     )}
                   </p>
                   {product.subtitle && (
-                    <p className="font-body text-[11px] text-[var(--color-text-muted)] truncate">
+                    <p className="font-body text-sm text-[var(--color-text-muted)] truncate">
                       {product.subtitle}
                     </p>
                   )}
                 </div>
 
                 {/* Category */}
-                <span className="font-body text-[11px] text-[var(--color-text-muted)] w-28 truncate hidden lg:block">
+                <span className="font-body text-sm text-[var(--color-text-muted)] w-28 truncate hidden lg:block">
                   {product.category?.name ?? '-'}
                 </span>
 
                 {/* SKU */}
-                <span className="font-data text-[10px] text-[var(--color-text-muted)] w-24 hidden xl:block">
+                <span className="font-data text-xs text-[var(--color-text-muted)] w-24 hidden xl:block">
                   {product.sku ?? '-'}
                 </span>
 
                 {/* Price */}
-                <span className="font-data text-sm text-[var(--color-text-primary)] w-20 text-right mr-4">
+                <span className="tabular text-sm text-[var(--color-text-primary)] w-20 text-right mr-4">
                   {formatPrice(Number(product.price))}
                 </span>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Visibles au clavier et au toucher, discrètes à la souris */}
+                <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                   <button
+                    type="button"
+                    aria-label={`Modifier ${product.name}`}
                     onClick={() => setDrawerProduct(product)}
-                    className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] transition-all"
+                    className="grid size-10 place-items-center text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] rounded-[var(--radius-pill)] transition-colors"
                   >
-                    <PencilSimple size={13} />
+                    <PencilSimple size={18} aria-hidden />
                   </button>
                   <button
                     onClick={() => {
@@ -232,9 +240,11 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
                         removeProduct.mutate(product.id)
                       }
                     }}
-                    className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 rounded-[var(--radius-sm)] transition-all"
+                    type="button"
+                    aria-label={`Désactiver ${product.name}`}
+                    className="grid size-10 place-items-center text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] rounded-[var(--radius-pill)] transition-colors"
                   >
-                    <Trash size={13} />
+                    <Trash size={18} aria-hidden />
                   </button>
                 </div>
               </motion.div>

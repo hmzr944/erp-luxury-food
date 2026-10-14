@@ -1,13 +1,15 @@
 import { Sidebar } from '@/components/layout/Sidebar'
+import { MobileNav } from '@/components/layout/MobileNav'
 import { WorkspaceGate } from '@/components/layout/WorkspaceGate'
 
 // Back-office : gérant et titulaire. Vendeur et atelier sont renvoyés vers leur espace.
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <WorkspaceGate workspace="backoffice">
-      <div className="flex h-[100dvh] overflow-hidden bg-[var(--color-bg-base)]">
+      <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--color-bg-base)] md:flex-row">
         <Sidebar />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <MobileNav />
+        <main className="min-w-0 flex-1 overflow-auto pb-20 md:pb-0">{children}</main>
       </div>
     </WorkspaceGate>
   )

@@ -5,12 +5,12 @@ import Image from 'next/image'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useGSAP } from '@gsap/react'
-import comptoir from '../../../public/site/comptoir.jpg'
+import chocolats from '../../../public/site/chocolats.jpg'
 
 gsap.registerPlugin(useGSAP, ScrollTrigger)
 
-// Le moment fort du haut de page : la photo d'une boutique découpée dans le
-// signe FLŌW. Au chargement, les deux moitiés du disque se rejoignent et le
+// Le moment fort du haut de page : la vitrine d'une chocolaterie découpée dans
+// le signe FLŌW, aux proportions exactes du logo (grille de 28 × 39,5). Au chargement, les deux moitiés du disque se rejoignent et le
 // trait Klein se tire ; au défilement, elles glissent en sens contraire,
 // comme deux flux. Deux niveaux : l'enveloppe suit le défilement (GSAP),
 // l'intérieur porte l'entrée (CSS), pour que les deux ne se marchent pas dessus.
@@ -31,25 +31,28 @@ export function HeroMark() {
     { scope: root },
   )
 
+  // Proportions du signe : moitiés de 13 sur 26, écart de 2, décalage de 3,
+  // trait affiné au-dessus (8 % au lieu de 15 : plein, il passait pour un
+  // bouton sur téléphone), même écart que dans le signe (en % de 28 × 39,5)
   const half = (side: 'l' | 'r') => (
-    <div data-half={side} className={`absolute bottom-0 h-[86%] w-[48.6%] ${side === 'l' ? 'left-0 top-[11%]' : 'right-0 top-[14%]'}`}>
+    <div data-half={side} className={`absolute h-[65.8%] w-[46.4%] ${side === 'l' ? 'left-0 top-[26.6%]' : 'right-0 top-[34.2%]'}`}>
       <div className={`hero-in-${side} relative h-full w-full overflow-hidden ${side === 'l' ? 'rounded-l-full' : 'rounded-r-full'}`}>
         <Image
-          src={comptoir}
-          alt={side === 'l' ? 'Deux commerçants souriants derrière le comptoir de leur boutique, une caisse posée sur le bois.' : ''}
+          src={chocolats}
+          alt={side === 'l' ? 'Vitrine d’une chocolaterie : pralinés, ganaches et truffes alignés derrière le verre.' : ''}
           aria-hidden={side === 'r' ? true : undefined}
           priority
           placeholder="blur"
-          sizes="(min-width: 1152px) 460px, (min-width: 1024px) 40vw, 100vw"
-          className={`absolute top-0 h-full w-[205.8%] max-w-none object-cover object-[30%_50%] ${side === 'l' ? 'left-0' : 'right-0'}`}
+          sizes="(min-width: 1152px) 420px, (min-width: 1024px) 36vw, 90vw"
+          className={`absolute top-0 h-full w-[215.4%] max-w-none object-cover object-[60%_50%] ${side === 'l' ? 'left-0' : 'right-0'}`}
         />
       </div>
     </div>
   )
 
   return (
-    <div ref={root} className="relative mx-auto aspect-[1/1.02] w-full max-w-[460px]">
-      <div data-bar className="absolute left-[22%] top-0 h-[5.5%] w-[56%] origin-left">
+    <div ref={root} className="relative mx-auto aspect-[28/39.5] w-full max-w-[300px] sm:max-w-[360px] lg:max-w-[400px]">
+      <div data-bar aria-hidden className="absolute left-[3.6%] top-[7.2%] h-[8%] w-[92.9%] origin-left">
         <div className="hero-in-bar h-full w-full rounded-full bg-[var(--color-accent)]" />
       </div>
       {half('l')}

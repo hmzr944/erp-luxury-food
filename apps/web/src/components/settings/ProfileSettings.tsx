@@ -8,6 +8,7 @@ import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth.store'
 import { apiClient } from '@/lib/api/client'
+import { FieldError } from '@/components/ui/FieldError'
 
 const profileSchema = z.object({
   firstName: z.string().min(1, 'Requis'),
@@ -49,12 +50,12 @@ function FormField({
     <div className="space-y-1.5">
       <label className="block font-body text-xs text-[var(--color-text-secondary)]">{label}</label>
       {children}
-      {error && <p className="font-body text-xs text-[var(--color-danger)]">{error}</p>}
+      {error && <FieldError>{error}</FieldError>}
     </div>
   )
 }
 
-const inputCls = 'w-full h-9 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 focus:ring-1 focus:ring-[var(--color-accent)]/20 transition-colors'
+const inputCls = 'w-full h-11 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors'
 
 export function ProfileSettings() {
   const { user, logout } = useAuthStore()
@@ -112,7 +113,7 @@ export function ProfileSettings() {
 
   return (
     <div className="max-w-lg px-8 py-6">
-      <h1 className="font-display text-xl text-[var(--color-text-primary)] mb-6">Mon profil</h1>
+      <h1 className="page-title mb-6">Mon profil</h1>
 
       <SettingsSection title="Informations personnelles">
         <form onSubmit={profileForm.handleSubmit(saveProfile)} className="space-y-4">
@@ -135,7 +136,7 @@ export function ProfileSettings() {
               type="submit"
               disabled={savingProfile}
               whileTap={{ scale: 0.98 }}
-              className="px-4 h-9 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+              className="px-4 h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] transition-colors"
             >
               {savingProfile ? 'Enregistrement...' : 'Enregistrer'}
             </motion.button>
@@ -159,7 +160,7 @@ export function ProfileSettings() {
               type="submit"
               disabled={savingPassword}
               whileTap={{ scale: 0.98 }}
-              className="px-4 h-9 border border-[var(--color-border)] text-[var(--color-text-primary)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-bg-hover)] disabled:opacity-50 transition-all"
+              className="px-4 h-11 border border-[var(--color-border)] text-[var(--color-text-primary)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-bg-hover)] disabled:opacity-50 transition-colors"
             >
               {savingPassword ? 'Enregistrement...' : 'Changer le mot de passe'}
             </motion.button>

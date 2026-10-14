@@ -23,28 +23,48 @@ export function SettingsNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="w-48 shrink-0 border-r border-[var(--color-border)] py-6 px-3 space-y-0.5">
-      <p className="font-data text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide px-3 mb-3">
-        Paramètres
-      </p>
-      {NAV.map(({ href, icon: Icon, label }) => {
-        const active = pathname.startsWith(href)
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={[
-              'flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] font-body text-[13px] transition-colors',
-              active
-                ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)]'
-                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]',
-            ].join(' ')}
-          >
-            <Icon size={13} weight={active ? 'fill' : 'regular'} />
-            {label}
-          </Link>
-        )
-      })}
-    </nav>
+    <>
+      {/* Téléphone : rubriques en ruban horizontal */}
+      <nav aria-label="Paramètres" className="flex gap-2 overflow-x-auto border-b border-[var(--color-border)] px-4 py-3 [scrollbar-width:none] md:hidden">
+        {NAV.map(({ href, label }) => {
+          const active = pathname.startsWith(href)
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? 'page' : undefined}
+              className={[
+                'flex h-10 shrink-0 items-center rounded-[var(--radius-pill)] px-4 text-sm font-medium',
+                active ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)] text-[var(--color-text-secondary)]',
+              ].join(' ')}
+            >
+              {label}
+            </Link>
+          )
+        })}
+      </nav>
+      <nav aria-label="Paramètres" className="hidden w-56 shrink-0 space-y-0.5 border-r border-[var(--color-border)] px-3 py-6 md:block">
+        <h2 className="mb-3 px-3 font-display text-lg font-semibold tracking-tight">Paramètres</h2>
+        {NAV.map(({ href, icon: Icon, label }) => {
+          const active = pathname.startsWith(href)
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? 'page' : undefined}
+              className={[
+                'flex h-10 items-center gap-2.5 rounded-[var(--radius-md)] px-3 font-body text-[15px] transition-colors',
+                active
+                  ? 'bg-[var(--color-bg-elevated)] font-medium text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]',
+              ].join(' ')}
+            >
+              <Icon size={18} aria-hidden weight={active ? 'fill' : 'regular'} />
+              {label}
+            </Link>
+          )
+        })}
+      </nav>
+    </>
   )
 }

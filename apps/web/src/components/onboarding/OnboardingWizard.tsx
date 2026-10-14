@@ -16,7 +16,7 @@ import { paymentsApi } from '@/lib/api/payments'
 
 // Sans largeur : chaque champ précise la sienne (deux largeurs se contredisent)
 const fieldCls =
-  'h-12 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none'
+  'h-12 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]'
 
 // Après l'inscription : trois choses à faire, dans l'ordre qu'on veut,
 // chacune facultative. La caisse est utilisable dès maintenant.
@@ -57,7 +57,7 @@ export function OnboardingWizard() {
               localStorage.setItem('erp-onboarded', 'true')
               router.push(`/pos/${siteId}`)
             }}
-            className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-50"
+            className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
           >
             Ouvrir la caisse
           </button>
@@ -166,7 +166,7 @@ function ProductsStep({ siteId, defaultRate }: { siteId: string; defaultRate: nu
           <button
             type="submit"
             disabled={!ready.length || saving}
-            className="ml-auto h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:opacity-40"
+            className="ml-auto h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
           >
             {saving ? 'Ajout...' : ready.length > 1 ? `Ajouter ces ${ready.length} produits` : 'Ajouter ce produit'}
           </button>

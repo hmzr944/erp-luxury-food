@@ -18,8 +18,8 @@ function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] px-3 py-2 shadow-lg">
-      <p className="font-data text-[10px] text-[var(--color-text-muted)] mb-1">{label}</p>
-      <p className="font-data text-sm text-[var(--color-accent)]">
+      <p className="tabular text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
+      <p className="tabular text-sm text-[var(--color-accent)]">
         {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(
           payload[0].value,
         )}
@@ -47,14 +47,14 @@ export function RevenueChart({ data }: RevenueChartProps) {
 
         <XAxis
           dataKey="hour"
-          tick={{ fill: 'var(--color-text-muted)', fontSize: 10, fontFamily: 'var(--font-data)' }}
+          tick={{ fill: 'var(--color-text-muted)', fontSize: 10, fontFamily: 'var(--tabular)' }}
           axisLine={false}
           tickLine={false}
           interval={1}
         />
 
         <YAxis
-          tick={{ fill: 'var(--color-text-muted)', fontSize: 10, fontFamily: 'var(--font-data)' }}
+          tick={{ fill: 'var(--color-text-muted)', fontSize: 10, fontFamily: 'var(--tabular)' }}
           axisLine={false}
           tickLine={false}
           tickFormatter={(v) => v > 0 ? `${v}€` : ''}

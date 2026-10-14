@@ -10,6 +10,7 @@ import {
 import { SECTOR_PRESETS, Sector } from '@erp/types'
 import { useAuthStore } from '@/stores/auth.store'
 import { EASE_OUT } from '@/lib/motion'
+import { FlowLogo } from '@/components/brand/FlowLogo'
 
 const SECTOR_ICON: Record<Sector, React.ElementType> = {
   [Sector.FOOD]: Cookie,
@@ -25,7 +26,7 @@ const SECTOR_ICON: Record<Sector, React.ElementType> = {
 const ORDER = [Sector.FOOD, Sector.FASHION, Sector.BEAUTY, Sector.JEWELRY, Sector.WINE, Sector.HOME, Sector.SERVICES, Sector.GENERAL]
 
 const fieldCls =
-  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none'
+  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]'
 
 // Inscription en trois écrans, une seule question par écran
 export function SignupFlow() {
@@ -61,6 +62,9 @@ export function SignupFlow() {
     <MotionConfig reducedMotion="user">
       <main className="flex min-h-[100dvh] justify-center bg-[var(--color-bg-base)] px-4 py-10 text-[var(--color-text-primary)] md:items-center">
         <div className="w-full max-w-xl space-y-6">
+          <Link href="/" aria-label="FLŌW, accueil" className="inline-flex">
+            <FlowLogo size={18} />
+          </Link>
           <div className="flex items-center gap-2">
             {step > 0 && (
               <button
@@ -74,7 +78,7 @@ export function SignupFlow() {
             )}
             <p className="text-sm text-[var(--color-text-secondary)]">Étape {step + 1} sur 3</p>
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight">{titles[step]}</h1>
+          <h1 className="font-display text-4xl font-bold tracking-[-0.035em]">{titles[step]}</h1>
 
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -99,7 +103,7 @@ export function SignupFlow() {
                             setStep(1)
                           }}
                           className={[
-                            'flex h-full min-h-32 w-full flex-col items-start justify-between gap-3 rounded-[var(--radius-lg)] border p-4 text-left press',
+                            'flex h-full min-h-32 w-full flex-col items-start justify-start gap-4 rounded-[var(--radius-lg)] border p-4 text-left press',
                             sector === s ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)]' : 'border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] hover:border-[var(--color-accent)]',
                           ].join(' ')}
                         >
@@ -208,14 +212,14 @@ export function SignupFlow() {
                     </p>
                   </div>
                   {error && (
-                    <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+                    <p role="alert" className="alert-box">
                       {error}
                     </p>
                   )}
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-60"
+                    className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
                   >
                     {isLoading ? 'Création...' : 'Créer mon espace'}
                   </button>

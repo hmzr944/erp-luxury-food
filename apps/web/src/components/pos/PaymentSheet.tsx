@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle } from '@phosphor-icons/react'
+import { ArrowUUpLeft, CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import { PaymentKind } from '@erp/types'
 import type { PlatformConfig } from '@/lib/api/platform'
@@ -104,7 +104,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
         <>
           {error && (
             // Paiement accepté mais vente non enregistrée : à ne jamais perdre de vue
-            <p role="alert" className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+            <p role="alert" className="mb-4 alert-box">
               Paiement accepté, mais la vente n&apos;a pas pu être enregistrée : {error}
             </p>
           )}
@@ -147,7 +147,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
           <p className="text-sm text-[var(--color-text-secondary)]">Touchez le moyen de paiement pour valider.</p>
           <ul className="grid grid-cols-2 gap-2">
             {methods.map((m) => {
-              const Icon = KIND_ICON[m.kind] ?? Wallet
+              const Icon = m.code === 'CREDIT' ? ArrowUUpLeft : (KIND_ICON[m.kind] ?? Wallet)
               return (
                 <li key={m.code}>
                   <button
@@ -156,8 +156,8 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
                     onClick={() => choose(m)}
                     className="flex h-24 w-full flex-col items-start justify-between rounded-[var(--radius-md)] border border-[var(--color-border-strong)] p-3 text-left hover:border-[var(--color-accent)] disabled:opacity-50 press"
                   >
-                    <span aria-hidden className="grid size-9 place-items-center rounded-[var(--radius-pill)] bg-[var(--color-accent-muted)] text-[var(--color-accent)]">
-                      <Icon size={20} weight="bold" />
+                    <span aria-hidden className="text-[var(--color-accent)]">
+                      <Icon size={26} weight="regular" />
                     </span>
                     <span className="text-[15px] font-semibold">{m.label}</span>
                   </button>
@@ -167,7 +167,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
           </ul>
 
           {error && (
-            <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+            <p role="alert" className="alert-box">
               {error}
             </p>
           )}
@@ -200,7 +200,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
                 autoComplete="off"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none"
+                className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]"
               />
             </div>
           )}
@@ -250,7 +250,7 @@ function SplitPayment({
               value={amounts[m.code] ?? ''}
               onChange={(e) => setAmounts((a) => ({ ...a, [m.code]: e.target.value }))}
               placeholder="0,00"
-              className="tabular h-12 w-28 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-right text-base focus:border-[var(--color-accent)] focus:outline-none"
+              className="tabular h-12 w-28 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-right text-base focus:border-[var(--color-accent)]"
             />
           </li>
         ))}
@@ -296,9 +296,9 @@ function Receipt({ receipt, siteId, siteName, onNext }: { receipt: ReceiptView; 
       </p>
       <div className="overflow-hidden rounded-[var(--radius-md)]">
         <motion.div
-          initial={{ y: '-100%' }}
-          animate={{ y: 0 }}
-          transition={{ duration: 0.42, ease: EASE_DRAWER, delay: 0.08 }}
+          initial={{ transform: 'translateY(-100%)' }}
+          animate={{ transform: 'translateY(0%)' }}
+          transition={{ duration: 0.3, ease: EASE_DRAWER }}
           className="border border-[var(--color-border)] bg-[var(--color-bg-base)] px-4 py-4 font-data text-[13px] leading-relaxed"
         >
           <p className="text-center font-body text-[15px] font-semibold">{siteName}</p>

@@ -27,9 +27,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ServiceWorkerRegistrar />
       <OfflineIndicator />
       {children}
-      {/* En haut : la barre de vente et le bouton Encaisser restent libres en bas */}
+      {/* En haut, sous l'en-tête : la barre de vente et le bouton Encaisser restent libres en bas */}
       <Toaster
         position="top-center"
+        offset={{ top: 72 }}
+        mobileOffset={{ top: 72 }}
         toastOptions={{
           style: {
             background: 'var(--base-ink)',

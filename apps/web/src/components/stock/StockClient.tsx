@@ -15,11 +15,12 @@ import { stockApi, type StockItemApi, type StockMovementApi } from '@/lib/api/st
 import { formatDate } from '@erp/utils'
 
 const MOVEMENT_LABELS: Record<string, { label: string; sign: string; color: string }> = {
-  SALE:       { label: 'Vente',       sign: '-', color: 'text-[var(--color-danger)]' },
-  RESTOCK:    { label: 'Réassort',    sign: '+', color: 'text-[var(--color-success)]' },
-  ADJUSTMENT: { label: 'Ajustement',  sign: '±', color: 'text-[var(--color-info)]' },
-  TRANSFER:   { label: 'Transfert',   sign: '-', color: 'text-[var(--color-warning)]' },
-  LOSS:       { label: 'Perte',       sign: '-', color: 'text-[var(--color-text-muted)]' },
+  // Le signe et le libellé disent le mouvement ; pas de couleur d'alerte pour une vente
+  SALE:       { label: 'Vente',       sign: '-', color: 'text-[var(--color-text-secondary)]' },
+  RESTOCK:    { label: 'Réassort',    sign: '+', color: 'text-[var(--color-text-primary)]' },
+  ADJUSTMENT: { label: 'Ajustement',  sign: '±', color: 'text-[var(--color-text-secondary)]' },
+  TRANSFER:   { label: 'Transfert',   sign: '-', color: 'text-[var(--color-text-secondary)]' },
+  LOSS:       { label: 'Perte',       sign: '-', color: 'text-[var(--color-text-secondary)]' },
 }
 
 type Tab = 'inventory' | 'movements' | 'alerts'
@@ -28,19 +29,29 @@ interface StockClientProps { siteId: string }
 
 function StockBar({ quantity, alertAt }: { quantity: number; alertAt: number | null }) {
   const isLow = alertAt !== null && quantity <= alertAt
-  const pct = alertAt ? Math.min(100, (quantity / (alertAt * 4)) * 100) : 50
+  // Jauge relative au seuil (plein à 4 fois le seuil) ; sans seuil, pas de jauge
+  const pct = alertAt ? Math.min(100, (Math.max(0, quantity) / (alertAt * 4)) * 100) : null
 
   return (
     <div className="flex items-center gap-2">
-      <div className="w-20 h-1.5 bg-[var(--color-bg-elevated)] rounded-full overflow-hidden">
-        <div
-          className={['h-full rounded-full transition-all', isLow ? 'bg-[var(--color-danger)]' : 'bg-[var(--color-success)]'].join(' ')}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className={['font-data text-sm', isLow ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-primary)]'].join(' ')}>
+      {pct !== null && (
+        <div className="w-20 h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden" aria-hidden>
+          <div
+            className={['h-full rounded-full', isLow ? 'bg-[var(--color-bg-inverse)]' : 'bg-[var(--color-accent)]'].join(' ')}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+      <span className="tabular text-sm font-medium">
         {Number(quantity).toFixed(0)}
+        {alertAt !== null && <span className="font-normal text-[var(--color-text-secondary)]"> / seuil {alertAt}</span>}
       </span>
+      {/* Stock bas : dit en toutes lettres, pas seulement par la couleur */}
+      {isLow && (
+        <span className="flex items-center gap-1 rounded-[var(--radius-pill)] bg-[var(--color-bg-inverse)] px-2 py-0.5 text-xs font-semibold text-[var(--color-text-inverse)]">
+          <Warning size={12} weight="fill" aria-hidden /> Bas
+        </span>
+      )}
     </div>
   )
 }
@@ -88,7 +99,7 @@ export function StockClient({ siteId }: StockClientProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
         <div>
-          <h1 className="font-display text-xl text-[var(--color-text-primary)]">Stock</h1>
+          <h1 className="page-title">Stock</h1>
           {alerts.length > 0 && (
             <p className="flex items-center gap-1.5 mt-0.5 font-body text-xs text-[var(--color-warning)]">
               <Warning size={11} weight="fill" />
@@ -114,7 +125,7 @@ export function StockClient({ siteId }: StockClientProps) {
             {label}
             {count !== undefined && count > 0 && (
               <span className={[
-                'font-data text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
+                'tabular text-xs px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
                 key === 'alerts' && count > 0
                   ? 'bg-[var(--color-danger)]/15 text-[var(--color-danger)]'
                   : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)]',
@@ -143,11 +154,11 @@ export function StockClient({ siteId }: StockClientProps) {
                     className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0 group"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-body text-[13px] text-[var(--color-text-primary)] truncate">
+                      <p className="font-body text-sm text-[var(--color-text-primary)] truncate">
                         {item.product.name}
                       </p>
                       {item.product.sku && (
-                        <p className="font-data text-[10px] text-[var(--color-text-muted)]">
+                        <p className="font-data text-xs text-[var(--color-text-muted)]">
                           {item.product.sku}
                         </p>
                       )}
@@ -156,7 +167,7 @@ export function StockClient({ siteId }: StockClientProps) {
                     <div className="flex items-center gap-4 shrink-0">
                       <StockBar quantity={Number(item.quantity)} alertAt={item.alertAt ? Number(item.alertAt) : null} />
 
-                      <span className="font-data text-[11px] text-[var(--color-text-muted)] w-12 text-right">
+                      <span className="tabular text-sm text-[var(--color-text-muted)] w-12 text-right">
                         {item.unit}
                       </span>
 
@@ -170,7 +181,7 @@ export function StockClient({ siteId }: StockClientProps) {
                             reason: 'Réassort manuel',
                           })
                         }
-                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-success)] hover:border-[var(--color-success)]/30 transition-all text-[11px] font-body"
+                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-success)] hover:border-[var(--color-success)]/30 transition-colors text-sm font-body"
                       >
                         <ArrowUp size={10} weight="bold" />
                         +10
@@ -195,25 +206,25 @@ export function StockClient({ siteId }: StockClientProps) {
                       className="flex items-center justify-between py-2.5 border-b border-[var(--color-border)] last:border-0"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="font-data text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 rounded-[var(--radius-sm)] w-20 text-center">
+                        <span className="tabular text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 rounded-[var(--radius-sm)] w-20 text-center">
                           {info.label}
                         </span>
                         <div>
-                          <p className="font-body text-[13px] text-[var(--color-text-primary)]">
+                          <p className="font-body text-sm text-[var(--color-text-primary)]">
                             Produit
                           </p>
                           {m.reason && (
-                            <p className="font-body text-[11px] text-[var(--color-text-muted)]">
+                            <p className="font-body text-sm text-[var(--color-text-muted)]">
                               {m.reason}
                             </p>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-4 shrink-0">
-                        <span className={`font-data text-sm ${info.color}`}>
+                        <span className={`tabular text-sm ${info.color}`}>
                           {info.sign}{Number(m.quantity).toFixed(0)}
                         </span>
-                        <span className="font-data text-[10px] text-[var(--color-text-muted)]">
+                        <span className="tabular text-xs text-[var(--color-text-muted)]">
                           {new Date(m.createdAt).toLocaleDateString('fr-FR', {
                             day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
                           })}
@@ -228,7 +239,7 @@ export function StockClient({ siteId }: StockClientProps) {
         {tab === 'alerts' && (
           alerts.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16">
-              <Package size={32} weight="regular" className="text-[var(--color-text-muted)]/40" />
+              <Package size={32} weight="regular" className="text-[var(--color-text-muted)]" />
               <p className="font-body text-sm text-[var(--color-text-muted)]">
                 Aucune alerte de stock
               </p>
@@ -246,7 +257,7 @@ export function StockClient({ siteId }: StockClientProps) {
                       <p className="font-body text-sm text-[var(--color-text-primary)]">
                         {item.product.name}
                       </p>
-                      <p className="font-data text-[11px] text-[var(--color-danger)]">
+                      <p className="tabular text-sm text-[var(--color-text-primary)]">
                         Stock: {Number(item.quantity).toFixed(0)} {item.unit} (seuil: {Number(item.alertAt).toFixed(0)})
                       </p>
                     </div>

@@ -40,7 +40,7 @@ export function BillingSettings() {
   return (
     <div className="max-w-3xl space-y-8 p-6 md:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Abonnement</h1>
+        <h1 className="page-title">Abonnement</h1>
         <p className="text-[15px] text-[var(--color-text-secondary)]">
           Sans engagement, résiliable à tout moment. Vos données restent exportables, abonnement ou pas.
         </p>

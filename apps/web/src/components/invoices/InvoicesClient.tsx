@@ -48,7 +48,7 @@ export function InvoicesClient() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
         <div>
-          <h1 className="font-display text-xl text-[var(--color-text-primary)]">Factures</h1>
+          <h1 className="page-title">Factures</h1>
           <p className="font-body text-xs text-[var(--color-text-muted)] mt-0.5">
             {invoices.length} facture{invoices.length > 1 ? 's' : ''} · {formatPrice(totalRevenue)} encaissé{totalRevenue > 0 ? 's' : ''}
           </p>
@@ -58,7 +58,7 @@ export function InvoicesClient() {
           <select
             value={yearFilter}
             onChange={(e) => setYearFilter(Number(e.target.value))}
-            className="h-8 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-data text-sm text-[var(--color-text-secondary)] focus:outline-none cursor-pointer"
+            className="h-10 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] tabular text-sm text-[var(--color-text-secondary)] cursor-pointer"
           >
             {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
               <option key={y} value={y}>{y}</option>
@@ -77,7 +77,7 @@ export function InvoicesClient() {
           </div>
         ) : invoices.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-20">
-            <Receipt size={32} weight="regular" className="text-[var(--color-text-muted)]/40" />
+            <Receipt size={32} weight="regular" className="text-[var(--color-text-muted)]" />
             <p className="font-body text-sm text-[var(--color-text-muted)]">
               Aucune facture pour {yearFilter}
             </p>
@@ -102,16 +102,16 @@ export function InvoicesClient() {
                       <span className="font-data text-sm text-[var(--color-text-primary)]">
                         {inv.invoiceNumber}
                       </span>
-                      <span className={`${status.cls} text-[10px] px-1.5 py-0.5 rounded-full font-data`}>
+                      <span className={`${status.cls} text-xs px-1.5 py-0.5 rounded-full tabular`}>
                         {status.label}
                       </span>
                       {isOverdue && (
-                        <span className="text-[10px] text-[var(--color-danger)] font-data">
+                        <span className="text-xs text-[var(--color-danger)] tabular">
                           En retard
                         </span>
                       )}
                     </div>
-                    <p className="font-body text-[11px] text-[var(--color-text-muted)] truncate">
+                    <p className="font-body text-sm text-[var(--color-text-muted)] truncate">
                       {inv.b2bClient?.name ?? 'Client'}
                       {inv.site?.name ? ` · ${inv.site.name}` : ''}
                     </p>
@@ -119,11 +119,11 @@ export function InvoicesClient() {
 
                   {/* Dates */}
                   <div className="hidden lg:block w-28 shrink-0">
-                    <p className="font-data text-xs text-[var(--color-text-muted)]">
+                    <p className="tabular text-xs text-[var(--color-text-muted)]">
                       {new Date(inv.invoicedAt).toLocaleDateString('fr-FR')}
                     </p>
                     {dueDate && (
-                      <p className={`font-data text-[10px] ${isOverdue ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-muted)]'}`}>
+                      <p className={`tabular text-xs ${isOverdue ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-muted)]'}`}>
                         Éch. {dueDate.toLocaleDateString('fr-FR')}
                       </p>
                     )}
@@ -139,7 +139,7 @@ export function InvoicesClient() {
                     <a
                       href={invoicesApi.exportFacturXUrl(inv.id)}
                       download
-                      className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] rounded-[var(--radius-sm)] hover:bg-[var(--color-accent-muted)] transition-all"
+                      className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] rounded-[var(--radius-sm)] hover:bg-[var(--color-accent-muted)] transition-colors"
                       title="Export Factur-X"
                     >
                       <DownloadSimple size={13} />
@@ -149,14 +149,14 @@ export function InvoicesClient() {
                       <>
                         <button
                           onClick={() => markPaid.mutate(inv.id)}
-                          className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-success)] rounded-[var(--radius-sm)] hover:bg-[var(--color-success)]/10 transition-all"
+                          className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-success)] rounded-[var(--radius-sm)] hover:bg-[var(--color-success)]/10 transition-colors"
                           title="Marquer payée"
                         >
                           <CheckCircle size={13} />
                         </button>
                         <button
                           onClick={() => { if (confirm('Marquer comme refusée ?')) markRefused.mutate(inv.id) }}
-                          className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] rounded-[var(--radius-sm)] hover:bg-[var(--color-danger)]/10 transition-all"
+                          className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] rounded-[var(--radius-sm)] hover:bg-[var(--color-danger)]/10 transition-colors"
                           title="Marquer refusée"
                         >
                           <XCircle size={13} />

@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Trash } from '@phosphor-icons/react'
 import type { ApiProduct, ApiCategory } from '@/lib/api/products'
+import { FieldError } from '@/components/ui/FieldError'
+import { EASE_DRAWER } from '@/lib/motion'
 
 const variantSchema = z.object({
   name: z.string().min(1),
@@ -28,7 +30,7 @@ const productSchema = z.object({
 
 export type ProductFormValues = z.infer<typeof productSchema>
 
-const inputCls = 'w-full h-9 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 focus:ring-1 focus:ring-[var(--color-accent)]/20 transition-colors'
+const inputCls = 'w-full h-11 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors'
 
 interface ProductDrawerProps {
   product: ApiProduct | null
@@ -77,25 +79,47 @@ export function ProductDrawer({
     }
   }, [product, reset])
 
+  // Fenêtre modale : focus au premier champ, Échap ferme, focus rendu ensuite
+  const panel = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const back = document.activeElement as HTMLElement | null
+    const t = window.setTimeout(() => panel.current?.querySelector<HTMLElement>('input')?.focus(), 30)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.clearTimeout(t)
+      window.removeEventListener('keydown', onKey)
+      back?.focus?.()
+    }
+  }, [onClose])
+
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pd-title"
+        initial={{ transform: 'translateX(100%)' }}
+        animate={{ transform: 'translateX(0%)' }}
+        exit={{ transform: 'translateX(100%)' }}
+        transition={{ duration: 0.32, ease: EASE_DRAWER }}
         className="fixed right-0 top-0 h-full w-[480px] bg-[var(--color-bg-elevated)] border-l border-[var(--color-border)] z-50 flex flex-col shadow-2xl"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
-          <h2 className="font-body text-sm font-semibold text-[var(--color-text-primary)]">
+          <h2 id="pd-title" className="font-display text-lg font-bold tracking-tight text-[var(--color-text-primary)]">
             {isNew ? 'Nouveau produit' : 'Modifier le produit'}
           </h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors p-1"
+            aria-label="Fermer"
+            className="grid size-10 place-items-center rounded-[var(--radius-pill)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)] transition-colors"
           >
-            <X size={16} />
+            <X size={18} aria-hidden />
           </button>
         </div>
 
@@ -108,20 +132,20 @@ export function ProductDrawer({
           {/* Infos principales */}
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <label className="font-body text-xs text-[var(--color-text-secondary)]">Nom *</label>
-              <input {...register('name')} className={inputCls} placeholder="Ganache Grand Cru" />
-              {errors.name && <p className="text-xs text-[var(--color-danger)]">{errors.name.message}</p>}
+              <label htmlFor="pd-name" className="font-body text-xs text-[var(--color-text-secondary)]">Nom *</label>
+              <input id="pd-name" aria-invalid={!!errors.name} aria-describedby={errors.name ? 'pd-name-err' : undefined} {...register('name')} className={inputCls} placeholder="Ganache Grand Cru" />
+              {errors.name && <FieldError id="pd-name-err">{errors.name.message}</FieldError>}
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-body text-xs text-[var(--color-text-secondary)]">Sous-titre</label>
-              <input {...register('subtitle')} className={inputCls} placeholder="Origine Madagascar 72%" />
+              <label htmlFor="pd-subtitle" className="font-body text-xs text-[var(--color-text-secondary)]">Sous-titre</label>
+              <input id="pd-subtitle" {...register('subtitle')} className={inputCls} placeholder="Origine Madagascar 72%" />
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-body text-xs text-[var(--color-text-secondary)]">Description</label>
+              <label htmlFor="pd-description" className="font-body text-xs text-[var(--color-text-secondary)]">Description</label>
               <textarea
-                {...register('description')}
+                id="pd-description" {...register('description')}
                 rows={2}
                 className={inputCls + ' h-auto py-2 resize-none'}
                 placeholder="Description courte du produit..."
@@ -132,19 +156,19 @@ export function ProductDrawer({
           {/* Prix + TVA */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="font-body text-xs text-[var(--color-text-secondary)]">Prix TTC (€) *</label>
+              <label htmlFor="pd-price" className="font-body text-xs text-[var(--color-text-secondary)]">Prix TTC (€) *</label>
               <input
-                {...register('price', { valueAsNumber: true })}
+                id="pd-price" aria-invalid={!!errors.price} aria-describedby={errors.price ? 'pd-price-err' : undefined} {...register('price', { valueAsNumber: true })}
                 type="number" step="0.01" min="0"
                 className={inputCls}
                 placeholder="9.50"
               />
-              {errors.price && <p className="text-xs text-[var(--color-danger)]">{errors.price.message}</p>}
+              {errors.price && <FieldError id="pd-price-err">{errors.price.message}</FieldError>}
             </div>
 
             <div className="space-y-1.5">
-              <label className="font-body text-xs text-[var(--color-text-secondary)]">TVA (%)</label>
-              <select {...register('taxRate', { valueAsNumber: true })} className={inputCls + ' cursor-pointer'}>
+              <label htmlFor="pd-taxRate" className="font-body text-xs text-[var(--color-text-secondary)]">TVA (%)</label>
+              <select id="pd-taxRate" {...register('taxRate', { valueAsNumber: true })} className={inputCls + ' cursor-pointer'}>
                 <option value={5.5}>5,5% (alimentaire)</option>
                 <option value={10}>10% (restauration)</option>
                 <option value={20}>20% (standard)</option>
@@ -154,8 +178,8 @@ export function ProductDrawer({
 
           {/* Catégorie */}
           <div className="space-y-1.5">
-            <label className="font-body text-xs text-[var(--color-text-secondary)]">Catégorie</label>
-            <select {...register('categoryId')} className={inputCls + ' cursor-pointer'}>
+            <label htmlFor="pd-categoryId" className="font-body text-xs text-[var(--color-text-secondary)]">Catégorie</label>
+            <select id="pd-categoryId" {...register('categoryId')} className={inputCls + ' cursor-pointer'}>
               <option value="">Sans catégorie</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -166,12 +190,12 @@ export function ProductDrawer({
           {/* SKU + Code-barre */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="font-body text-xs text-[var(--color-text-secondary)]">SKU</label>
-              <input {...register('sku')} className={inputCls} placeholder="CHO-001" />
+              <label htmlFor="pd-sku" className="font-body text-xs text-[var(--color-text-secondary)]">SKU</label>
+              <input id="pd-sku" {...register('sku')} className={inputCls} placeholder="CHO-001" />
             </div>
             <div className="space-y-1.5">
-              <label className="font-body text-xs text-[var(--color-text-secondary)]">Code-barre</label>
-              <input {...register('barcode')} className={inputCls} placeholder="3760001234567" />
+              <label htmlFor="pd-barcode" className="font-body text-xs text-[var(--color-text-secondary)]">Code-barre</label>
+              <input id="pd-barcode" {...register('barcode')} className={inputCls} placeholder="3760001234567" />
             </div>
           </div>
 
@@ -230,7 +254,7 @@ export function ProductDrawer({
             form="product-form"
             disabled={isSaving}
             whileTap={{ scale: 0.98 }}
-            className="flex-1 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+            className="flex-1 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] transition-colors"
           >
             {isSaving ? 'Enregistrement...' : isNew ? 'Créer' : 'Enregistrer'}
           </motion.button>
@@ -241,7 +265,7 @@ export function ProductDrawer({
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 z-40 bg-black/40"
+        className="fixed inset-0 z-40 bg-[var(--scrim)]"
       />
     </AnimatePresence>
   )

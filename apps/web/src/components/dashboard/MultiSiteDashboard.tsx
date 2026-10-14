@@ -2,34 +2,28 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ChartLine, ArrowRight } from '@phosphor-icons/react'
+import { ArrowRight } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import { consolidatedDashboardApi } from '@/lib/api/invoices'
 import { useAuthStore } from '@/stores/auth.store'
 import Link from 'next/link'
 import { EASE_OUT } from '@/lib/motion'
-import { FlowMark } from '@/components/brand/FlowLogo'
 
+// Une ligne de chiffres posés sur la typographie, séparés par des filets.
+// Seul le chiffre d'affaires prend le Klein.
 function ConsolidatedKPI({
   label, value, sub, accent, index,
 }: { label: string; value: string; sub?: string; accent?: boolean; index: number }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, transform: 'translateY(8px)' }}
+      animate={{ opacity: 1, transform: 'translateY(0px)' }}
       transition={{ duration: 0.25, delay: index * 0.04, ease: EASE_OUT }}
-      className={[
-        'relative overflow-hidden p-5 rounded-[var(--radius-lg)] border',
-        accent
-          ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-[var(--color-on-accent)]'
-          : 'bg-[var(--color-bg-surface)] border-[var(--color-border)]',
-      ].join(' ')}
+      className="px-5 py-5"
     >
-      {/* Le chiffre du jour porte le signe, les autres restent sobres */}
-      {accent && <FlowMark size={88} inverse className="absolute -right-4 -bottom-6 opacity-20" />}
-      <p className={`font-body text-sm mb-3 ${accent ? '' : 'text-[var(--color-text-secondary)]'}`}>{label}</p>
-      <p className="tabular font-display text-3xl font-bold leading-none tracking-[-0.03em]">{value}</p>
-      {sub && <p className={`font-body text-sm mt-1.5 ${accent ? '' : 'text-[var(--color-text-secondary)]'}`}>{sub}</p>}
+      <p className="font-body text-sm text-[var(--color-text-secondary)]">{label}</p>
+      <p className={`tabular mt-2 font-display text-4xl font-bold leading-none tracking-[-0.035em] ${accent ? 'text-[var(--color-accent)]' : ''}`}>{value}</p>
+      {sub && <p className="mt-2 font-body text-sm text-[var(--color-text-secondary)]">{sub}</p>}
     </motion.div>
   )
 }
@@ -50,7 +44,7 @@ export function MultiSiteDashboard() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-6 py-5 border-b border-[var(--color-border)]">
-        <h1 className="font-display text-3xl font-bold tracking-[-0.03em] text-[var(--color-text-primary)]">
+        <h1 className="page-title">
           {user?.firstName ? `Bonjour, ${user.firstName}` : 'Tableau de bord'}
         </h1>
         <p className="font-body text-sm text-[var(--color-text-secondary)] mt-1 first-letter:uppercase">{today}</p>
@@ -59,13 +53,9 @@ export function MultiSiteDashboard() {
       <div className="p-6 space-y-6">
         {/* KPIs consolidés */}
         {isLoading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-24 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] border border-[var(--color-border)] animate-pulse" />
-            ))}
-          </div>
+          <div className="h-32 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] animate-pulse" />
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] lg:grid-cols-4 [&>*]:border-[var(--color-border)] [&>*:nth-child(odd)]:border-r lg:[&>*]:border-r lg:[&>*:last-child]:border-r-0 [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(-n+2)]:border-b-0">
             <ConsolidatedKPI label="CA total du jour" value={formatPrice(data?.revenue ?? 0)} accent index={0} />
             <ConsolidatedKPI label="Commandes" value={String(data?.orderCount ?? 0)} sub={`${data?.siteCount ?? 0} site${(data?.siteCount ?? 0) > 1 ? 's' : ''}`} index={1} />
             <ConsolidatedKPI label="Panier moyen" value={formatPrice(data?.avgBasket ?? 0)} index={2} />
@@ -76,9 +66,7 @@ export function MultiSiteDashboard() {
         {/* Breakdown par site */}
         {!isLoading && (data?.perSite?.length ?? 0) > 1 && (
           <div>
-            <p className="font-body text-xs text-[var(--color-text-muted)] mb-3 uppercase tracking-wide">
-              Par boutique
-            </p>
+            <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">Par boutique</h2>
             <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] divide-y divide-[var(--color-border)]">
               {(data?.perSite ?? []).map((site: any, i: number) => {
                 const pct = data.revenue > 0 ? (site.revenue / data.revenue) * 100 : 0
@@ -90,35 +78,35 @@ export function MultiSiteDashboard() {
                     className="flex items-center px-4 py-3"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-body text-sm text-[var(--color-text-primary)]">{site.siteName}</p>
+                      <p className="font-body text-[15px] font-medium text-[var(--color-text-primary)]">{site.siteName}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 h-1 bg-[var(--color-bg-elevated)] rounded-full overflow-hidden max-w-[120px]">
+                        <div className="flex-1 h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden max-w-[160px]">
                           <div
-                            className="h-full bg-[var(--color-accent)] rounded-full transition-all"
+                            className="h-full bg-[var(--color-accent)] rounded-full transition-colors"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="font-data text-[10px] text-[var(--color-text-muted)]">
-                          {pct.toFixed(0)}%
+                        <span className="tabular text-sm text-[var(--color-text-secondary)]">
+                          {pct.toFixed(0)} %
                         </span>
                       </div>
                     </div>
                     <div className="text-right shrink-0 ml-4">
-                      <p className="font-data text-sm text-[var(--color-text-primary)]">
+                      <p className="tabular font-display text-lg font-semibold">
                         {formatPrice(site.revenue)}
                       </p>
-                      <p className="font-data text-[10px] text-[var(--color-text-muted)]">
-                        {site.orderCount} cmd{site.orderCount > 1 ? 's' : ''}
-                        {site.inProgress > 0 && ` · ${site.inProgress} en cours`}
+                      <p className="tabular text-sm text-[var(--color-text-secondary)]">
+                        {site.orderCount} commande{site.orderCount > 1 ? 's' : ''}
+                        {site.inProgress > 0 && `, ${site.inProgress} en cours`}
                       </p>
                     </div>
 
                     <Link
                       href={`/pos/${site.siteId}`}
-                      className="ml-3 p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] rounded-[var(--radius-sm)] transition-all"
-                      title="Ouvrir la caisse"
+                      aria-label={`Ouvrir la caisse ${site.siteName}`}
+                      className="ml-3 grid size-10 place-items-center text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] rounded-[var(--radius-pill)] transition-colors"
                     >
-                      <ArrowRight size={13} />
+                      <ArrowRight size={18} aria-hidden />
                     </Link>
                   </motion.div>
                 )
@@ -127,15 +115,6 @@ export function MultiSiteDashboard() {
           </div>
         )}
 
-        {/* Lien vers le dashboard site-specific */}
-        {!isLoading && (data?.siteCount ?? 0) > 0 && (
-          <div className="flex items-center gap-2 pt-2">
-            <ChartLine size={12} className="text-[var(--color-text-muted)]" />
-            <p className="font-body text-xs text-[var(--color-text-muted)]">
-              Sélectionnez un site dans la barre latérale pour voir son dashboard détaillé (CA horaire, top produits).
-            </p>
-          </div>
-        )}
       </div>
     </div>
   )

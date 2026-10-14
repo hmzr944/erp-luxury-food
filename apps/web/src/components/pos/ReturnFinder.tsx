@@ -56,11 +56,11 @@ export function ReturnFinder({
               autoComplete="off"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none"
+              className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]"
             />
           </div>
           {!navigator.onLine ? (
-            <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+            <p role="alert" className="alert-box">
               Les retours se font en ligne, pour vérifier la vente d&apos;origine. Les ventes, elles, continuent hors ligne.
             </p>
           ) : (

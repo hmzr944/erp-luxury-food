@@ -352,7 +352,7 @@ function RefundForm({
               }}
               className={[
                 'h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium',
-                reason === r ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]',
+                reason === r ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]',
               ].join(' ')}
             >
               {r}
@@ -386,7 +386,7 @@ function RefundForm({
       </fieldset>
 
       {error && (
-        <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+        <p role="alert" className="alert-box">
           {error}
         </p>
       )}

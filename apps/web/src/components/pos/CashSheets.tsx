@@ -74,9 +74,9 @@ export function CashOpenSheet({ siteId, terminalId, open, onClose }: { siteId: s
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0,00"
-              className="tabular h-16 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-3xl font-semibold focus:border-[var(--color-accent)] focus:outline-none"
+              className="tabular h-16 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-3xl font-semibold focus:border-[var(--color-accent)]"
             />
-            <button type="submit" disabled={typed == null || saving} className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-50">
+            <button type="submit" disabled={typed == null || saving} className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]">
               {typed != null ? `Ouvrir avec ${formatPrice(typed)}` : 'Ouvrir'}
             </button>
           </form>
@@ -87,7 +87,7 @@ export function CashOpenSheet({ siteId, terminalId, open, onClose }: { siteId: s
               data-autofocus
               disabled={saving || !state.data}
               onClick={() => confirm(suggested)}
-              className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-50 press"
+              className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] press"
             >
               Confirmer {formatPrice(suggested)}
             </button>
@@ -204,14 +204,14 @@ export function CashCloseSheet({
               ? 'Le compte est juste.'
               : `${formatPrice(Math.abs(done.difference))} ${done.difference > 0 ? 'de plus' : 'de moins'} que prévu${done.differenceReason ? `, motif : ${done.differenceReason.toLowerCase()}` : ', dans la tolérance'}.`}
           </p>
-          <button type="button" onClick={onClose} className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-text-primary)] text-lg font-semibold text-[var(--color-bg-base)]">
+          <button type="button" onClick={onClose} className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-bg-inverse)] text-lg font-semibold text-[var(--color-text-inverse)]">
             Terminé
           </button>
         </div>
       ) : (
         <div className="space-y-5">
           {pendingSales > 0 && (
-            <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-[15px] font-medium">
+            <p role="alert" className="alert-box">
               {pendingSales} {pendingSales > 1 ? 'ventes' : 'vente'} pas encore envoyées : reconnectez la caisse avant de compter, sinon elles manqueront au total attendu.
             </p>
           )}
@@ -247,7 +247,7 @@ export function CashCloseSheet({
                       type="button"
                       aria-pressed={reason === r}
                       onClick={() => setReason(r)}
-                      className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', reason === r ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
+                      className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', reason === r ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
                     >
                       {r}
                     </button>

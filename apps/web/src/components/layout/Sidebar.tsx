@@ -24,7 +24,7 @@ import { FlowLogo } from '@/components/brand/FlowLogo'
 import { sitesApi } from '@/lib/api/sites'
 import { useBilling } from '@/lib/api/billing'
 
-const NAV = [
+export const NAV = [
   { href: '/dashboard',  icon: ChartLine,   label: 'Tableau de bord' },
   { href: '/orders',     icon: ListChecks,  label: 'Commandes' },
   { href: '/supply',     icon: Truck,       label: 'Approvisionnement' },
@@ -36,7 +36,7 @@ const NAV = [
   { href: '/compliance', icon: ShieldCheck, label: 'Conformité' },
 ]
 
-const NAV_BOTTOM = [
+export const NAV_BOTTOM = [
   { href: '/settings', icon: Gear, label: 'Paramètres' },
 ]
 
@@ -51,23 +51,26 @@ export function Sidebar() {
   const isActive = (href: string) => pathname.startsWith(href)
 
   return (
-    <nav className="flex flex-col w-48 shrink-0 h-full border-r border-[var(--color-border)] bg-[var(--color-bg-surface)]">
+    <nav aria-label="Navigation principale" className="hidden md:flex flex-col w-56 shrink-0 h-full border-r border-[var(--color-border)] bg-[var(--color-bg-surface)]">
       {/* Brand + site selector */}
       <div className="px-4 py-4 border-b border-[var(--color-border)]">
-        <FlowLogo size={24} className="mb-3" />
-        <p className="font-display text-sm font-semibold text-[var(--color-text-primary)] leading-tight mb-2 truncate">
-          {currentSite?.name ?? ''}
-        </p>
+        <FlowLogo size={18} className="mb-5" />
+        {sites.length <= 1 && (
+          <p className="font-display text-base font-semibold text-[var(--color-text-primary)] leading-tight truncate">
+            {currentSite?.name ?? ''}
+          </p>
+        )}
 
         {sites.length > 1 && (
           <div className="relative">
             <select
+              aria-label="Boutique"
               value={currentSite?.id ?? ''}
               onChange={(e) => {
                 const s = sites.find((s) => s.id === e.target.value)
                 if (s) selectSite(s)
               }}
-              className="w-full h-7 pl-2 pr-6 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-sm)] font-body text-[11px] text-[var(--color-text-secondary)] appearance-none focus:outline-none focus:border-[var(--color-accent)]/40 cursor-pointer"
+              className="w-full h-10 pl-3 pr-8 bg-[var(--color-bg-surface)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-sm appearance-none cursor-pointer"
             >
               {sites.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -76,8 +79,9 @@ export function Sidebar() {
               ))}
             </select>
             <ArrowsLeftRight
-              size={10}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none"
+              size={14}
+              aria-hidden
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none"
             />
           </div>
         )}
@@ -88,20 +92,20 @@ export function Sidebar() {
         <div className="px-3 pt-3 pb-1">
           <Link
             href={`/atelier/${currentSite.id}`}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-bg-hover)] transition-colors"
+            className="flex items-center gap-2.5 h-10 px-3 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] text-[var(--color-accent)] hover:bg-[var(--color-bg-hover)] transition-colors"
           >
-            <Truck size={14} weight="regular" />
-            <span className="font-body text-[13px]">Ouvrir l&apos;atelier</span>
+            <Truck size={18} aria-hidden />
+            <span className="font-body text-[15px]">Ouvrir l&apos;atelier</span>
           </Link>
         </div>
       ) : currentSite && (
         <div className="px-3 pt-3 pb-1">
           <Link
             href={`/pos/${currentSite.id}`}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] border border-[var(--color-accent)]/20 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/15 transition-colors group"
+            className="flex items-center gap-2.5 h-10 px-3 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] border border-[var(--color-accent)]/20 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/15 transition-colors group"
           >
-            <Storefront size={14} weight="regular" />
-            <span className="font-body text-[13px]">Ouvrir la caisse</span>
+            <Storefront size={18} aria-hidden />
+            <span className="font-body text-[15px]">Ouvrir la caisse</span>
           </Link>
         </div>
       )}
@@ -114,8 +118,9 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              aria-current={active ? 'page' : undefined}
               className={[
-                'relative flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] transition-colors',
+                'relative flex items-center gap-2.5 h-10 px-3 rounded-[var(--radius-md)] transition-colors',
                 active
                   ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)]'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]',
@@ -124,12 +129,12 @@ export function Sidebar() {
               {active && (
                 <motion.span
                   layoutId="sidebar-indicator"
-                  className="absolute -left-3 top-1/2 h-5 w-1.5 -translate-y-1/2 rounded-r-full bg-[var(--color-accent)]"
+                  className="absolute -left-3 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-[var(--color-accent)]"
                   transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}
                 />
               )}
-              <Icon size={14} weight={active ? 'fill' : 'regular'} />
-              <span className="font-body text-[13px]">{label}</span>
+              <Icon size={18} aria-hidden weight={active ? 'fill' : 'regular'} />
+              <span className="font-body text-[15px]">{label}</span>
             </Link>
           )
         })}
@@ -145,14 +150,14 @@ export function Sidebar() {
               key={href}
               href={href}
               className={[
-                'flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] transition-colors',
+                'flex items-center gap-2.5 h-10 px-3 rounded-[var(--radius-md)] transition-colors',
                 active
                   ? 'bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)]'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]',
               ].join(' ')}
             >
-              <Icon size={14} weight={active ? 'fill' : 'regular'} />
-              <span className="font-body text-[13px]">{label}</span>
+              <Icon size={18} aria-hidden weight={active ? 'fill' : 'regular'} />
+              <span className="font-body text-[15px]">{label}</span>
             </Link>
           )
         })}
@@ -176,7 +181,7 @@ function BillingNotice() {
   return (
     <Link
       href="/settings/billing"
-      className="mb-1 block rounded-[var(--radius-md)] px-3 py-2 text-[13px] font-medium text-[var(--color-accent)] hover:bg-[var(--color-bg-hover)]"
+      className="mb-1 block rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-bg-hover)]"
     >
       {text}
     </Link>

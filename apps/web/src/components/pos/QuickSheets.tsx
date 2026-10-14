@@ -9,7 +9,7 @@ import type { PlatformConfig } from '@/lib/api/platform'
 import { Sheet } from './Sheet'
 
 const fieldCls =
-  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none'
+  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]'
 
 const parseAmount = (v: string) => {
   const n = Number(v.replace(/\s/g, '').replace(',', '.'))
@@ -33,7 +33,7 @@ function TaxChoice({ rates, value, onChange }: { rates: PlatformConfig['taxRates
               onClick={() => onChange(rate)}
               className={[
                 'h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium',
-                active ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]',
+                active ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]',
               ].join(' ')}
             >
               {String(rate).replace('.', ',')} %
@@ -255,7 +255,7 @@ export function QuickProductSheet({
           </div>
         )}
         {error && (
-          <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+          <p role="alert" className="alert-box">
             {error}
           </p>
         )}

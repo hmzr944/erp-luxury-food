@@ -23,8 +23,8 @@ export function StatusBadge({ status, size = 'sm' }: StatusBadgeProps) {
     <span
       className={[
         className,
-        'inline-flex items-center rounded-full font-data font-medium leading-none',
-        size === 'sm' ? 'text-[10px] px-2 py-1' : 'text-xs px-2.5 py-1.5',
+        'inline-flex items-center rounded-full tabular font-medium leading-none',
+        size === 'sm' ? 'text-xs px-2 py-1' : 'text-xs px-2.5 py-1.5',
       ].join(' ')}
     >
       {label}

@@ -12,7 +12,7 @@ import { BadgeLogin } from '@/components/auth/BadgeLogin'
 import { FlowLogo, FlowMark } from '@/components/brand/FlowLogo'
 
 const fieldCls =
-  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none'
+  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]'
 
 type Till = { siteId: string; terminalId: string; name: string }
 
@@ -64,15 +64,20 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-[100dvh] bg-[var(--color-bg-base)] text-[var(--color-text-primary)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      {/* Grand écran : le signe se forme sur l'aplat Klein, une fois */}
-      <aside aria-hidden className="relative hidden overflow-hidden bg-[var(--color-accent)] lg:flex lg:items-center lg:justify-center">
+      {/* Grand écran : le signe se forme sur l'aplat encre, une fois ; seul le trait est Klein */}
+      <aside aria-hidden className="relative hidden overflow-hidden bg-[var(--color-bg-inverse)] lg:flex lg:items-center lg:justify-center">
         <FlowMark size={300} inverse motion="form" />
       </aside>
       <div className="flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm space-y-8">
         <header className="space-y-1 text-center">
-          <FlowLogo size={40} motion="form" className="mb-4 lg:hidden" />
-          <FlowLogo size={40} className="mb-4 hidden lg:inline-flex" />
+          {/* Une seule marque visible : elle se forme sur téléphone, le grand signe s'en charge à gauche sur grand écran */}
+          <div className="mb-5 lg:hidden">
+            <FlowLogo size={26} motion="form" />
+          </div>
+          <div aria-hidden className="mb-5 hidden lg:block">
+            <FlowLogo size={26} />
+          </div>
           <h1 className="font-display text-4xl font-bold tracking-tight">{mode === 'pin' ? 'Qui encaisse ?' : 'Connexion'}</h1>
           {mode === 'pin' && till && <p className="text-[15px] text-[var(--color-text-secondary)]">Code ou badge, sur {till.name}</p>}
         </header>
@@ -88,7 +93,7 @@ export default function LoginPage() {
                     role="radio"
                     aria-checked={t.siteId === till.siteId}
                     onClick={() => setTill(t)}
-                    className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', t.siteId === till.siteId ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
+                    className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', t.siteId === till.siteId ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
                   >
                     {t.name}
                   </button>
@@ -125,7 +130,7 @@ export default function LoginPage() {
               <label htmlFor="email" className="block text-sm font-medium">
                 E-mail
               </label>
-              <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={fieldCls} />
+              <input id="email" type="email" autoComplete="email" required aria-invalid={!!error} aria-describedby={error ? 'login-error' : undefined} value={email} onChange={(e) => setEmail(e.target.value)} className={fieldCls} />
             </div>
             <div className="space-y-2">
               <label htmlFor="password" className="block text-sm font-medium">
@@ -134,6 +139,8 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   id="password"
+                  aria-invalid={!!error}
+                  aria-describedby={error ? 'login-error' : undefined}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
@@ -152,14 +159,14 @@ export default function LoginPage() {
               </div>
             </div>
             {error && (
-              <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+              <p id="login-error" role="alert" className="alert-box">
                 {error}
               </p>
             )}
             <button
               type="submit"
               disabled={isLoading || !email || !password}
-              className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-50"
+              className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
             >
               {isLoading ? 'Connexion...' : 'Se connecter'}
             </button>

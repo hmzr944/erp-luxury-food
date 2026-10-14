@@ -18,7 +18,7 @@ export function CashSettings() {
   return (
     <div className="max-w-3xl space-y-6 p-6 md:p-8">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Caisse et fond de caisse</h1>
+        <h1 className="page-title">Caisse et fond de caisse</h1>
         <p className="text-[15px] text-[var(--color-text-secondary)]">
           Rien à régler : à la fermeture, la caisse dit quels billets et pièces laisser dans le tiroir, et le fond est confirmé d&apos;un geste le
           lendemain.
@@ -33,7 +33,7 @@ export function CashSettings() {
               role="radio"
               aria-checked={s.id === active?.id}
               onClick={() => setSiteId(s.id)}
-              className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', s.id === active?.id ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
+              className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', s.id === active?.id ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
             >
               {s.name}
             </button>

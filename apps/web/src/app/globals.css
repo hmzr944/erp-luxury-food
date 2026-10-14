@@ -34,6 +34,10 @@
   --base-on-accent: #F4F2ED;
   --base-surface: color-mix(in srgb, #FFFFFF 70%, #F4F2ED);
   --scrim: color-mix(in srgb, #14141A 45%, transparent);
+  /* Dosage des mélanges encre/papier, réglé par mode (contrastes mesurés) */
+  --mix-secondary: 78%;
+  --mix-muted: 62%;
+  --mix-strong: 48%;
   color-scheme: light;
 }
 
@@ -44,10 +48,13 @@
   :root:not([data-theme="light"]) {
     --base-bg: #14141A;
     --base-ink: #F4F2ED;
-    --base-accent: #8C9BFF;
+    --base-accent: #A3AFFF;
     --base-on-accent: #14141A;
     --base-surface: color-mix(in srgb, #F4F2ED 6%, #14141A);
     --scrim: color-mix(in srgb, #08080B 65%, transparent);
+    --mix-secondary: 85%;
+    --mix-muted: 70%;
+    --mix-strong: 46%;
     color-scheme: dark;
   }
 }
@@ -55,10 +62,13 @@
 :root[data-theme="dark"] {
   --base-bg: #14141A;
   --base-ink: #F4F2ED;
-  --base-accent: #8C9BFF;
+  --base-accent: #A3AFFF;
   --base-on-accent: #14141A;
   --base-surface: color-mix(in srgb, #F4F2ED 6%, #14141A);
   --scrim: color-mix(in srgb, #08080B 65%, transparent);
+  --mix-secondary: 85%;
+  --mix-muted: 70%;
+  --mix-strong: 46%;
   color-scheme: dark;
 }
 
@@ -66,13 +76,16 @@
   /* Fonds */
   --color-bg-base:     var(--base-bg);
   --color-bg-surface:  var(--base-surface);
-  --color-bg-elevated: var(--base-surface);
+  --color-bg-elevated: color-mix(in srgb, var(--base-ink) 4%, var(--base-surface));
+  /* Inverse : aplat encre et texte papier (boutons secondaires pleins, toasts) */
+  --color-bg-inverse:   var(--base-ink);
+  --color-text-inverse: var(--base-bg);
   --color-bg-hover:    color-mix(in srgb, var(--base-ink) 6%, var(--base-surface));
 
   /* Textes */
   --color-text-primary:   var(--base-ink);
-  --color-text-secondary: color-mix(in srgb, var(--base-ink) 78%, var(--base-bg));
-  --color-text-muted:     color-mix(in srgb, var(--base-ink) 62%, var(--base-bg));
+  --color-text-secondary: color-mix(in srgb, var(--base-ink) var(--mix-secondary), var(--base-bg));
+  --color-text-muted:     color-mix(in srgb, var(--base-ink) var(--mix-muted), var(--base-bg));
 
   /* Flux : la couleur de l'action (encaisser, valider, envoyer) */
   --color-accent:       var(--base-accent);
@@ -89,7 +102,8 @@
 
   /* Bordures */
   --color-border:        color-mix(in srgb, var(--base-ink) 12%, var(--base-bg));
-  --color-border-strong: color-mix(in srgb, var(--base-ink) 30%, var(--base-bg));
+  /* border-strong : contour des champs, 3:1 minimum mesuré sur fond et surface */
+  --color-border-strong: color-mix(in srgb, var(--base-ink) var(--mix-strong), var(--base-bg));
 
   /* Typographie auto-hébergée (disponible hors ligne) : Bricolage Grotesque
      pour la voix de la marque (titres, chiffres clés), Geist pour lire et saisir */
@@ -194,9 +208,11 @@
   25% { transform: translateX(-8px); }
   75% { transform: translateX(8px); }
 }
-.pin-shake { animation: pin-shake 0.35s ease-in-out; }
+.pin-shake { animation: pin-shake 280ms var(--ease-out); }
+/* Mouvement réduit : pas de secousse, un bref clignement suffit */
+@keyframes pin-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 @media (prefers-reduced-motion: reduce) {
-  .pin-shake { animation: none; }
+  .pin-shake { animation: pin-blink 280ms ease; }
 }
 
 /* ============================================================
@@ -299,4 +315,38 @@
 .hero-in-bar { transform-origin: left; animation: fm-in-bar 700ms var(--ease-out) 520ms both; }
 @media (prefers-reduced-motion: reduce) {
   .hero-in-l, .hero-in-r, .hero-in-bar { animation: flow-glow-in 300ms ease both; }
+}
+
+/* Erreur : sans rouge, elle se distingue par l'aplat encre, la graisse et
+   l'icône d'alerte (masque CSS, la couleur suit le texte) */
+.alert-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-inverse);
+  color: var(--color-text-inverse);
+  padding: 0.75rem 0.875rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.alert-box::before {
+  content: '';
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.05rem;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.2 5h2.4v7h-2.4V7Zm0 9h2.4v2.4h-2.4V16Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Titre de page du back-office : un seul style, la voix de la marque */
+.page-title {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary);
 }

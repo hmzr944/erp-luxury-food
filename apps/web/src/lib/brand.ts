@@ -3,7 +3,7 @@
 // moitiés, trait. On reconnaît « Maille » ou « Pâtisseries » à sa forme.
 export const BRAND = 'FLŌW'
 
-export const RAYON_SHAPES = ['disque', 'moitie', 'trait', 'fendu', 'anneau', 'dome', 'paire', 'quart', 'losange', 'colonnes'] as const
+export const RAYON_SHAPES = ['disque', 'moitie', 'dome', 'fendu', 'anneau', 'bol', 'paire', 'pilule', 'arc', 'colonnes'] as const
 export type RayonShape = (typeof RAYON_SHAPES)[number]
 
 // Une forme par rayon, sans doublon tant qu'il en reste : la forme déjà

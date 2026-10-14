@@ -17,7 +17,7 @@ const CHOICES: Array<{ id: Choice; title: string; text: string }> = [
 ]
 
 const fieldCls =
-  'h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-[15px] focus:border-[var(--color-accent)] focus:outline-none'
+  'h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-[15px] focus:border-[var(--color-accent)]'
 
 export function PaymentSettings() {
   const qc = useQueryClient()
@@ -46,7 +46,7 @@ export function PaymentSettings() {
   return (
     <div className="max-w-3xl space-y-10 p-6 md:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Paiement</h1>
+        <h1 className="page-title">Paiement</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">
           Reliez un TPE : la caisse lui envoie le montant et ferme la vente dès que le paiement est accepté. Plus rien à retaper.
         </p>
@@ -175,7 +175,7 @@ function SimulatorSetup({ siteId, onDone }: { siteId: string; onDone: () => void
         type="button"
         onClick={() => add.mutate()}
         disabled={add.isPending}
-        className="flex h-12 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:opacity-50"
+        className="flex h-12 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
       >
         <Plus size={18} aria-hidden />
         Ajouter le TPE virtuel
@@ -271,7 +271,7 @@ function ProviderSetup({
               <button
                 type="submit"
                 disabled={connect.isPending}
-                className="h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:opacity-50"
+                className="h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
               >
                 {connect.isPending ? 'Vérification...' : 'Relier le compte'}
               </button>
@@ -315,7 +315,7 @@ function ProviderSetup({
             <button
               type="submit"
               disabled={!account || pairDevice.isPending}
-              className="h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:opacity-50"
+              className="h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
             >
               {pairDevice.isPending ? 'Appairage...' : 'Relier ce TPE'}
             </button>

@@ -38,7 +38,7 @@ export function DashboardClient({ siteId, siteName }: DashboardClientProps) {
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Header */}
       <div className="px-6 py-5 border-b border-[var(--color-border)]">
-        <h1 className="font-display text-xl text-[var(--color-text-primary)]">{siteName}</h1>
+        <h1 className="page-title">{siteName}</h1>
         <p className="font-body text-xs text-[var(--color-text-muted)] mt-0.5 capitalize">{today}</p>
       </div>
 
@@ -107,18 +107,18 @@ export function DashboardClient({ siteId, siteName }: DashboardClientProps) {
                 {data?.topProducts.map((p, i) => (
                   <div key={p.name} className="flex items-center justify-between py-1.5 border-b border-[var(--color-border)] last:border-0">
                     <div className="flex items-center gap-2.5">
-                      <span className="font-data text-[10px] text-[var(--color-text-muted)] w-4 text-right shrink-0">
+                      <span className="tabular text-xs text-[var(--color-text-muted)] w-4 text-right shrink-0">
                         {i + 1}
                       </span>
-                      <span className="font-body text-[13px] text-[var(--color-text-primary)] truncate max-w-[140px]">
+                      <span className="font-body text-sm text-[var(--color-text-primary)] truncate max-w-[140px]">
                         {p.name}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-data text-xs text-[var(--color-text-muted)]">
+                      <span className="tabular text-xs text-[var(--color-text-muted)]">
                         x{p.quantity}
                       </span>
-                      <span className="font-data text-xs text-[var(--color-text-secondary)]">
+                      <span className="tabular text-xs text-[var(--color-text-secondary)]">
                         {formatPrice(p.revenue)}
                       </span>
                     </div>
@@ -149,20 +149,20 @@ export function DashboardClient({ siteId, siteName }: DashboardClientProps) {
                   >
                     <div className="flex items-center gap-2">
                       {order.receiptChain && (
-                        <span className="font-data text-[10px] text-[var(--color-text-muted)]">
+                        <span className="tabular text-xs text-[var(--color-text-muted)]">
                           #{order.receiptChain.counter}
                         </span>
                       )}
                       <StatusBadge status={order.status as OrderStatus} />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-data text-[10px] text-[var(--color-text-muted)]">
+                      <span className="tabular text-xs text-[var(--color-text-muted)]">
                         {new Date(order.createdAt).toLocaleTimeString('fr-FR', {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
                       </span>
-                      <span className="font-data text-sm text-[var(--color-text-primary)]">
+                      <span className="tabular text-sm text-[var(--color-text-primary)]">
                         {formatPrice(Number(order.total))}
                       </span>
                     </div>

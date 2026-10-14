@@ -60,7 +60,7 @@ export function LaboProduction({ siteId }: { siteId: string }) {
                 setBusy(false)
               }
             }}
-            className="ml-auto h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:opacity-60"
+            className="ml-auto h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
           >
             Lancer la fabrication
           </button>
@@ -168,7 +168,7 @@ function PackingCard({ siteId, order }: { siteId: string; order: SupplyOrder }) 
               setSaving(false)
             }
           }}
-          className="h-12 w-full rounded-[var(--radius-md)] bg-[var(--color-text-primary)] text-[15px] font-semibold text-[var(--color-bg-base)] disabled:opacity-60"
+          className="h-12 w-full rounded-[var(--radius-md)] bg-[var(--color-bg-inverse)] text-[15px] font-semibold text-[var(--color-text-inverse)] disabled:opacity-60"
         >
           {saving ? 'Expédition...' : 'Colis prêt, expédier'}
         </button>

@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { formatPrice } from '@erp/utils'
 import { b2bApi, type B2BClient } from '@/lib/api/b2b'
 
-const inputCls = 'w-full h-9 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 transition-colors'
+const inputCls = 'w-full h-11 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors'
 
 const EMPTY: Partial<B2BClient> = {
   name: '', siret: '', vatNumber: '', email: '', phone: '',
@@ -82,12 +82,12 @@ function ClientForm({
         </div>
       </div>
       <div className="flex gap-2 justify-end">
-        <button onClick={onClose} className="px-3 h-9 font-body text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">Annuler</button>
+        <button onClick={onClose} className="px-3 h-11 font-body text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">Annuler</button>
         <motion.button
           onClick={() => onSave(data)}
           disabled={isSaving || !data.name?.trim()}
           whileTap={{ scale: 0.98 }}
-          className="px-4 h-9 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] disabled:opacity-50 hover:bg-[var(--color-accent-hover)] transition-all"
+          className="px-4 h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           {isSaving ? 'Enregistrement...' : 'Enregistrer'}
         </motion.button>
@@ -128,7 +128,7 @@ export function ClientsClient() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
         <div>
-          <h1 className="font-display text-xl text-[var(--color-text-primary)]">Clients B2B</h1>
+          <h1 className="page-title">Clients B2B</h1>
           <p className="font-body text-xs text-[var(--color-text-muted)] mt-0.5">
             Restaurants, hôtels, épiceries fines
           </p>
@@ -136,7 +136,7 @@ export function ClientsClient() {
         <motion.button
           onClick={() => setShowCreate(true)}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           <Plus size={13} weight="bold" />
           Nouveau client
@@ -169,9 +169,9 @@ export function ClientsClient() {
           </div>
         ) : clients.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-20">
-            <Buildings size={32} weight="regular" className="text-[var(--color-text-muted)]/40" />
+            <Buildings size={32} weight="regular" className="text-[var(--color-text-muted)]" />
             <p className="font-body text-sm text-[var(--color-text-muted)]">
-              Aucun client B2B - ajoutez votre premier partenaire
+              Aucun client B2B. Ajoutez le premier.
             </p>
           </div>
         ) : editId ? (
@@ -205,17 +205,17 @@ export function ClientsClient() {
                       {client.name}
                     </p>
                     {client.city && (
-                      <p className="font-body text-[11px] text-[var(--color-text-muted)]">{client.city}</p>
+                      <p className="font-body text-sm text-[var(--color-text-muted)]">{client.city}</p>
                     )}
                   </div>
 
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setEditId(client.id)} className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-elevated)] transition-all">
+                    <button onClick={() => setEditId(client.id)} className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-elevated)] transition-colors">
                       <PencilSimple size={13} />
                     </button>
                     <button
                       onClick={() => { if (confirm(`Supprimer ${client.name} ?`)) remove.mutate(client.id) }}
-                      className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] rounded-[var(--radius-sm)] hover:bg-[var(--color-danger)]/10 transition-all"
+                      className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] rounded-[var(--radius-sm)] hover:bg-[var(--color-danger)]/10 transition-colors"
                     >
                       <Trash size={13} />
                     </button>
@@ -224,18 +224,18 @@ export function ClientsClient() {
 
                 <div className="flex items-center gap-3 flex-wrap">
                   {client.email && (
-                    <span className="font-body text-[11px] text-[var(--color-text-muted)]">{client.email}</span>
+                    <span className="font-body text-sm text-[var(--color-text-muted)]">{client.email}</span>
                   )}
                   {client.discount && (
-                    <span className="font-data text-[10px] text-[var(--color-accent)] bg-[var(--color-accent-muted)] px-1.5 py-0.5 rounded-full">
+                    <span className="tabular text-xs text-[var(--color-accent)] bg-[var(--color-accent-muted)] px-1.5 py-0.5 rounded-full">
                       -{client.discount}%
                     </span>
                   )}
-                  <span className="font-data text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 rounded-full">
+                  <span className="tabular text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 rounded-full">
                     {client.paymentTerms === 0 ? 'Comptant' : `${client.paymentTerms}j`}
                   </span>
                   {client._count && (
-                    <span className="font-data text-[10px] text-[var(--color-text-muted)]">
+                    <span className="tabular text-xs text-[var(--color-text-muted)]">
                       {client._count.orders} commande{client._count.orders > 1 ? 's' : ''}
                     </span>
                   )}

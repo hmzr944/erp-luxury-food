@@ -70,7 +70,7 @@ export function PinPad({
         {[0, 1, 2, 3].map((i) => (
           <span
             key={i}
-            className={['size-4 rounded-full border-2 border-[var(--color-text-primary)] transition-colors duration-100', i < pin.length ? 'bg-[var(--color-text-primary)]' : ''].join(' ')}
+            className={['size-4 rounded-full border-2 border-[var(--color-text-primary)] transition-colors duration-100', i < pin.length ? 'bg-[var(--color-bg-inverse)]' : ''].join(' ')}
           />
         ))}
       </div>

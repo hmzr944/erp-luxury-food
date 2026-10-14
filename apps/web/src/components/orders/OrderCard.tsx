@@ -74,7 +74,7 @@ export function OrderCard({
         <div className="flex items-center gap-2">
           <ChannelIcon size={12} weight="regular" className="text-[var(--color-text-muted)]" />
           {counter && (
-            <span className="font-data text-[11px] text-[var(--color-text-muted)]">
+            <span className="font-data text-sm text-[var(--color-text-muted)]">
               #{counter}
             </span>
           )}
@@ -82,7 +82,7 @@ export function OrderCard({
         </div>
         <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
           <Clock size={10} weight="regular" />
-          <span className="font-data text-[10px]">{time}</span>
+          <span className="tabular text-xs">{time}</span>
         </div>
       </div>
 
@@ -90,16 +90,16 @@ export function OrderCard({
       <div className="px-3 py-2.5 flex-1 space-y-1 min-h-[56px]">
         {items.slice(0, 3).map((item, i) => (
           <div key={i} className="flex items-center justify-between">
-            <span className="font-body text-[12px] text-[var(--color-text-primary)] truncate max-w-[140px]">
+            <span className="font-body text-sm text-[var(--color-text-primary)] truncate max-w-[140px]">
               {item.name}
             </span>
-            <span className="font-data text-[11px] text-[var(--color-text-muted)] shrink-0 ml-2">
+            <span className="tabular text-sm text-[var(--color-text-muted)] shrink-0 ml-2">
               x{item.quantity}
             </span>
           </div>
         ))}
         {items.length > 3 && (
-          <p className="font-body text-[11px] text-[var(--color-text-muted)]">
+          <p className="font-body text-sm text-[var(--color-text-muted)]">
             +{items.length - 3} autre{items.length - 3 > 1 ? 's' : ''}
           </p>
         )}
@@ -109,7 +109,7 @@ export function OrderCard({
       <div className="px-3 py-2.5 border-t border-[var(--color-border)] flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <PayIcon size={11} weight="regular" className="text-[var(--color-text-muted)]" />
-          <span className="font-data text-sm text-[var(--color-text-primary)]">
+          <span className="tabular text-sm text-[var(--color-text-primary)]">
             {formatPrice(total)}
           </span>
         </div>
@@ -119,7 +119,7 @@ export function OrderCard({
             onClick={() => onChangeStatus(id, action.next)}
             whileTap={{ scale: 0.96 }}
             className={[
-              'px-3 py-1.5 rounded-[var(--radius-sm)] font-body text-[11px] font-medium transition-all',
+              'px-3 py-1.5 rounded-[var(--radius-sm)] font-body text-sm font-medium transition-colors',
               action.next === 'PREPARING'
                 ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-accent-hover)]'
                 : action.next === 'READY'

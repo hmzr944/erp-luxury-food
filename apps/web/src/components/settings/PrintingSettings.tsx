@@ -37,7 +37,7 @@ export function PrintingSettings() {
 
   return (
     <div className="max-w-lg px-8 py-6">
-      <h1 className="font-display text-xl text-[var(--color-text-primary)] mb-2">Impression</h1>
+      <h1 className="page-title mb-2">Impression</h1>
       <p className="font-body text-sm text-[var(--color-text-muted)] mb-6">
         Imprimantes connectées via PrintNode pour {currentSite.name}
       </p>
@@ -66,7 +66,7 @@ export function PrintingSettings() {
               key={printer.id}
               onClick={() => setSelectedPrinter(printer.id)}
               className={[
-                'flex items-center justify-between p-4 rounded-[var(--radius-lg)] border cursor-pointer transition-all',
+                'flex items-center justify-between p-4 rounded-[var(--radius-lg)] border cursor-pointer transition-colors',
                 selectedPrinter === printer.id
                   ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent-muted)]'
                   : 'border-[var(--color-border)] bg-[var(--color-bg-surface)] hover:border-[var(--color-border-strong)]',
@@ -76,7 +76,7 @@ export function PrintingSettings() {
                 <Printer size={16} weight="regular" className="text-[var(--color-text-muted)]" />
                 <div>
                   <p className="font-body text-sm text-[var(--color-text-primary)]">{printer.name}</p>
-                  <p className="font-data text-[10px] text-[var(--color-text-muted)]">
+                  <p className="tabular text-xs text-[var(--color-text-muted)]">
                     ID: {printer.id} · {printer.computer?.name ?? 'Ordinateur inconnu'}
                   </p>
                 </div>
@@ -84,7 +84,7 @@ export function PrintingSettings() {
 
               <div className="flex items-center gap-3">
                 <span className={[
-                  'font-data text-[10px] px-1.5 py-0.5 rounded-full',
+                  'tabular text-xs px-1.5 py-0.5 rounded-full',
                   printer.state === 'online'
                     ? 'text-[var(--color-success)] bg-[var(--color-success)]/10'
                     : 'text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)]',
@@ -97,7 +97,7 @@ export function PrintingSettings() {
                     onClick={(e) => { e.stopPropagation(); testPrint.mutate(printer.id) }}
                     disabled={testPrint.isPending}
                     whileTap={{ scale: 0.97 }}
-                    className="px-3 h-7 border border-[var(--color-accent)]/30 text-[var(--color-accent)] font-body text-xs rounded-[var(--radius-sm)] hover:bg-[var(--color-accent)]/10 transition-colors disabled:opacity-50"
+                    className="px-3 h-7 border border-[var(--color-accent)]/30 text-[var(--color-accent)] font-body text-xs rounded-[var(--radius-sm)] hover:bg-[var(--color-accent)]/10 transition-colors disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
                   >
                     Test
                   </motion.button>
@@ -109,7 +109,7 @@ export function PrintingSettings() {
       )}
 
       <div className="mt-6 p-4 bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)]">
-        <p className="font-data text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-2">
+        <p className="font-data text-xs text-[var(--color-text-secondary)] mb-2">
           Documentation
         </p>
         <p className="font-body text-xs text-[var(--color-text-secondary)]">

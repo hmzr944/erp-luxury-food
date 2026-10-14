@@ -7,7 +7,7 @@ import { ShieldCheck } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { orgSettingsApi } from '@/lib/api/invoices'
 
-const inputCls = 'w-full h-9 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 transition-colors'
+const inputCls = 'w-full h-11 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors'
 
 export function OrganizationSettings() {
   const { data: settings, isLoading } = useQuery({
@@ -45,7 +45,7 @@ export function OrganizationSettings() {
 
   return (
     <div className="max-w-lg px-8 py-6">
-      <h1 className="font-display text-xl text-[var(--color-text-primary)] mb-6">Organisation</h1>
+      <h1 className="page-title mb-6">Organisation</h1>
 
       {/* Identité légale */}
       <div className="mb-6">
@@ -105,7 +105,7 @@ export function OrganizationSettings() {
           <p className="font-body text-sm font-semibold text-[var(--color-text-primary)]">
             Facturation électronique : plateforme agréée
           </p>
-          <span className="font-data text-[9px] text-[var(--color-warning)] bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/20 px-1.5 py-0.5 rounded-full">
+          <span className="tabular text-xs text-[var(--color-warning)] bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/20 px-1.5 py-0.5 rounded-full">
             Obligatoire sept. 2026
           </span>
         </div>
@@ -119,15 +119,19 @@ export function OrganizationSettings() {
               </p>
             </div>
             <button
+              type="button"
+              role="switch"
+              aria-checked={form.pdpEnabled}
+              aria-label="Facturation électronique via PDP"
               onClick={() => set('pdpEnabled', !form.pdpEnabled)}
               className={[
-                'w-10 h-6 rounded-full transition-all relative',
+                'w-10 h-6 rounded-full transition-colors relative',
                 form.pdpEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)]',
               ].join(' ')}
             >
               <span className={[
-                'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform',
-                form.pdpEnabled ? 'translate-x-5' : 'translate-x-0.5',
+                'absolute top-0.5 w-4 h-4 rounded-full transition-transform duration-200',
+                form.pdpEnabled ? 'translate-x-5 bg-[var(--color-on-accent)]' : 'translate-x-0.5 bg-[var(--color-bg-inverse)]',
               ].join(' ')} />
             </button>
           </div>
@@ -148,7 +152,7 @@ export function OrganizationSettings() {
               </div>
               <div className="space-y-1.5">
                 <label className="font-body text-xs text-[var(--color-text-secondary)]">URL API PDP</label>
-                <input value={form.pdpEndpoint} onChange={(e) => set('pdpEndpoint', e.target.value)} className={inputCls + ' font-data'} placeholder="https://api.monpdp.fr/invoices" />
+                <input value={form.pdpEndpoint} onChange={(e) => set('pdpEndpoint', e.target.value)} className={inputCls + ' tabular'} placeholder="https://api.monpdp.fr/invoices" />
               </div>
               <div className="space-y-1.5">
                 <label className="font-body text-xs text-[var(--color-text-secondary)]">Clé API PDP</label>
@@ -164,7 +168,7 @@ export function OrganizationSettings() {
           onClick={() => save.mutate()}
           disabled={save.isPending}
           whileTap={{ scale: 0.98 }}
-          className="px-5 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+          className="px-5 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-semibold rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] transition-colors"
         >
           {save.isPending ? 'Enregistrement...' : 'Enregistrer'}
         </motion.button>

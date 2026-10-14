@@ -45,7 +45,7 @@ export function GesturesDemo() {
         const shots = gsap.utils.toArray<HTMLElement>('[data-shot]')
         const steps = gsap.utils.toArray<HTMLElement>('[data-step]')
         gsap.set(shots.slice(1), { autoAlpha: 0, y: 24 })
-        gsap.set(steps.slice(1), { opacity: 0.32 })
+        gsap.set(steps.slice(1), { opacity: 0.6 })
 
         const tl = gsap.timeline({
           defaults: { ease: 'power2.out', duration: 0.5 },
@@ -62,7 +62,7 @@ export function GesturesDemo() {
         for (let i = 1; i < shots.length; i++) {
           const at = i - 0.5
           tl.to(shots[i], { autoAlpha: 1, y: 0 }, at)
-            .to(steps[i - 1], { opacity: 0.32 }, at)
+            .to(steps[i - 1], { opacity: 0.6 }, at)
             .to(steps[i], { opacity: 1 }, at)
         }
       })

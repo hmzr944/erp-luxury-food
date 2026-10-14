@@ -89,7 +89,7 @@ export function ShopOrderForm({ siteId, onSent, surface }: { siteId: string; onS
               onClick={() => setSupplierId(s.id)}
               className={[
                 'h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium',
-                s.id === active ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]',
+                s.id === active ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]',
               ].join(' ')}
             >
               {s.name}

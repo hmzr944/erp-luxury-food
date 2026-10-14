@@ -170,14 +170,14 @@ function SerialStep({ label, onConfirm }: { label: string; onConfirm: (serial: s
           value={serial}
           onChange={(e) => setSerial(e.target.value)}
           autoComplete="off"
-          className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 font-data text-base focus:border-[var(--color-accent)] focus:outline-none"
+          className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 font-data text-base focus:border-[var(--color-accent)]"
         />
         <p className="text-sm text-[var(--color-text-secondary)]">{label}. Gravé ou inscrit sur le certificat.</p>
       </div>
       <button
         type="submit"
         disabled={!serial.trim()}
-        className="h-12 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-base font-semibold text-[var(--color-on-accent)] disabled:opacity-40"
+        className="h-12 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-base font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
       >
         Ajouter
       </button>

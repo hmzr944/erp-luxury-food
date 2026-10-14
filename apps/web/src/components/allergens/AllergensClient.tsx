@@ -7,6 +7,7 @@ import { CaretDown, CheckCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { allergensApi, type ProductWithAllergens, type AllergenApi } from '@/lib/api/allergens'
 import { EASE_OUT } from '@/lib/motion'
+import { Loading } from '@/components/brand/FlowLogo'
 
 const ALLERGEN_COLORS: Record<string, string> = {
   GLUTEN:       'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
@@ -41,7 +42,7 @@ function AllergenChip({ allergen, active, traces, onToggle, onToggleTraces }: Al
       <button
         onClick={onToggle}
         className={[
-          'px-2.5 py-1.5 rounded-[var(--radius-md)] border font-body text-[11px] font-medium press',
+          'px-2.5 py-1.5 rounded-[var(--radius-md)] border font-body text-sm font-medium press',
           active ? colors : 'bg-transparent border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)]',
         ].join(' ')}
       >
@@ -52,7 +53,7 @@ function AllergenChip({ allergen, active, traces, onToggle, onToggleTraces }: Al
         <button
           onClick={onToggleTraces}
           className={[
-            'font-data text-[9px] px-1.5 py-0.5 rounded-full border transition-all',
+            'tabular text-xs px-1.5 py-0.5 rounded-full border transition-colors',
             traces
               ? 'border-[var(--color-warning)]/30 text-[var(--color-warning)] bg-[var(--color-warning)]/10'
               : 'border-[var(--color-border)] text-[var(--color-text-muted)]',
@@ -115,7 +116,7 @@ function ProductRow({ product, allergens, siteId }: ProductRowProps) {
           <div>
             <p className="font-body text-sm text-[var(--color-text-primary)]">{product.name}</p>
             {product.subtitle && (
-              <p className="font-body text-[11px] text-[var(--color-text-muted)]">{product.subtitle}</p>
+              <p className="font-body text-sm text-[var(--color-text-muted)]">{product.subtitle}</p>
             )}
           </div>
         </div>
@@ -127,7 +128,7 @@ function ProductRow({ product, allergens, siteId }: ProductRowProps) {
                 <span
                   key={pa.allergenId}
                   className={[
-                    'px-1.5 py-0.5 rounded-[var(--radius-sm)] font-data text-[9px] border',
+                    'px-1.5 py-0.5 rounded-[var(--radius-sm)] font-data text-xs border',
                     ALLERGEN_COLORS[pa.allergen.code] ?? 'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] border-[var(--color-border)]',
                     pa.traces ? 'opacity-60' : '',
                   ].join(' ')}
@@ -136,7 +137,7 @@ function ProductRow({ product, allergens, siteId }: ProductRowProps) {
                 </span>
               ))}
               {activeCount > 4 && (
-                <span className="font-data text-[10px] text-[var(--color-text-muted)]">
+                <span className="tabular text-xs text-[var(--color-text-muted)]">
                   +{activeCount - 4}
                 </span>
               )}
@@ -176,11 +177,7 @@ function ProductRow({ product, allergens, siteId }: ProductRowProps) {
               </div>
 
               {save.isPending && (
-                <p className="font-body text-[11px] text-[var(--color-text-muted)] mt-3 flex items-center gap-1">
-                  <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1, repeat: Infinity }}>
-                    Enregistrement...
-                  </motion.span>
-                </p>
+                <Loading label="Enregistrement" className="mt-3" />
               )}
             </div>
           </motion.div>
@@ -207,7 +204,7 @@ export function AllergensClient({ siteId }: AllergensClientProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="px-6 py-4 border-b border-[var(--color-border)]">
-        <h1 className="font-display text-xl text-[var(--color-text-primary)]">Allergènes</h1>
+        <h1 className="page-title">Allergènes</h1>
         <p className="font-body text-xs text-[var(--color-text-muted)] mt-0.5">
           14 allergènes INCO (Règlement EU 1169/2011)
         </p>

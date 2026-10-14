@@ -110,12 +110,12 @@ export function DataSettings() {
   }
 
   const fieldCls =
-    'h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-sm focus:border-[var(--color-accent)] focus:outline-none'
+    'h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-sm focus:border-[var(--color-accent)]'
 
   return (
     <div className="max-w-3xl space-y-10 p-6 md:p-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Données</h1>
+        <h1 className="page-title">Données</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">
           Vos ventes, votre catalogue et vos clients vous appartiennent. Exportez-les quand vous voulez, en CSV lisible par
           Excel.
@@ -265,7 +265,7 @@ function ImportResult({ report, busy, onConfirm }: { report: ImportReport; busy:
             type="button"
             onClick={onConfirm}
             disabled={busy || report.products === 0}
-            className="h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:opacity-50"
+            className="h-12 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
           >
             {busy ? 'Import...' : `Importer ${plural(report.products, 'produit', 'produits')}`}
           </button>

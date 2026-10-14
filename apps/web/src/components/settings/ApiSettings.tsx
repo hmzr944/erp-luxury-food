@@ -11,7 +11,7 @@ const SCOPE_GROUPS = [
   { label: 'Commandes', scopes: ['orders:read', 'orders:write'] },
   { label: 'Produits',  scopes: ['products:read', 'products:write'] },
   { label: 'Stock',     scopes: ['stock:read', 'stock:write'] },
-  { label: 'Dashboard', scopes: ['dashboard:read'] },
+  { label: 'Tableau de bord', scopes: ['dashboard:read'] },
   { label: 'Allergènes', scopes: ['allergens:read'] },
 ]
 
@@ -63,11 +63,11 @@ export function ApiSettings() {
   return (
     <div className="max-w-lg px-8 py-6">
       <div className="flex items-center justify-between mb-2">
-        <h1 className="font-display text-xl text-[var(--color-text-primary)]">API</h1>
+        <h1 className="page-title">API</h1>
         <motion.button
           onClick={() => setShowCreate(!showCreate)}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           <Plus size={13} weight="bold" />
           Nouveau token
@@ -85,7 +85,7 @@ export function ApiSettings() {
             className="mb-5 bg-[var(--color-success)]/5 border border-[var(--color-success)]/20 rounded-[var(--radius-lg)] p-4"
           >
             <p className="font-body text-sm font-medium text-[var(--color-success)] mb-2">
-              Token créé - copiez-le maintenant, il ne sera plus affiché
+              Token créé. Copiez-le maintenant, il ne sera plus affiché.
             </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 font-data text-xs bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] px-3 py-2 text-[var(--color-text-primary)] overflow-hidden text-ellipsis">
@@ -93,7 +93,7 @@ export function ApiSettings() {
               </code>
               <button
                 onClick={copy}
-                className={['p-2 rounded-[var(--radius-sm)] transition-all', copied ? 'text-[var(--color-success)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'].join(' ')}
+                className={['p-2 rounded-[var(--radius-sm)] transition-colors', copied ? 'text-[var(--color-success)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'].join(' ')}
               >
                 {copied ? <CheckCircle size={16} weight="fill" /> : <Copy size={16} />}
               </button>
@@ -119,7 +119,7 @@ export function ApiSettings() {
                 <label className="font-body text-xs text-[var(--color-text-secondary)]">Nom</label>
                 <input
                   value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full h-9 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 transition-colors"
+                  className="w-full h-11 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors"
                   placeholder="Intégration Yooz production"
                   autoFocus
                 />
@@ -129,7 +129,7 @@ export function ApiSettings() {
                 <label className="font-body text-xs text-[var(--color-text-secondary)]">Permissions</label>
                 {SCOPE_GROUPS.map(({ label, scopes }) => (
                   <div key={label}>
-                    <p className="font-data text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1">{label}</p>
+                    <p className="font-data text-xs text-[var(--color-text-secondary)] mb-1">{label}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {scopes.map((scope) => (
                         <button
@@ -137,7 +137,7 @@ export function ApiSettings() {
                           type="button"
                           onClick={() => toggleScope(scope)}
                           className={[
-                            'px-2.5 py-1 rounded-[var(--radius-sm)] font-data text-[11px] border transition-all',
+                            'px-2.5 py-1 rounded-[var(--radius-sm)] tabular text-sm border transition-colors',
                             form.scopes.includes(scope)
                               ? 'bg-[var(--color-accent-muted)] border-[var(--color-accent)]/30 text-[var(--color-accent)]'
                               : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)]',
@@ -152,11 +152,11 @@ export function ApiSettings() {
               </div>
 
               <div className="flex gap-2 justify-end">
-                <button onClick={() => setShowCreate(false)} className="px-3 h-8 font-body text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">Annuler</button>
+                <button onClick={() => setShowCreate(false)} className="px-3 h-10 font-body text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">Annuler</button>
                 <button
                   onClick={() => create.mutate()}
                   disabled={create.isPending || !form.name.trim() || form.scopes.length === 0}
-                  className="px-4 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] disabled:opacity-50 hover:bg-[var(--color-accent-hover)] transition-all"
+                  className="px-4 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] hover:bg-[var(--color-accent-hover)] transition-colors"
                 >
                   Créer
                 </button>
@@ -179,19 +179,21 @@ export function ApiSettings() {
             <div>
               <p className="font-body text-sm text-[var(--color-text-primary)]">{t.name}</p>
               <div className="flex items-center gap-2 mt-0.5">
-                <code className="font-data text-[10px] text-[var(--color-text-muted)]">{t.prefix}...</code>
+                <code className="font-data text-xs text-[var(--color-text-muted)]">{t.prefix}...</code>
                 {t.lastUsedAt && (
-                  <span className="font-body text-[11px] text-[var(--color-text-muted)]">
+                  <span className="font-body text-sm text-[var(--color-text-muted)]">
                     Dernière utilisation: {new Date(t.lastUsedAt).toLocaleDateString('fr-FR')}
                   </span>
                 )}
               </div>
             </div>
             <button
+              type="button"
+              aria-label={`Révoquer ${t.name}`}
               onClick={() => { if (confirm(`Révoquer "${t.name}" ?`)) revoke.mutate(t.id) }}
-              className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] rounded-[var(--radius-sm)] hover:bg-[var(--color-danger)]/10 transition-all"
+              className="grid size-10 place-items-center rounded-[var(--radius-pill)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-50"
             >
-              <Trash size={13} />
+              <Trash size={18} aria-hidden />
             </button>
           </div>
         ))}

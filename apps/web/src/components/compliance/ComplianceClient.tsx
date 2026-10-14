@@ -62,7 +62,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
         <div className="flex items-center gap-3">
           <ShieldCheck size={18} weight="regular" className="text-[var(--color-accent)]" />
           <div>
-            <h1 className="font-display text-xl text-[var(--color-text-primary)]">Conformité NF525</h1>
+            <h1 className="page-title">Conformité NF525</h1>
             <p className="font-body text-xs text-[var(--color-text-muted)] mt-0.5">
               Chaîne de hachage des tickets · Clôtures journalières · Export DGFiP
             </p>
@@ -72,7 +72,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
         <a
           href={exportUrl}
           download
-          className="flex items-center gap-1.5 px-3 h-8 border border-[var(--color-border)] text-[var(--color-text-secondary)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)] transition-colors"
+          className="flex items-center gap-1.5 px-3 h-10 border border-[var(--color-border)] text-[var(--color-text-secondary)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)] transition-colors"
         >
           <DownloadSimple size={13} weight="regular" />
           Export DGFiP
@@ -115,7 +115,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
                 }}
                 disabled={closeDay.isPending}
                 whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-2 px-4 h-9 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 px-4 h-11 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm font-medium rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] transition-colors"
               >
                 <LockKey size={13} weight="fill" />
                 {closeDay.isPending ? 'Clôture...' : 'Clôturer la journée'}
@@ -150,7 +150,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
                     <p key={i} className="font-data text-xs text-[var(--color-danger)] mt-1">{e}</p>
                   ))}
                   {verifyResult.firstCounter && (
-                    <p className="font-data text-[10px] text-[var(--color-text-muted)] mt-1">
+                    <p className="font-data text-xs text-[var(--color-text-muted)] mt-1">
                       Tickets #{verifyResult.firstCounter} à #{verifyResult.lastCounter}
                     </p>
                   )}
@@ -162,7 +162,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
 
         {/* Historique clôtures */}
         <div>
-          <p className="font-body text-xs text-[var(--color-text-muted)] mb-3 uppercase tracking-wide">
+          <p className="font-body text-xs text-[var(--color-text-secondary)] mb-3">
             Historique des clôtures
           </p>
 
@@ -174,7 +174,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
             </div>
           ) : closures.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12">
-              <ShieldCheck size={28} weight="regular" className="text-[var(--color-text-muted)]/40" />
+              <ShieldCheck size={28} weight="regular" className="text-[var(--color-text-muted)]" />
               <p className="font-body text-sm text-[var(--color-text-muted)]">
                 Aucune clôture enregistrée
               </p>
@@ -193,18 +193,18 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
                           weekday: 'long', day: 'numeric', month: 'long',
                         })}
                       </p>
-                      <span className="font-data text-[10px] text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 rounded-full">
+                      <span className="font-data text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] px-1.5 py-0.5 rounded-full">
                         #{closure.lastCounter} tickets
                       </span>
                     </div>
                     <div className="flex items-center gap-4 mt-0.5">
-                      <span className="font-data text-xs text-[var(--color-text-secondary)]">
+                      <span className="tabular text-xs text-[var(--color-text-secondary)]">
                         {closure.totalOrders} commande{closure.totalOrders > 1 ? 's' : ''}
                       </span>
                       <span className="font-data text-xs text-[var(--color-accent)]">
                         {formatPrice(Number(closure.totalAmount))}
                       </span>
-                      <span className="font-data text-[9px] text-[var(--color-text-muted)] font-mono">
+                      <span className="font-data text-xs text-[var(--color-text-muted)] font-mono">
                         {closure.hash.substring(0, 12)}...
                       </span>
                     </div>
@@ -213,7 +213,7 @@ export function ComplianceClient({ siteId }: ComplianceClientProps) {
                   <button
                     onClick={() => handleVerify(new Date(closure.date).toISOString().split('T')[0])}
                     disabled={verifying === closure.date}
-                    className="opacity-0 group-hover:opacity-100 px-2.5 py-1 border border-[var(--color-border)] text-[var(--color-text-muted)] font-body text-xs rounded-[var(--radius-sm)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] disabled:opacity-30 transition-all"
+                    className="opacity-0 group-hover:opacity-100 px-2.5 py-1 border border-[var(--color-border)] text-[var(--color-text-muted)] font-body text-xs rounded-[var(--radius-sm)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] disabled:opacity-30 transition-colors"
                   >
                     {verifying === closure.date ? '...' : 'Vérifier'}
                   </button>

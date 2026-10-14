@@ -42,7 +42,10 @@ export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cas
       )}
       <FlowMark size={30} tile className="hidden sm:block" />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-display text-[17px] font-semibold leading-tight">{siteName}</p>
+        <h1 className="truncate font-display text-[17px] font-semibold leading-tight">
+          <span className="sr-only">Caisse, </span>
+          {siteName}
+        </h1>
         <p className="truncate text-sm text-[var(--color-text-secondary)]">
           {who}
           {time && <span className="tabular hidden sm:inline">{who ? ', ' : ''}{time}</span>}
@@ -161,7 +164,7 @@ function SyncStatus({ queue }: { queue: SaleQueueState }) {
       onClick={flush}
       title="Envoyer maintenant"
       className={[
-        'flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-pill)] px-3 text-sm font-medium',
+        'flex h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-pill)] px-3 text-sm font-medium',
         attention
           ? 'bg-[var(--color-accent-muted)] text-[var(--color-text-primary)]'
           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]',

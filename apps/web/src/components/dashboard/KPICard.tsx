@@ -43,7 +43,7 @@ export function KPICard({ label, value, sub, icon: Icon, accent, index = 0 }: KP
           {value}
         </p>
         {sub && (
-          <p className="font-body text-[11px] text-[var(--color-text-muted)] mt-1">{sub}</p>
+          <p className="font-body text-sm text-[var(--color-text-muted)] mt-1">{sub}</p>
         )}
       </div>
     </motion.div>

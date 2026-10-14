@@ -82,7 +82,7 @@ export function OrdersHistory({ siteId }: { siteId: string }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="N° de ticket, e-mail, produit, code d'avoir"
-          className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] pl-12 pr-4 text-base focus:border-[var(--color-accent)] focus:outline-none"
+          className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] pl-12 pr-4 text-base focus:border-[var(--color-accent)]"
         />
       </div>
 
@@ -107,7 +107,7 @@ export function OrdersHistory({ siteId }: { siteId: string }) {
           ))}
         </div>
       ) : list.isError ? (
-        <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+        <p role="alert" className="alert-box">
           {(list.error as Error).message}
         </p>
       ) : orders.length === 0 ? (

@@ -6,6 +6,7 @@ import { BRAND } from '@/lib/brand'
 import { RayonGlyph } from '@/components/brand/RayonGlyph'
 import type { RayonShape } from '@/lib/brand'
 import { HeroMark } from './HeroMark'
+import { FlowMark } from '@/components/brand/FlowLogo'
 import paiement from '../../../public/site/paiement.jpg'
 import mode from '../../../public/site/mode.jpg'
 import patisserie from '../../../public/site/patisserie.jpg'
@@ -99,7 +100,7 @@ export function Sectors() {
       <div className="mt-12 grid gap-4 md:grid-cols-6">
         <SectorFigure shape="fendu" image={mode} className="md:col-span-4" ratio="aspect-[3/2]" title="Prêt-à-porter, maroquinerie" text="Tailles et couleurs en grille, stock par variante, collection, saison, matière." alt="Portants de vêtements dans une boutique claire, sous des suspensions en métal." />
         <SectorFigure shape="disque" image={patisserie} className="md:col-span-2" ratio="aspect-[3/4] md:aspect-auto md:h-full" title="Pâtisserie, chocolaterie" text="TVA à 5,5 % par défaut, lots et dates limites, origine et conservation." alt="Vitrine de pâtisserie avec des tartes aux fruits rouges et des gâteaux au chocolat." />
-        <SectorFigure shape="losange" image={bijoux} className="md:col-span-2" ratio="aspect-[4/3]" title="Bijouterie, horlogerie" text="Numéro de série pièce par pièce, métal, pierres, certificat, garantie." alt="Bagues en or présentées sur des supports dans une vitrine." />
+        <SectorFigure shape="anneau" image={bijoux} className="md:col-span-2" ratio="aspect-[4/3]" title="Bijouterie, horlogerie" text="Numéro de série pièce par pièce, métal, pierres, certificat, garantie." alt="Bagues en or présentées sur des supports dans une vitrine." />
         <SectorFigure shape="colonnes" image={cave} className="md:col-span-2" ratio="aspect-[4/3]" title="Cave, spiritueux" text="Millésime, appellation et degré sur chaque fiche." alt="Bouteilles de vin couchées sur des étagères en bois." />
         <SectorFigure shape="dome" image={fleuriste} className="md:col-span-2" ratio="aspect-[4/3]" title="Fleurs, concept store" text="Article libre au prix saisi à la main quand rien n'est au catalogue." alt="Boutique de fleuriste remplie de bouquets colorés sous des guirlandes lumineuses." />
       </div>
@@ -130,12 +131,12 @@ function SectorFigure({
 }) {
   return (
     <figure className={`reveal flex flex-col ${className}`}>
-      <div className={`relative overflow-hidden rounded-[var(--radius-lg)] ${ratio} min-h-56`}>
+      <div className={`relative overflow-hidden rounded-[var(--radius-lg)] ${ratio} md:min-h-56`}>
         <Image src={image} alt={alt} fill placeholder="blur" sizes="(min-width: 768px) 50vw, 100vw" className="object-cover" />
       </div>
       <figcaption className="mt-3">
         <span className="flex items-center gap-2 font-display text-[18px] font-bold">
-          <RayonGlyph shape={shape} size={16} className="text-[var(--color-accent)]" />
+          <RayonGlyph shape={shape} size={18} />
           {title}
         </span>
         <span className="block text-[15px] text-[var(--color-text-secondary)]">{text}</span>
@@ -146,7 +147,7 @@ function SectorFigure({
 
 export function Payment() {
   return (
-    <section aria-labelledby="paiement-title" className="bg-[var(--color-text-primary)] text-[var(--color-bg-base)]">
+    <section aria-labelledby="paiement-title" className="bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 md:px-6 md:py-28 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-center lg:gap-16">
         <Image
           src={paiement}
@@ -297,13 +298,13 @@ export function Pricing() {
                 i === 0 ? 'border-2 border-[var(--color-accent)]' : 'border border-[var(--color-border-strong)]',
               ].join(' ')}
             >
-              <span aria-hidden className={`absolute left-6 top-0 h-2.5 w-20 rounded-b-full md:left-8 ${i === 0 ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-primary)]'}`} />
+              <span aria-hidden className={`absolute left-6 top-0 h-2.5 w-20 rounded-b-full md:left-8 ${i === 0 ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-inverse)]'}`} />
               <h3 className="flex items-center gap-2.5 font-display text-3xl font-bold tracking-tight">
                 {p.name}
               </h3>
               <p className="mt-1 text-[16px] text-[var(--color-text-secondary)] md:min-h-12">{p.summary}</p>
-              <p className="mt-6 flex items-baseline gap-2">
-                <span className="tabular font-display text-6xl font-bold tracking-tight">{p.monthlyPrice} €</span>
+              <p className="mt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span className="tabular whitespace-nowrap font-display text-6xl font-bold tracking-tight">{p.monthlyPrice}&nbsp;€</span>
                 <span className="text-[15px] text-[var(--color-text-secondary)]">HT par boutique et par mois</span>
               </p>
               <ul className="mt-6 flex-1 space-y-2.5 text-[16px]">
@@ -385,8 +386,7 @@ export function Faq() {
 export function FinalCall() {
   return (
     <section aria-labelledby="fin-title" className="mx-auto max-w-6xl px-4 pb-20 md:px-6 md:pb-28">
-      <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-accent)] px-6 py-14 text-[var(--color-on-accent)] md:px-12 md:py-20">
-        <Image src={chocolats} alt="" fill placeholder="blur" sizes="100vw" className="object-cover opacity-20 mix-blend-luminosity" />
+      <div className="relative grid items-center gap-10 overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)] px-6 py-14 text-[var(--color-text-inverse)] md:grid-cols-[minmax(0,1fr)_auto] md:px-12 md:py-20">
         <div className="relative max-w-2xl">
           <h2 id="fin-title" className={h2}>
             Faites votre prochaine vente avec {BRAND}.
@@ -396,11 +396,13 @@ export function FinalCall() {
           </p>
           <Link
             href="/inscription"
-            className="mt-8 inline-flex h-12 items-center rounded-[var(--radius-pill)] bg-[var(--color-on-accent)] px-6 text-[16px] font-semibold text-[var(--color-accent)] press"
+            className="mt-8 inline-flex h-12 items-center rounded-[var(--radius-pill)] bg-[var(--color-accent)] px-6 text-[16px] font-semibold text-[var(--color-on-accent)] press"
           >
             Créer mon compte
           </Link>
         </div>
+        {/* Le signe entier, sur l'encre : moitiés papier, trait Klein */}
+        <FlowMark size={168} inverse className="reveal hidden md:block" />
       </div>
     </section>
   )

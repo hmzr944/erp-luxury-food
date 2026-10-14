@@ -31,7 +31,7 @@ const ROLE_HELP: Record<AppRole, string> = {
 const ROLES: AppRole[] = ['SELLER', 'PRODUCTION', 'MANAGER', 'OWNER']
 
 const field =
-  'h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-[15px] focus:border-[var(--color-accent)] focus:outline-none'
+  'h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-[15px] focus:border-[var(--color-accent)]'
 
 // Équipe : chacun son rôle, ses boutiques et son code de caisse à 4 chiffres
 export function UsersSettings() {
@@ -91,7 +91,7 @@ export function UsersSettings() {
     <div className="max-w-3xl space-y-6 p-6 md:p-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Équipe</h1>
+          <h1 className="page-title">Équipe</h1>
           <p className="text-[15px] text-[var(--color-text-secondary)]">Code à 4 chiffres ou badge (carte QR, NFC) : on se connecte à une caisse déjà installée sans e-mail.</p>
         </div>
         {canManage && (
@@ -151,7 +151,7 @@ export function UsersSettings() {
                         type="button"
                         aria-pressed={on}
                         onClick={() => setForm({ ...form, siteIds: on ? form.siteIds.filter((x) => x !== s.id) : [...form.siteIds, s.id] })}
-                        className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', on ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
+                        className={['h-11 rounded-[var(--radius-pill)] px-4 text-sm font-medium', on ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]'].join(' ')}
                       >
                         {s.name}
                       </button>
@@ -167,7 +167,7 @@ export function UsersSettings() {
             <button
               type="submit"
               disabled={invite.isPending || (needsSites && !form.siteIds.length)}
-              className="h-11 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:opacity-50"
+              className="h-11 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
             >
               {invite.isPending ? 'Ajout...' : 'Ajouter à l’équipe'}
             </button>
@@ -210,7 +210,7 @@ export function UsersSettings() {
                   <div className="flex items-center gap-2">
                     {shownPin?.id === u.id ? (
                       <p className="text-sm" role="status">
-                        Code <span className="font-data text-xl font-semibold tracking-[0.3em]">{shownPin.pin}</span>
+                        Code <span className="tabular text-xl font-semibold tracking-[0.3em]">{shownPin.pin}</span>
                         <span className="block text-[var(--color-text-secondary)]">à transmettre, il ne sera plus affiché</span>
                       </p>
                     ) : (

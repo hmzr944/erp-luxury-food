@@ -68,10 +68,10 @@ export function BadgeCamera({ onCode, onError }: { onCode: (code: string) => voi
   }, [])
 
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-xs overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-text-primary)]">
+    <div className="relative mx-auto aspect-square w-full max-w-xs overflow-hidden rounded-[var(--radius-xl)] bg-[var(--color-bg-inverse)]">
       <video ref={video} playsInline muted className="h-full w-full -scale-x-100 object-cover" aria-label="Aperçu de la caméra" />
       <div aria-hidden className="pointer-events-none absolute inset-8 rounded-[var(--radius-lg)] border-4 border-[var(--color-on-accent)] opacity-80" />
-      {!ready && <p className="absolute inset-0 grid place-items-center text-[15px] text-[var(--color-bg-base)]">Ouverture de la caméra...</p>}
+      {!ready && <p className="absolute inset-0 grid place-items-center text-[15px] text-[var(--color-text-inverse)]">Ouverture de la caméra...</p>}
     </div>
   )
 }

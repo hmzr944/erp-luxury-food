@@ -40,7 +40,7 @@ export function QtyInput({
           if (Number.isFinite(n)) set(n)
         }}
         onFocus={(e) => e.target.select()}
-        className="tabular h-11 w-16 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] text-center text-lg font-semibold focus:border-[var(--color-accent)] focus:outline-none disabled:opacity-60"
+        className="tabular h-11 w-16 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] text-center text-lg font-semibold focus:border-[var(--color-accent)] disabled:opacity-60"
       />
       <button
         type="button"

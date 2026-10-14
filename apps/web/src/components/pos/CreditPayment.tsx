@@ -12,7 +12,7 @@ type Method = PlatformConfig['paymentMethods'][number]
 export type PayLine = { code: string; amount: number; reference?: string }
 
 const fieldCls =
-  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)] focus:outline-none'
+  'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]'
 
 // Paiement par avoir : le code est vérifié, le solde s'applique, le reste se
 // paie avec un autre moyen. C'est aussi la deuxième moitié d'un échange.
@@ -85,7 +85,7 @@ export function CreditPayment({
           />
         </div>
         {error && (
-          <p role="alert" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-sm font-medium">
+          <p role="alert" className="alert-box">
             {error}
           </p>
         )}
@@ -149,7 +149,7 @@ export function CreditPayment({
           type="button"
           disabled={busy}
           onClick={() => onPay([creditLine])}
-          className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-60"
+          className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
         >
           Payer {formatPrice(total)} avec l&apos;avoir
         </button>

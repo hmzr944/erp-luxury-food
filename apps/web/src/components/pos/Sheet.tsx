@@ -40,8 +40,8 @@ export function Sheet({ open, title, onClose, children, locked, width = 'md' }: 
   // Téléphone : la feuille monte du bas et y repart (courbe iOS).
   // Au-delà : fenêtre centrée qui se pose, sans point d'ancrage.
   const motionProps = wide
-    ? { initial: { opacity: 0, scale: 0.96 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.97 }, transition: { duration: 0.22, ease: EASE_OUT } }
-    : { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: { duration: 0.32, ease: EASE_DRAWER } }
+    ? { initial: { opacity: 0, transform: 'scale(0.96)' }, animate: { opacity: 1, transform: 'scale(1)' }, exit: { opacity: 0, transform: 'scale(0.97)' }, transition: { duration: 0.22, ease: EASE_OUT } }
+    : { initial: { transform: 'translateY(100%)' }, animate: { transform: 'translateY(0%)' }, exit: { transform: 'translateY(100%)' }, transition: { duration: 0.32, ease: EASE_DRAWER } }
 
   useEffect(() => {
     if (!open) return
@@ -53,6 +53,21 @@ export function Sheet({ open, title, onClose, children, locked, width = 'md' }: 
     }, 30)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !locked) onClose()
+      // Tab reste dans la fenêtre : du dernier élément on revient au premier
+      if (e.key === 'Tab' && panel.current) {
+        const items = [...panel.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetParent !== null)
+        if (!items.length) return
+        const first = items[0]
+        const last = items[items.length - 1]
+        const inside = panel.current.contains(document.activeElement)
+        if (e.shiftKey && (document.activeElement === first || !inside)) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => {

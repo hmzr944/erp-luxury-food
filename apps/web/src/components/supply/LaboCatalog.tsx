@@ -41,7 +41,7 @@ function CatalogRow({ siteId, item }: { siteId: string; item: CatalogItem }) {
     }
   }
   const field =
-    'h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-[15px] focus:border-[var(--color-accent)] focus:outline-none'
+    'h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-[15px] focus:border-[var(--color-accent)]'
   return (
     <li className="flex flex-wrap items-center gap-3 px-4 py-3">
       <label className="flex min-h-11 min-w-0 flex-1 basis-60 cursor-pointer items-center gap-3">

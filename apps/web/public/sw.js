@@ -58,9 +58,12 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Navigation — network-first avec fallback cache
+  // Navigation : réseau d'abord avec copie locale. Seules la caisse et
+  // l'atelier coupent au bout de 4 s (il faut pouvoir vendre) ; le reste
+  // attend le réseau normalement
   if (event.request.mode === 'navigate') {
-    event.respondWith(networkFirst(event.request))
+    const urgent = url.pathname.startsWith('/pos') || url.pathname.startsWith('/atelier')
+    event.respondWith(networkFirst(event.request, CACHE_NAME, urgent ? 4000 : 0, true))
     return
   }
 
@@ -81,12 +84,11 @@ async function cacheFirst(request) {
 
 // Réseau d'abord, mais pas plus de 4 s : sur un réseau qui rame, la caisse
 // repart sur sa copie locale au lieu de rester bloquée
-async function networkFirst(request, cacheName = CACHE_NAME) {
+async function networkFirst(request, cacheName = CACHE_NAME, timeout = 4000, page = false) {
   try {
-    const response = await Promise.race([
-      fetch(request),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
-    ])
+    const response = await (timeout
+      ? Promise.race([fetch(request), new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeout))])
+      : fetch(request))
     if (response.ok) {
       const cache = await caches.open(cacheName)
       cache.put(request, response.clone())
@@ -94,9 +96,24 @@ async function networkFirst(request, cacheName = CACHE_NAME) {
     return response
   } catch {
     const cached = await caches.match(request)
-    return cached ?? new Response('Offline', { status: 503 })
+    if (cached) return cached
+    return page
+      ? new Response(OFFLINE_PAGE, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+      : new Response('Hors ligne', { status: 503 })
   }
 }
+
+// Page affichée quand une page n'a jamais été ouverte sur cet appareil et que
+// le réseau manque : en français, aux trois couleurs FLŌW, avec un bouton pour réessayer
+const OFFLINE_PAGE = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hors ligne · FLŌW</title>
+<style>:root{color-scheme:light dark}body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#F4F2ED;color:#14141A;font:16px/1.5 system-ui,sans-serif;padding:24px}
+@media (prefers-color-scheme:dark){body{background:#14141A;color:#F4F2ED}}
+main{max-width:22rem;text-align:center}h1{font-size:1.75rem;margin:20px 0 8px;letter-spacing:-.02em}p{margin:0 0 24px;opacity:.85}
+button{height:48px;padding:0 24px;border:0;border-radius:999px;background:#1F3FFF;color:#F4F2ED;font:600 16px system-ui,sans-serif;cursor:pointer}
+button:focus-visible{outline:2px solid #1F3FFF;outline-offset:3px}</style></head>
+<body><main><svg width="56" height="56" viewBox="0 0 48 48" aria-hidden="true"><rect x="11" y="5" width="26" height="6" rx="3" fill="#1F3FFF"/><path d="M23 15.5 A13 13 0 0 0 23 41.5 Z" fill="currentColor"/><path d="M25 18.5 A13 13 0 0 1 25 44.5 Z" fill="currentColor"/></svg>
+<h1>Pas de réseau</h1><p>Cette page n'a pas encore été ouverte sur cet appareil. Les ventes déjà en caisse continuent hors ligne.</p>
+<button onclick="location.reload()">Réessayer</button></main></body></html>`
 
 // ── Background Sync ───────────────────────────────────────────
 self.addEventListener('sync', (event) => {

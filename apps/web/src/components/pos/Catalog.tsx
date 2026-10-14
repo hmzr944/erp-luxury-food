@@ -89,7 +89,7 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
             autoComplete="off"
             enterKeyHint="search"
             placeholder="Rechercher ou scanner"
-            className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] pl-12 pr-12 text-base placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus:outline-none"
+            className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] pl-12 pr-12 text-base placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
           />
           {query ? (
             <button
@@ -132,7 +132,7 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
 
       {!query && categories.length > 0 && (
         <div
-          role="tablist"
+          role="group"
           aria-label="Catégories"
           className="flex gap-2 overflow-x-auto px-4 pb-1 pt-3 md:px-6 [scrollbar-width:none]"
         >
@@ -142,8 +142,7 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
             return (
               <button
                 key={c.id ?? 'all'}
-                role="tab"
-                aria-selected={active}
+                aria-pressed={active}
                 onClick={() => setCategory(c.id)}
                 className={[
                   'relative flex h-11 shrink-0 items-center gap-2 rounded-[var(--radius-pill)] px-5 text-[15px] font-medium transition-colors duration-150',
@@ -159,7 +158,7 @@ export function Catalog({ products, categories, isLoading, isError, onPick, onCu
                     transition={{ duration: 0.22, ease: EASE_OUT }}
                   />
                 )}
-                {shape && <RayonGlyph shape={shape} size={14} className="relative" />}
+                {shape && <RayonGlyph shape={shape} size={16} className="relative" />}
                 <span className="relative">{c.name}</span>
               </button>
             )
@@ -235,7 +234,7 @@ function ProductTile({ product, shape, onPick }: { product: ApiProduct; shape?: 
         aria-hidden
         className={`tile-bar absolute left-4 right-4 top-0 h-1.5 rounded-b-full bg-[var(--color-accent)] ${inCart > 0 ? 'is-on' : ''}`}
       />
-      {shape && <RayonGlyph shape={shape} size={16} className="absolute left-4 top-4 text-[var(--color-accent)]" />}
+      {shape && <RayonGlyph shape={shape} size={18} className="absolute left-4 top-4" />}
       {inCart > 0 && (
         <span
           className="qty-in tabular absolute right-2.5 top-3.5 grid h-7 min-w-7 place-items-center rounded-[var(--radius-pill)] bg-[var(--color-accent)] px-2 text-sm font-semibold text-[var(--color-on-accent)]"

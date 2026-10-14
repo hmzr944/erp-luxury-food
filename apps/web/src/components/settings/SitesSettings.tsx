@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { apiClient } from '@/lib/api/client'
 import { useSiteStore } from '@/stores/site.store'
 
-const inputCls = 'w-full h-9 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)]/40 transition-colors'
+const inputCls = 'w-full h-11 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors'
 
 export function SitesSettings() {
   const qc = useQueryClient()
@@ -54,11 +54,11 @@ export function SitesSettings() {
   return (
     <div className="max-w-lg px-8 py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-display text-xl text-[var(--color-text-primary)]">Sites</h1>
+        <h1 className="page-title">Sites</h1>
         <motion.button
           onClick={() => setShowCreate(!showCreate)}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-all"
+          className="flex items-center gap-1.5 px-3 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           <Plus size={13} weight="bold" />
           Nouveau site
@@ -92,13 +92,13 @@ export function SitesSettings() {
                 <option value="America/Montreal">America/Montreal</option>
               </select>
               <div className="flex gap-2 justify-end">
-                <button onClick={() => setShowCreate(false)} className="px-3 h-8 font-body text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                <button onClick={() => setShowCreate(false)} className="px-3 h-10 font-body text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
                   Annuler
                 </button>
                 <button
                   onClick={() => createSite.mutate()}
                   disabled={createSite.isPending || !form.name.trim()}
-                  className="px-4 h-8 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] disabled:opacity-50 transition-all"
+                  className="px-4 h-10 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-sm rounded-[var(--radius-md)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] transition-colors"
                 >
                   Créer
                 </button>
@@ -129,13 +129,13 @@ export function SitesSettings() {
                       <div>
                         <p className="font-body text-sm text-[var(--color-text-primary)]">{site.name}</p>
                         {site.address && (
-                          <p className="font-body text-[11px] text-[var(--color-text-muted)]">{site.address}</p>
+                          <p className="font-body text-sm text-[var(--color-text-muted)]">{site.address}</p>
                         )}
                       </div>
                     </div>
                     <button
                       onClick={() => setEditingId(site.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-all"
+                      className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
                     >
                       <PencilSimple size={13} />
                     </button>
@@ -150,14 +150,14 @@ export function SitesSettings() {
 
 function SiteEditRow({ site, onSave, onCancel, isSaving }: any) {
   const [data, setData] = useState({ name: site.name, address: site.address ?? '' })
-  const inputCls = 'w-full h-8 px-2 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-[var(--radius-sm)] font-body text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent)]/40 transition-colors'
+  const inputCls = 'w-full h-10 px-2 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-sm)] font-body text-sm text-[var(--color-text-primary)] transition-colors'
   return (
     <div className="px-4 py-3 space-y-2">
       <input value={data.name} onChange={(e) => setData({ ...data, name: e.target.value })} className={inputCls} />
       <input value={data.address} onChange={(e) => setData({ ...data, address: e.target.value })} className={inputCls} placeholder="Adresse" />
       <div className="flex gap-2 justify-end">
         <button onClick={onCancel} className="px-2 h-7 font-body text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">Annuler</button>
-        <button onClick={() => onSave(data)} disabled={isSaving || !data.name.trim()} className="px-3 h-7 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-xs rounded-[var(--radius-sm)] disabled:opacity-50">Enregistrer</button>
+        <button onClick={() => onSave(data)} disabled={isSaving || !data.name.trim()} className="px-3 h-7 bg-[var(--color-accent)] text-[var(--color-on-accent)] font-body text-xs rounded-[var(--radius-sm)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]">Enregistrer</button>
       </div>
     </div>
   )

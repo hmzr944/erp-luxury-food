@@ -74,7 +74,7 @@ export function ReceiveForm({ siteId, order, onDone }: { siteId: string; order: 
                   placeholder="Ce qui ne va pas, par exemple « 2 abîmées pendant le transport »"
                   value={issues[l.id] ?? ''}
                   onChange={(e) => setIssues({ ...issues, [l.id]: e.target.value })}
-                  className="h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-[15px] focus:border-[var(--color-accent)] focus:outline-none"
+                  className="h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-[15px] focus:border-[var(--color-accent)]"
                 />
               )}
             </li>
@@ -88,7 +88,7 @@ export function ReceiveForm({ siteId, order, onDone }: { siteId: string; order: 
             type="button"
             disabled={saving}
             onClick={() => submit(false)}
-            className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-60"
+            className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
           >
             {saving ? 'Enregistrement...' : 'Valider la réception'}
           </button>
@@ -98,7 +98,7 @@ export function ReceiveForm({ siteId, order, onDone }: { siteId: string; order: 
               type="button"
               disabled={saving}
               onClick={() => submit(true)}
-              className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-lg font-semibold text-[var(--color-on-accent)] disabled:opacity-60 press"
+              className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] press"
             >
               {saving ? 'Enregistrement...' : 'Tout réceptionné'}
             </button>

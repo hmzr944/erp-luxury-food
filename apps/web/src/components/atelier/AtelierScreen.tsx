@@ -104,7 +104,7 @@ export function AtelierScreen({ siteId }: { siteId: string }) {
         </button>
       </header>
 
-      <nav role="tablist" aria-label="Vues de l'atelier" className="grid grid-cols-3 gap-2 px-4 pt-4 md:px-8">
+      <div role="group" aria-label="Vues de l'atelier" className="grid grid-cols-3 gap-2 px-4 pt-4 md:px-8">
         {(
           [
             ['total', 'À produire'],
@@ -115,8 +115,7 @@ export function AtelierScreen({ siteId }: { siteId: string }) {
           <button
             key={key}
             type="button"
-            role="tab"
-            aria-selected={tab === key}
+            aria-pressed={tab === key}
             onClick={() => setTab(key)}
             className={[
               'h-20 rounded-[var(--radius-lg)] text-2xl font-semibold transition-colors duration-150',
@@ -126,7 +125,7 @@ export function AtelierScreen({ siteId }: { siteId: string }) {
             {label}
           </button>
         ))}
-      </nav>
+      </div>
 
       <main className="flex-1 px-4 py-6 md:px-8">
         {!p ? (
@@ -171,10 +170,15 @@ function useChangedTotals(rows: Production['consolidated']) {
 function Totals({ siteId, p }: { siteId: string; p: Production }) {
   const qc = useQueryClient()
   const changed = useChangedTotals(p.consolidated)
+  const changedNames = p.consolidated.filter((c) => changed.has(`${c.productId}:${c.variantId}`)).map((c) => c.name)
   const [busy, setBusy] = useState(false)
   const toStart = p.orders.filter((o) => o.status === 'SENT').length
   return (
     <div className="space-y-6">
+      {/* L'éclair d'une ligne est aussi annoncé aux lecteurs d'écran */}
+      <p className="sr-only" aria-live="polite">
+        {changedNames.length ? `Quantités mises à jour : ${changedNames.join(', ')}` : ''}
+      </p>
       {p.waitingFor.length > 0 && (
         <p className="rounded-[var(--radius-lg)] border-2 border-[var(--color-accent)] p-5 text-2xl">
           Pas encore de commande : <span className="font-semibold">{p.waitingFor.map((s) => s.name).join(', ')}</span>
@@ -217,7 +221,7 @@ function Totals({ siteId, p }: { siteId: string; p: Production }) {
               setBusy(false)
             }
           }}
-          className="h-24 w-full rounded-[var(--radius-xl)] bg-[var(--color-accent)] text-3xl font-semibold text-[var(--color-on-accent)] disabled:opacity-60"
+          className="h-24 w-full rounded-[var(--radius-xl)] bg-[var(--color-accent)] text-3xl font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
         >
           Lancer la fabrication ({toStart} {toStart > 1 ? 'boutiques' : 'boutique'})
         </button>
@@ -243,7 +247,7 @@ function Packing({ siteId, p }: { siteId: string; p: Production }) {
                 onClick={() => setSelected(o.id)}
                 className={[
                   'flex min-h-20 w-full items-center justify-between gap-3 rounded-[var(--radius-lg)] px-5 text-left text-2xl font-semibold',
-                  o.id === order?.id ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]',
+                  o.id === order?.id ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]',
                 ].join(' ')}
               >
                 {o.fromSite.name}
@@ -346,7 +350,7 @@ function Incidents({ siteId, p }: { siteId: string; p: Production }) {
   const preview = [fullCause, product ? (cut === 100 ? `${product} non produit` : `${product} réduit de ${cut} %`) : null].filter(Boolean).join(' : ')
 
   const chip = (active: boolean) =>
-    ['min-h-16 rounded-[var(--radius-lg)] px-5 text-xl font-semibold', active ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-base)]' : 'border border-[var(--color-border-strong)]'].join(' ')
+    ['min-h-16 rounded-[var(--radius-lg)] px-5 text-xl font-semibold', active ? 'bg-[var(--color-bg-inverse)] text-[var(--color-text-inverse)]' : 'border border-[var(--color-border-strong)]'].join(' ')
 
   return (
     <div className="grid gap-8 xl:grid-cols-2">
@@ -367,7 +371,7 @@ function Incidents({ siteId, p }: { siteId: string; p: Production }) {
             value={detail}
             onChange={(e) => setDetail(e.target.value)}
             placeholder="fraises"
-            className="h-16 w-full rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-5 text-2xl focus:border-[var(--color-accent)] focus:outline-none"
+            className="h-16 w-full rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-5 text-2xl focus:border-[var(--color-accent)]"
           />
         </label>
         {products.length > 0 && (

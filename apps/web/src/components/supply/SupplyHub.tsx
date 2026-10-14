@@ -44,16 +44,15 @@ export function SupplyHub() {
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3 md:px-6">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Approvisionnement</h1>
+          <h1 className="page-title">Approvisionnement</h1>
           <p className="text-sm text-[var(--color-text-secondary)]">{labo ? `${site.name}, labo ou dépôt` : `${site.name} commande à son labo ou dépôt`}</p>
         </div>
-        <div role="tablist" aria-label="Affichage" className="flex flex-wrap rounded-[var(--radius-pill)] bg-[var(--color-bg-hover)] p-0.5">
+        <div role="group" aria-label="Affichage" className="flex flex-wrap rounded-[var(--radius-pill)] bg-[var(--color-bg-hover)] p-0.5">
           {tabs.map((t) => (
             <button
               key={t.key}
               type="button"
-              role="tab"
-              aria-selected={tab === t.key}
+              aria-pressed={tab === t.key}
               onClick={() => setTab(t.key)}
               className={[
                 'h-10 rounded-[var(--radius-pill)] px-4 text-sm font-medium transition-colors duration-150',
@@ -84,7 +83,7 @@ export function ShopSide({ siteId, onChange, surface }: { siteId: string; onChan
   return (
     <div className="space-y-6">
       {inbox.data?.alerts.map((a) => (
-        <p key={a.id} role="status" className="rounded-[var(--radius-lg)] bg-[var(--color-text-primary)] p-4 text-[16px] font-medium text-[var(--color-bg-base)]">
+        <p key={a.id} role="status" className="rounded-[var(--radius-lg)] bg-[var(--color-bg-inverse)] p-4 text-[16px] font-medium text-[var(--color-text-inverse)]">
           <span className="block text-sm opacity-80">
             {a.siteName}, livraison {deliveryLabel(a.day).toLowerCase()}
           </span>
