@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import { priceMenu, priceOrder, splitDiscount, type ModifierChoice, type SignedSaleItem, type SoldItemView } from '@erp/utils'
+import { formatPrice, modifiersLabel, priceMenu, priceOrder, splitDiscount, weightLabel, type ModifierChoice, type SignedSaleItem, type SoldItemView } from '@erp/utils'
 
 export interface CartProduct {
   id: string
@@ -215,4 +215,20 @@ export function computeCartTotals(lines: CartLine[], orderDiscount: number, pric
     { priceIncludesTax, orderDiscount },
   )
   return { ...pricing, items, itemCount: lines.reduce((sum, l) => sum + (l.weight !== undefined || l.label ? 1 : l.quantity), 0) }
+}
+
+// Variante, composants d'une formule, options, poids, n° de série
+export function lineDetail(line: CartLine) {
+  const menu = line.menu?.parts
+    .map((p) => [p.name, p.variantName, p.modifiers.length ? `(${modifiersLabel(p.modifiers)})` : null, p.supplement ? `+${formatPrice(p.supplement)}` : null].filter(Boolean).join(' '))
+    .join(', ')
+  return [
+    line.variantName,
+    menu,
+    line.modifiers?.length ? modifiersLabel(line.modifiers) : null,
+    line.weight !== undefined ? weightLabel(line.weight, line.pricePerKg) : line.label ? 'Prix de l’étiquette de balance' : null,
+    line.serialNumber && `N° ${line.serialNumber}`,
+  ]
+    .filter(Boolean)
+    .join(', ')
 }

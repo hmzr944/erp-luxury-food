@@ -10,7 +10,11 @@ import { sitesApi } from '@/lib/api/sites'
 import { paymentsApi, type PaymentDevice } from '@/lib/api/payments'
 import { usePlatformConfig } from '@/lib/api/platform'
 import { ensureTerminal, recordSale, type TerminalNotRegisteredError } from '@/lib/terminal/terminal'
-import { useCartStore, computeCartTotals, saleItems, signedItem, type CartMenuPart } from '@/stores/cart.store'
+import { useCartStore, computeCartTotals, isFixedLine, lineDetail, saleItems, signedItem, type CartMenuPart } from '@/stores/cart.store'
+import { useDisplayPublisher } from '@/lib/display/publisher'
+import type { DisplayState } from '@/lib/display/state'
+import { receiptUrl } from '@/lib/receipts'
+import { DisplaySheet } from './DisplaySheet'
 import { POSHeader } from './POSHeader'
 import { Catalog } from './Catalog'
 import { Ticket } from './Ticket'
@@ -53,6 +57,7 @@ export function POSClient({ siteId }: POSClientProps) {
   const sellerName = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : null
   const manager = user?.role === 'OWNER' || user?.role === 'MANAGER'
   const [printerOpen, setPrinterOpen] = useState(false)
+  const [displayOpen, setDisplayOpen] = useState(false)
 
   // Routine de fermeture : bandeau, liste de fin de journée, verrouillage
   const qc = useQueryClient()
@@ -166,6 +171,38 @@ export function POSClient({ siteId }: POSClientProps) {
   const totals = computeCartTotals(lines, orderDiscount, priceIncludesTax)
   const methods = (config?.paymentMethods ?? []).filter((m) => m.isActive)
   // TTC de chaque ligne, remise globale répartie : base des règles d'encaissement
+  // Écran client : ce que voit le client, à chaque changement de la vente
+  const lastAddedKey = useCartStore((st) => st.lastAddedKey)
+  const displayState: DisplayState = receipt
+    ? {
+        kind: 'done',
+        shop: siteName,
+        total: receipt.sale.pricing.total,
+        change: receipt.change ?? null,
+        receiptUrl: receipt.training ? null : receiptUrl(receipt.sale.clientId),
+        training: !!receipt.training,
+      }
+    : lines.length
+      ? {
+          kind: 'sale',
+          shop: siteName,
+          lines: lines.map((l) => ({
+            key: l.key,
+            quantity: isFixedLine(l) ? 1 : l.quantity,
+            name: l.customName ?? l.product.name,
+            detail: lineDetail(l) || undefined,
+            total: Math.round((l.product.price * l.quantity - l.discount) * 100) / 100,
+          })),
+          lastKey: lastAddedKey,
+          discount: totals.discount,
+          total: totals.total,
+          taxAmount: totals.taxAmount,
+          priceIncludesTax,
+          training,
+        }
+      : { kind: 'idle', shop: siteName }
+  useDisplayPublisher(siteId, displayState)
+
   // Formule : chaque composant compte pour son montant et son éligibilité
   const ruleLines = useMemo(
     () => totals.items.map((it, i) => ({ total: totals.lines[i]?.ttc ?? 0, mealVoucherEligible: it.mealVoucher })),
@@ -338,6 +375,7 @@ export function POSClient({ siteId }: POSClientProps) {
           training={training}
           onTraining={manager ? () => void toggleTraining() : undefined}
           onPrinter={() => setPrinterOpen(true)}
+          onDisplay={() => setDisplayOpen(true)}
           onLock={requestLock}
         />
         <RoutineBanner status={routine.data} onOpen={() => setChecklist('manual')} />
@@ -576,6 +614,8 @@ export function POSClient({ siteId }: POSClientProps) {
           }}
           onClose={() => setReturning(false)}
         />
+
+        <DisplaySheet siteId={siteId} open={displayOpen} onClose={() => setDisplayOpen(false)} />
 
         <Sheet open={printerOpen} title="Imprimante, tiroir et TPE" onClose={() => setPrinterOpen(false)} width="lg">
           <div className="pb-2">
