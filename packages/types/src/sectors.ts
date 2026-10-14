@@ -13,6 +13,11 @@ export interface PaymentMethodPreset {
   code: string
   label: string
   kind: PaymentKind
+  // Règles françaises
+  mealVoucher?: boolean
+  giveChange?: boolean
+  maxAmount?: number
+  requiresReference?: boolean
 }
 
 export interface AttributePreset {
@@ -55,9 +60,13 @@ const FR_RATES_FOOD: TaxRatePreset[] = [
   { label: 'Taux normal', rate: 20 },
 ]
 
+// Plafond journalier du titre-restaurant en 2026 : 25 €
+export const MEAL_VOUCHER_CAP = 25
+
 const BASE_PAYMENTS: PaymentMethodPreset[] = [
   { code: 'CARD', label: 'Carte', kind: PaymentKind.CARD },
-  { code: 'CASH', label: 'Espèces', kind: PaymentKind.CASH },
+  { code: 'CASH', label: 'Espèces', kind: PaymentKind.CASH, giveChange: true },
+  { code: 'CHEQUE', label: 'Chèque', kind: PaymentKind.OTHER, requiresReference: true },
   { code: 'GIFT_CARD', label: 'Carte cadeau', kind: PaymentKind.VOUCHER },
   // Avoir émis lors d'un retour, utilisable sur une prochaine vente
   { code: 'CREDIT', label: 'Avoir', kind: PaymentKind.VOUCHER },
@@ -121,7 +130,10 @@ export const SECTOR_PRESETS: Record<Sector, SectorPreset> = {
     taxRates: FR_RATES_FOOD,
     paymentMethods: [
       ...BASE_PAYMENTS,
-      { code: 'TICKET_RESTO', label: 'Titre-restaurant', kind: PaymentKind.VOUCHER },
+      // Papier : sans rendu de monnaie ; carte (Swile, Edenred, Pluxee, Up) : sur le TPE
+      { code: 'TICKET_RESTO', label: 'Titre-restaurant papier', kind: PaymentKind.VOUCHER, mealVoucher: true, maxAmount: MEAL_VOUCHER_CAP },
+      { code: 'TICKET_RESTO_CARD', label: 'Carte titre-restaurant', kind: PaymentKind.OTHER, mealVoucher: true, maxAmount: MEAL_VOUCHER_CAP },
+      { code: 'ANCV', label: 'Chèque-Vacances', kind: PaymentKind.VOUCHER },
     ],
     defaultTracking: TrackingMode.LOT_EXPIRY,
     suggestedOptions: [{ name: 'Format', values: ['100 g', '250 g', '500 g'] }],

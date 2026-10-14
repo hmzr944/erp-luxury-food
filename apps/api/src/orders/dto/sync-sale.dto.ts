@@ -1,19 +1,4 @@
-import {
-  ArrayMinSize,
-  IsArray,
-  IsDateString,
-  IsEmail,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  MaxLength,
-  IsString,
-  IsUUID,
-  Length,
-  Matches,
-  Min,
-  ValidateNested,
-} from 'class-validator'
+import { ArrayMinSize, IsArray, IsDateString, IsEmail, IsInt, IsNumber, IsOptional, MaxLength, IsString, IsUUID, Length, Matches, Min, ValidateNested, IsBoolean } from 'class-validator'
 import { Type } from 'class-transformer'
 import { CheckoutPaymentDto } from './checkout.dto'
 
@@ -78,6 +63,11 @@ export class TerminalReceiptDto {
 
 // Vente signée par une caisse, envoyée dès que le réseau le permet
 export class SyncSaleDto {
+  // Client non résident fiscal : plafond espèces de 15 000 € au lieu de 1 000 €
+  @IsOptional()
+  @IsBoolean()
+  nonResident?: boolean
+
   @IsUUID()
   clientId!: string
 

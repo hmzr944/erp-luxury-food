@@ -57,17 +57,3 @@ export const productsAdminApi = {
       method: 'DELETE',
     }),
 }
-
-export const complianceApi = {
-  closeDay: (siteId: string) =>
-    apiClient<any>(`/sites/${siteId}/compliance/close-day`, { method: 'POST' }),
-
-  getClosures: (siteId: string) =>
-    apiClient<any[]>(`/sites/${siteId}/compliance/closures`),
-
-  verify: (siteId: string, date: string) =>
-    apiClient<any>(`/sites/${siteId}/compliance/verify/${date}`),
-
-  exportUrl: (siteId: string) =>
-    `${process.env.NEXT_PUBLIC_API_URL}/api/sites/${siteId}/compliance/export/dgfip`,
-}

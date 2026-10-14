@@ -13,7 +13,7 @@ import { PrintingService } from '../printing/printing.service'
 import { StockService } from '../stock/stock.service'
 import type { CheckoutDto } from './dto/checkout.dto'
 import type { Channel, PaymentKind, PaymentMode, Prisma } from '@prisma/client'
-import { RECEIPT_GENESIS_HASH, businessDate, canonicalSaleContent } from '@erp/utils'
+import { RECEIPT_GENESIS_HASH, businessDate, canonicalSaleContent, checkPayments } from '@erp/utils'
 import { verifyTerminalReceipt } from '../compliance/terminal-receipt'
 import type { SyncSaleDto } from './dto/sync-sale.dto'
 import { buildOrderDraft, draftContent, OrderDraftError, type DraftInput, type OrderDraft } from './order-draft'
@@ -52,6 +52,8 @@ export class OrdersService {
         paymentMode: dto.paymentMode,
       })
       await this.takeSerials(tx, siteId, draft, true)
+      const issues = this.paymentIssues(draft, ref, dto.nonResident)
+      if (issues.length) throw new BadRequestException(issues.join(' '))
 
       const total = new Decimal(draft.pricing.total)
       const receipt = await this.compliance.signReceipt(tx, siteId, { total, kind: 'SALE', content: draftContent(draft) })
@@ -161,8 +163,12 @@ export class OrdersService {
       })
       await tx.terminal.update({ where: { id: terminal.id }, data: { lastSeenAt: new Date() } })
 
+      // La vente a déjà eu lieu : une règle d'encaissement non respectée est signalée
+      const paymentIssues = this.paymentIssues(draft, ref, dto.nonResident)
       const notes = [
         dto.note,
+        ...(dto.nonResident ? ['Client non résident déclaré (plafond espèces 15 000 €)'] : []),
+        ...paymentIssues.map((i) => `Règle d’encaissement : ${i}`),
         ...draft.priceDifferences.map((d) => `Prix signé différent du catalogue — ${d}`),
         ...missingSerials.map((sn) => `N° de série absent du stock à la synchronisation : ${sn}`),
       ].filter(Boolean)
@@ -244,6 +250,17 @@ export class OrdersService {
     return closed ? now : soldAt
   }
 
+  // Règles françaises (titre-restaurant, chèque, plafond espèces)
+  private paymentIssues(draft: OrderDraft, ref: { products: Array<{ id: string; mealVoucherEligible: boolean }>; allPaymentMethods: Array<{ code: string; label: string; kind: string; mealVoucher: boolean; maxAmount: Decimal | null; requiresReference: boolean }> }, nonResident?: boolean) {
+    const eligible = new Map(ref.products.map((p) => [p.id, p.mealVoucherEligible]))
+    return checkPayments({
+      lines: draft.items.map((it, i) => ({ total: draft.pricing.lines[i]?.ttc ?? 0, mealVoucherEligible: !!eligible.get(it.productId) })),
+      payments: draft.payments.map((p) => ({ code: p.code, amount: p.amount, reference: p.reference })),
+      methods: ref.allPaymentMethods.map((m) => ({ ...m, maxAmount: m.maxAmount?.toString() ?? null })),
+      nonResident,
+    })
+  }
+
   private async loadReference(tx: Prisma.TransactionClient, siteId: string, productIds: string[], activeOnly: boolean) {
     const site = await tx.site.findUniqueOrThrow({
       where: { id: siteId },
@@ -252,7 +269,7 @@ export class OrdersService {
         organization: {
           select: {
             priceIncludesTax: true,
-            paymentMethods: { select: { code: true, label: true, kind: true, isActive: true } },
+            paymentMethods: { select: { code: true, label: true, kind: true, isActive: true, mealVoucher: true, maxAmount: true, requiresReference: true } },
           },
         },
       },
@@ -261,7 +278,7 @@ export class OrdersService {
       // L'article libre est masqué du catalogue mais toujours vendable
       where: { id: { in: [...new Set(productIds)] }, siteId, ...(activeOnly ? { OR: [{ isActive: true }, { isCustom: true }] } : {}) },
       select: {
-        id: true, name: true, price: true, taxRate: true, tracking: true, isCustom: true,
+        id: true, name: true, price: true, taxRate: true, tracking: true, isCustom: true, mealVoucherEligible: true,
         variants: {
           where: activeOnly ? { isActive: true } : {},
           select: { id: true, name: true, price: true },

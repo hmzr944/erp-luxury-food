@@ -1,16 +1,4 @@
-import {
-  ArrayMinSize,
-  IsArray,
-  IsEmail,
-  IsEnum,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  MaxLength,
-  IsString,
-  Min,
-  ValidateNested,
-} from 'class-validator'
+import { ArrayMinSize, IsArray, IsEmail, IsEnum, IsInt, IsNumber, IsOptional, MaxLength, IsString, Min, ValidateNested, IsBoolean } from 'class-validator'
 import { Type } from 'class-transformer'
 import { Channel, PaymentMode } from '@erp/types'
 
@@ -70,6 +58,11 @@ export class CheckoutPaymentDto {
 }
 
 export class CheckoutDto {
+  // Client non résident fiscal : plafond espèces de 15 000 € au lieu de 1 000 €
+  @IsOptional()
+  @IsBoolean()
+  nonResident?: boolean
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

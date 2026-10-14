@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { formatPrice } from '@erp/utils'
+import { formatPrice, priceOrder } from '@erp/utils'
 import { productsApi, type ApiProduct, type ApiVariant } from '@/lib/api/products'
 import { sitesApi } from '@/lib/api/sites'
 import { paymentsApi, type PaymentDevice } from '@/lib/api/payments'
@@ -25,6 +25,9 @@ import { CashCloseSheet, CashOpenSheet, useCashState } from './CashSheets'
 import { PinPad } from '@/components/auth/PinPad'
 import { BadgeLogin } from '@/components/auth/BadgeLogin'
 import { useAuthStore } from '@/stores/auth.store'
+import { fiscalApi } from '@/lib/api/fiscal'
+import { PrinterDevice } from '@/components/settings/PrinterDevice'
+import type { RecordedSale } from '@/lib/terminal/terminal'
 
 interface POSClientProps {
   siteId: string
@@ -43,7 +46,38 @@ export function POSClient({ siteId }: POSClientProps) {
   const [openDismissed, setOpenDismissed] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [pinError, setPinError] = useState<string | null>(null)
-  const { pinLogin, badgeLogin } = useAuthStore()
+  const { pinLogin, badgeLogin, user } = useAuthStore()
+  const sellerName = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : null
+  const manager = user?.role === 'OWNER' || user?.role === 'MANAGER'
+  const [printerOpen, setPrinterOpen] = useState(false)
+  // Mode formation : propre à cet appareil, activé par un responsable.
+  // Les ventes sont fictives : ni grand livre, ni stock, ni caisse.
+  const trainingKey = `flow-training:${siteId}`
+  const [training, setTraining] = useState(false)
+  useEffect(() => {
+    try {
+      setTraining(window.localStorage.getItem(trainingKey) === '1')
+    } catch {
+      // stockage indisponible : le mode formation reste désactivé
+    }
+  }, [trainingKey])
+  const toggleTraining = async () => {
+    const next = !training
+    try {
+      await fiscalApi.training(siteId, next, terminalId)
+    } catch (e) {
+      toast.error(`Mode formation : ${(e as Error).message}. Une connexion est nécessaire pour le tracer.`)
+      return
+    }
+    try {
+      if (next) window.localStorage.setItem(trainingKey, '1')
+      else window.localStorage.removeItem(trainingKey)
+    } catch {
+      // réglage gardé pour la session
+    }
+    setTraining(next)
+    toast(next ? 'Mode formation : les ventes sont fictives' : 'Mode formation terminé')
+  }
   const [picking, setPicking] = useState<ApiProduct | null>(null)
   const [paying, setPaying] = useState(false)
   const [ticketOpen, setTicketOpen] = useState(false)
@@ -130,6 +164,44 @@ export function POSClient({ siteId }: POSClientProps) {
     setBusy(true)
     setPayError(null)
     const sold = [...lines]
+    const labels = new Map(methods.map((m) => [m.code, m.label]))
+    const cashCodes = new Set(methods.filter((m) => m.kind === 'CASH').map((m) => m.code))
+    const cashPaid = payments.some((p) => cashCodes.has(p.code))
+    if (training) {
+      try {
+        const pricing = priceOrder(
+          sold.map((l) => ({ unitPrice: l.product.price, quantity: l.quantity, discount: l.discount, taxRate: l.product.taxRate })),
+          { priceIncludesTax, orderDiscount },
+        )
+        const t = await fiscalApi.trainingTicket(siteId, {
+          total: pricing.total,
+          terminalId,
+          content: {
+            lines: sold.map((l) => ({ name: l.customName ?? l.product.name, variant: l.variantName ?? null, quantity: l.quantity, price: l.product.price, taxRate: l.product.taxRate })),
+            payments,
+          },
+        })
+        const fake: RecordedSale = {
+          clientId: `training-${t.number}`,
+          terminalName: terminalName ?? 'Caisse',
+          receipt: { counter: t.number, previousHash: '', hash: '', signature: '', signedAt: t.createdAt, total: pricing.total },
+          pricing,
+        }
+        setReceipt({
+          sale: fake,
+          lines: sold,
+          payments: payments.map((p) => ({ label: labels.get(p.code) ?? p.code, amount: p.amount })),
+          training: { number: t.number, operator: t.userName },
+        })
+        clearCart()
+        setTicketOpen(false)
+      } catch (e) {
+        setPayError(`Mode formation : ${e instanceof Error ? e.message : 'ticket fictif non enregistré'}`)
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
     try {
       const sale = await recordSale(siteId, {
         items: sold.map((l) => ({
@@ -148,11 +220,11 @@ export function POSClient({ siteId }: POSClientProps) {
         priceIncludesTax,
         clientId,
       })
-      const labels = new Map(methods.map((m) => [m.code, m.label]))
       setReceipt({
         sale,
         lines: sold,
         payments: payments.map((p) => ({ label: labels.get(p.code) ?? p.code, amount: p.amount })),
+        cashPaid,
       })
       clearCart()
       setTicketOpen(false)
@@ -188,7 +260,20 @@ export function POSClient({ siteId }: POSClientProps) {
             setPinError(null)
             setSwitching(true)
           }}
+          training={training}
+          onTraining={manager ? () => void toggleTraining() : undefined}
+          onPrinter={() => setPrinterOpen(true)}
         />
+        {training && (
+          <div role="status" className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-2 text-sm font-semibold text-[var(--color-text-inverse)]">
+            <span>Mode formation : ventes fictives, ni comptées, ni déstockées. Tickets marqués « fictif ».</span>
+            {manager && (
+              <button type="button" onClick={() => void toggleTraining()} className="h-9 shrink-0 rounded-[var(--radius-pill)] border border-current px-3">
+                Quitter
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex min-h-0 flex-1">
           <Catalog
@@ -343,6 +428,12 @@ export function POSClient({ siteId }: POSClientProps) {
           onClose={() => setReturning(false)}
         />
 
+        <Sheet open={printerOpen} title="Imprimante et tiroir" onClose={() => setPrinterOpen(false)} width="lg">
+          <div className="pb-2">
+            <PrinterDevice />
+          </div>
+        </Sheet>
+
         <PaymentSheet
           open={paying}
           siteId={siteId}
@@ -350,6 +441,8 @@ export function POSClient({ siteId }: POSClientProps) {
           total={totals.total}
           methods={methods}
           siteName={siteName}
+          receiptSettings={config?.receipt}
+          sellerName={sellerName}
           receipt={receipt}
           busy={busy}
           error={payError}

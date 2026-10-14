@@ -1,122 +1,109 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { Printer, CheckCircle, Warning } from '@phosphor-icons/react'
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { apiClient } from '@/lib/api/client'
-import { useSiteStore } from '@/stores/site.store'
+import { orgSettingsApi } from '@/lib/api/invoices'
+import { useAuthStore } from '@/stores/auth.store'
+import { PrinterDevice } from './PrinterDevice'
 
+type Policy = 'ASK' | 'ALWAYS' | 'NEVER'
+
+const POLICIES: Array<{ key: Policy; label: string; hint: string }> = [
+  { key: 'ASK', label: 'Sur demande', hint: 'Le ticket papier est proposé, imprimé si le client le souhaite (loi AGEC).' },
+  { key: 'ALWAYS', label: 'Toujours', hint: 'Chaque vente imprime son ticket.' },
+  { key: 'NEVER', label: 'Jamais d’office', hint: 'Ticket imprimé uniquement d’un geste, ou envoyé par e-mail.' },
+]
+
+// Impression : l'imprimante de cet appareil, et les règles du ticket pour
+// tout le commerce (ticket sur demande, note de service, pied de ticket)
 export function PrintingSettings() {
-  const { currentSite } = useSiteStore()
-  const [selectedPrinter, setSelectedPrinter] = useState<number | null>(null)
+  const qc = useQueryClient()
+  const { user } = useAuthStore()
+  const owner = user?.role === 'OWNER'
+  const { data } = useQuery({ queryKey: ['org-settings'], queryFn: orgSettingsApi.get, enabled: owner })
+  const [form, setForm] = useState({ receiptPolicy: 'ASK' as Policy, serviceNote: false, receiptFooter: '' })
+  useEffect(() => {
+    if (data) setForm({ receiptPolicy: (data.receiptPolicy ?? 'ASK') as Policy, serviceNote: !!data.serviceNote, receiptFooter: data.receiptFooter ?? '' })
+  }, [data])
 
-  const { data: printers = [], isLoading } = useQuery({
-    queryKey: ['printers', currentSite?.id],
-    queryFn: () => apiClient<any[]>(`/sites/${currentSite!.id}/printers`),
-    enabled: !!currentSite,
+  const save = useMutation({
+    mutationFn: () => orgSettingsApi.save({ receiptPolicy: form.receiptPolicy, serviceNote: form.serviceNote, receiptFooter: form.receiptFooter.trim() || undefined }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['org-settings'] })
+      void qc.invalidateQueries({ queryKey: ['platform-config'] })
+      toast.success('Règles du ticket enregistrées')
+    },
+    onError: (e: Error) => toast.error(e.message),
   })
-
-  const testPrint = useMutation({
-    mutationFn: (printerId: number) =>
-      apiClient<{ success: boolean }>(`/sites/${currentSite!.id}/printers/test`, {
-        method: 'POST',
-        body: JSON.stringify({ printerId }),
-      }),
-    onSuccess: (data) =>
-      data.success ? toast.success('Impression test envoyée') : toast.error('Impression échouée'),
-    onError: () => toast.error('Erreur de connexion à PrintNode'),
-  })
-
-  if (!currentSite) return (
-    <div className="flex items-center justify-center h-48">
-      <p className="font-body text-sm text-[var(--color-text-muted)]">Sélectionnez un site</p>
-    </div>
-  )
 
   return (
-    <div className="max-w-lg px-8 py-6">
-      <h1 className="page-title mb-2">Impression</h1>
-      <p className="font-body text-sm text-[var(--color-text-muted)] mb-6">
-        Imprimantes connectées via PrintNode pour {currentSite.name}
-      </p>
+    <div className="max-w-3xl space-y-8 p-4 md:p-8">
+      <header>
+        <h1 className="page-title">Impression</h1>
+        <p className="mt-1 text-[15px] text-[var(--color-text-secondary)]">Ticket de caisse, note de service et tiroir-caisse.</p>
+      </header>
 
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="h-16 rounded-[var(--radius-lg)] bg-[var(--color-bg-surface)] border border-[var(--color-border)] animate-pulse" />
-          ))}
+      <section aria-labelledby="device-title" className="space-y-4">
+        <div>
+          <h2 id="device-title" className="font-display text-xl font-semibold tracking-tight">Cet appareil</h2>
+          <p className="text-sm text-[var(--color-text-secondary)]">Chaque caisse garde son imprimante : réglez-la depuis la caisse elle-même.</p>
         </div>
-      ) : printers.length === 0 ? (
-        <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-6 text-center">
-          <Printer size={28} weight="regular" className="text-[var(--color-text-muted)] mx-auto mb-3" />
-          <p className="font-body text-sm text-[var(--color-text-primary)] mb-1">
-            Aucune imprimante détectée
-          </p>
-          <p className="font-body text-xs text-[var(--color-text-muted)]">
-            Configurez votre clé API PrintNode dans le fichier .env puis assurez-vous que
-            le client PrintNode est installé sur l'ordinateur de la boutique.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {printers.map((printer: any) => (
-            <div
-              key={printer.id}
-              onClick={() => setSelectedPrinter(printer.id)}
-              className={[
-                'flex items-center justify-between p-4 rounded-[var(--radius-lg)] border cursor-pointer transition-colors',
-                selectedPrinter === printer.id
-                  ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent-muted)]'
-                  : 'border-[var(--color-border)] bg-[var(--color-bg-surface)] hover:border-[var(--color-border-strong)]',
-              ].join(' ')}
-            >
-              <div className="flex items-center gap-3">
-                <Printer size={16} weight="regular" className="text-[var(--color-text-muted)]" />
-                <div>
-                  <p className="font-body text-sm text-[var(--color-text-primary)]">{printer.name}</p>
-                  <p className="tabular text-xs text-[var(--color-text-muted)]">
-                    ID: {printer.id} · {printer.computer?.name ?? 'Ordinateur inconnu'}
-                  </p>
-                </div>
-              </div>
+        <PrinterDevice />
+      </section>
 
-              <div className="flex items-center gap-3">
-                <span className={[
-                  'tabular text-xs px-1.5 py-0.5 rounded-full',
-                  printer.state === 'online'
-                    ? 'text-[var(--color-success)] bg-[var(--color-success)]/10'
-                    : 'text-[var(--color-text-muted)] bg-[var(--color-bg-elevated)]',
-                ].join(' ')}>
-                  {printer.state === 'online' ? 'En ligne' : 'Hors ligne'}
-                </span>
-
-                {selectedPrinter === printer.id && (
-                  <motion.button
-                    onClick={(e) => { e.stopPropagation(); testPrint.mutate(printer.id) }}
-                    disabled={testPrint.isPending}
-                    whileTap={{ scale: 0.97 }}
-                    className="px-3 h-7 border border-[var(--color-accent)]/30 text-[var(--color-accent)] font-body text-xs rounded-[var(--radius-sm)] hover:bg-[var(--color-accent)]/10 transition-colors disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
-                  >
-                    Test
-                  </motion.button>
-                )}
-              </div>
+      {owner && (
+        <section aria-labelledby="ticket-title" className="space-y-4">
+          <h2 id="ticket-title" className="font-display text-xl font-semibold tracking-tight">Le ticket</h2>
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-semibold">Ticket papier</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {POLICIES.map((p) => (
+                <label
+                  key={p.key}
+                  className={[
+                    'flex cursor-pointer flex-col rounded-[var(--radius-md)] border p-3 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--color-accent)]',
+                    form.receiptPolicy === p.key ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)]' : 'border-[var(--color-border-strong)]',
+                  ].join(' ')}
+                >
+                  <input type="radio" name="policy" className="sr-only" checked={form.receiptPolicy === p.key} onChange={() => setForm({ ...form, receiptPolicy: p.key })} />
+                  <span className="text-[15px] font-semibold">{p.label}</span>
+                  <span className="text-sm text-[var(--color-text-secondary)]">{p.hint}</span>
+                </label>
+              ))}
             </div>
-          ))}
-        </div>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Toujours imprimés d’office : les articles numérotés (garantie légale) et les notes de service.
+            </p>
+          </fieldset>
+          <label className="flex items-start gap-3 text-[15px]">
+            <input type="checkbox" className="mt-0.5 size-5 accent-[var(--color-accent)]" checked={form.serviceNote} onChange={(e) => setForm({ ...form, serviceNote: e.target.checked })} />
+            <span>
+              Note de service à partir de 25 € TTC
+              <span className="block text-sm text-[var(--color-text-secondary)]">Restauration, coiffure, retouches, prestations : la note est imprimée en deux exemplaires, le double reste au commerce.</span>
+            </span>
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium">Pied de ticket</span>
+            <textarea
+              rows={2}
+              maxLength={300}
+              value={form.receiptFooter}
+              onChange={(e) => setForm({ ...form, receiptFooter: e.target.value })}
+              placeholder="Échange sous 30 jours sur présentation du ticket"
+              className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 py-2 text-[15px]"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+            className="h-11 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] press disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
+          >
+            {save.isPending ? 'Enregistrement' : 'Enregistrer'}
+          </button>
+        </section>
       )}
-
-      <div className="mt-6 p-4 bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)]">
-        <p className="font-data text-xs text-[var(--color-text-secondary)] mb-2">
-          Documentation
-        </p>
-        <p className="font-body text-xs text-[var(--color-text-secondary)]">
-          PrintNode supporte les imprimantes Epson TM-Series et Star Micronics.
-          Téléchargez le client PrintNode sur printnode.com et connectez-le à votre compte.
-        </p>
-      </div>
     </div>
   )
 }

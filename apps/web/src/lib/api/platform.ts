@@ -5,7 +5,37 @@ import type { Pack, PaymentKind, Sector, TrackingMode } from '@erp/types'
 import { apiClient } from './client'
 import { db } from '@/lib/offline/db'
 
+export interface ReceiptSettings {
+  legalName: string
+  siret: string | null
+  vatNumber: string | null
+  legalForm: string | null
+  rcs: string | null
+  address: string | null
+  // Ticket sur demande (loi AGEC), toujours ou jamais
+  policy: 'ASK' | 'ALWAYS' | 'NEVER'
+  // Note de service dès 25 € TTC (restauration, prestations)
+  serviceNote: boolean
+  footer: string | null
+}
+
+export interface PaymentMethodConfig {
+  id: string
+  code: string
+  label: string
+  kind: PaymentKind
+  isActive: boolean
+  position: number
+  // Règles françaises (titre-restaurant, chèque, espèces)
+  mealVoucher?: boolean
+  giveChange?: boolean
+  maxAmount?: string | null
+  requiresReference?: boolean
+}
+
 export interface PlatformConfig {
+  name?: string
+  receipt?: ReceiptSettings
   sector: Sector
   packs: Pack[]
   priceIncludesTax: boolean
@@ -13,7 +43,7 @@ export interface PlatformConfig {
   defaultTracking: TrackingMode
   suggestedOptions: Array<{ name: string; values: string[] }>
   taxRates: Array<{ id: string; label: string; rate: string; isDefault: boolean }>
-  paymentMethods: Array<{ id: string; code: string; label: string; kind: PaymentKind; isActive: boolean; position: number }>
+  paymentMethods: PaymentMethodConfig[]
   attributeDefinitions: Array<{
     id: string
     key: string

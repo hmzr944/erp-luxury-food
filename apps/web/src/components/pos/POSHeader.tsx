@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowUUpLeft, CaretLeft, CloudCheck, CloudSlash, DotsThreeVertical, Money, UserSwitch, WarningCircle, SignOut } from '@phosphor-icons/react'
+import { ArrowUUpLeft, CaretLeft, CloudCheck, CloudSlash, DotsThreeVertical, GraduationCap, Money, Printer, UserSwitch, WarningCircle, SignOut } from '@phosphor-icons/react'
 import { Sheet } from './Sheet'
 import { FlowMark } from '@/components/brand/FlowLogo'
 import { useAuthStore } from '@/stores/auth.store'
@@ -19,9 +19,13 @@ interface POSHeaderProps {
   cashOpen: boolean | null // null : inconnu (hors ligne)
   onCash: () => void
   onSwitchUser: () => void
+  // Mode formation (responsables) et réglages d'impression de cet appareil
+  training: boolean
+  onTraining?: () => void
+  onPrinter: () => void
 }
 
-export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cashOpen, onCash, onSwitchUser }: POSHeaderProps) {
+export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cashOpen, onCash, onSwitchUser, training, onTraining, onPrinter }: POSHeaderProps) {
   const { user, logout } = useAuthStore()
   const router = useRouter()
   const time = useClock()
@@ -98,12 +102,12 @@ export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cas
       >
         <SignOut size={20} />
       </button>
-      {/* Téléphone : les actions secondaires dans un menu, le nom de la boutique reste lisible */}
+      {/* Actions secondaires dans un menu, le nom de la boutique reste lisible */}
       <button
         type="button"
         onClick={() => setMenu(true)}
         aria-label="Plus d'actions"
-        className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-pill)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] sm:hidden"
+        className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-pill)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]"
       >
         <DotsThreeVertical size={22} weight="bold" />
       </button>
@@ -113,6 +117,8 @@ export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cas
             ...(cashOpen !== null ? [{ label: cashOpen ? 'Fermer la caisse' : 'Ouvrir la caisse', icon: Money, run: onCash }] : []),
             { label: "Retour d'article", icon: ArrowUUpLeft, run: onReturn },
             { label: 'Changer de vendeur', icon: UserSwitch, run: onSwitchUser },
+            { label: 'Imprimante et tiroir', icon: Printer, run: onPrinter },
+            ...(onTraining ? [{ label: training ? 'Quitter le mode formation' : 'Mode formation', icon: GraduationCap, run: onTraining }] : []),
             {
               label: 'Se déconnecter',
               icon: SignOut,

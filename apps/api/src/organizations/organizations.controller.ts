@@ -6,7 +6,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { OrganizationsService } from './organizations.service'
 import { Role } from '@erp/types'
 import { BadRequestException } from '@nestjs/common'
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUrl, Matches, MaxLength, Min } from 'class-validator'
+import { IsBoolean, IsNumber, IsOptional, IsString, IsUrl, Matches, MaxLength, Min, IsIn } from 'class-validator'
 import { assertPublicUrl, UnsafeUrlError } from '../common/net/public-url'
 
 class SettingsDto {
@@ -22,6 +22,11 @@ class SettingsDto {
   @IsOptional() @IsUrl({ protocols: ['https'], require_protocol: true }) @MaxLength(300) pdpEndpoint?: string
   @IsOptional() @IsString() @MaxLength(500) pdpApiKey?: string
   @IsOptional() @IsBoolean() pdpEnabled?: boolean
+  // Ticket : sur demande du client (loi AGEC), toujours ou jamais
+  @IsOptional() @IsIn(['ASK', 'ALWAYS', 'NEVER']) receiptPolicy?: string
+  // Note de service à partir de 25 € TTC (restauration, prestations)
+  @IsOptional() @IsBoolean() serviceNote?: boolean
+  @IsOptional() @IsString() @MaxLength(300) receiptFooter?: string
 }
 
 @Controller('organizations')

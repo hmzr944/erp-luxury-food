@@ -15,7 +15,7 @@ test.describe('Checkout flow complet', () => {
     await loginAs(page)
   })
 
-  test('encaissement simple — carte + NF525', async ({ page }) => {
+  test('encaissement simple, carte et ticket signé', async ({ page }) => {
     const siteId = await getSiteId(page)
     await page.goto(`/pos/${siteId}`)
 
@@ -43,9 +43,9 @@ test.describe('Checkout flow complet', () => {
     // Attendre l'état succès
     await expect(page.getByText('Encaissement confirmé')).toBeVisible({ timeout: 15_000 })
 
-    // Vérifier la présence du numéro de ticket NF525
+    // Vérifier la présence du numéro de ticket
     await expect(page.getByText(/Ticket/)).toBeVisible()
-    await expect(page.getByText(/NF525/)).toBeVisible()
+    await expect(page.getByText(/ticket n°/i)).toBeVisible()
 
     // Fermer et vérifier que le panier est vide
     await page.getByRole('button', { name: /nouvelle commande/i }).click()

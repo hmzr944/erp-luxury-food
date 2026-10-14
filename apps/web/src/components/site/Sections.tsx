@@ -341,7 +341,7 @@ const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Les tickets sont-ils conformes à la loi anti-fraude à la TVA ?',
-    a: "Chaque ticket est signé et chaîné au précédent, sur la caisse puis sur le serveur, et rien ne s'efface : un retour est un ticket négatif, pas une suppression. La certification NF525 par un organisme agréé n'est pas encore obtenue ; nous l'indiquerons ici dès qu'elle le sera.",
+    a: "Chaque ticket est signé et chaîné au précédent, sur la caisse puis sur le serveur, et rien ne s'efface : un retour est un ticket négatif, pas une suppression. Clôtures journalières, mensuelles et annuelles, total perpétuel et archives signées sont tenus automatiquement. Vous téléchargez votre attestation individuelle de conformité (article 286 du code général des impôts) depuis l'application. FLŌW n'est pas certifié par un organisme accrédité : nous l'indiquerons ici le jour où il le sera.",
   },
   {
     q: 'Puis-je récupérer mes données si je pars ?',

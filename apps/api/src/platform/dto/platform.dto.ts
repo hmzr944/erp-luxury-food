@@ -1,18 +1,4 @@
-import {
-  ArrayUnique,
-  IsArray,
-  IsBoolean,
-  IsEnum,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Matches,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-} from 'class-validator'
+import { ArrayUnique, IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator'
 import { AttributeType, Pack, PaymentKind, Sector } from '@erp/types'
 
 export class ApplySectorDto {
@@ -71,6 +57,24 @@ export class PaymentMethodDto {
   @IsOptional()
   @IsInt()
   position?: number
+
+  // Titre-restaurant : articles éligibles seulement, plafond, pas de rendu
+  @IsOptional()
+  @IsBoolean()
+  mealVoucher?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  giveChange?: boolean
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  maxAmount?: number | null
+
+  @IsOptional()
+  @IsBoolean()
+  requiresReference?: boolean
 }
 
 export class AttributeDefinitionDto {

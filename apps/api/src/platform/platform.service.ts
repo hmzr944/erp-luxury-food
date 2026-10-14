@@ -21,6 +21,7 @@ export class PlatformService {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
+        name: true,
         sector: true,
         packs: true,
         priceIncludesTax: true,
@@ -28,12 +29,28 @@ export class PlatformService {
         taxRates: { orderBy: { rate: 'desc' } },
         paymentMethods: { orderBy: { position: 'asc' } },
         attributeDefinitions: { orderBy: [{ position: 'asc' }, { label: 'asc' }] },
+        settings: {
+          select: { siret: true, vatNumber: true, legalForm: true, rcs: true, legalAddress: true, legalZipCode: true, legalCity: true, receiptPolicy: true, serviceNote: true, receiptFooter: true },
+        },
       },
     })
     if (!org) throw new NotFoundException('Organisation introuvable')
     const preset = SECTOR_PRESETS[org.sector as Sector]
+    const { settings, ...rest } = org
     return {
-      ...org,
+      ...rest,
+      // Mentions du ticket, gardées en cache par la caisse pour imprimer hors ligne
+      receipt: {
+        legalName: org.name,
+        siret: settings?.siret ?? null,
+        vatNumber: settings?.vatNumber ?? null,
+        legalForm: settings?.legalForm ?? null,
+        rcs: settings?.rcs ?? null,
+        address: [settings?.legalAddress, [settings?.legalZipCode, settings?.legalCity].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null,
+        policy: (settings?.receiptPolicy ?? 'ASK') as 'ASK' | 'ALWAYS' | 'NEVER',
+        serviceNote: settings?.serviceNote ?? false,
+        footer: settings?.receiptFooter ?? null,
+      },
       defaultTracking: preset.defaultTracking,
       suggestedOptions: preset.suggestedOptions,
     }

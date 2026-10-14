@@ -3,11 +3,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, Copy, Minus, Plus } from '@phosphor-icons/react'
-import { formatPrice, planRefund } from '@erp/utils'
+import { CheckCircle, Copy, Minus, Plus, Printer } from '@phosphor-icons/react'
+import { formatPrice, planRefund, priceOrder } from '@erp/utils'
 import { ordersApi, type ApiOrderDetail, type RefundTo, type StoreCreditView } from '@/lib/api/orders'
 import { Sheet } from '@/components/pos/Sheet'
 import { Loading } from '@/components/brand/FlowLogo'
+import { usePlatformConfig } from '@/lib/api/platform'
+import { fiscalApi } from '@/lib/api/fiscal'
+import { buildSaleTicket } from '@/lib/printing/ticket'
+import { printTicket } from '@/lib/printing/printer'
+import { useAuthStore } from '@/stores/auth.store'
 
 const n = (v: number | string) => Number(v)
 
@@ -61,7 +66,7 @@ export function OrderDetailSheet({
       ) : refunding ? (
         <RefundForm siteId={siteId} order={o} onCancel={() => setRefunding(false)} onDone={setDone} />
       ) : (
-        <OrderView order={o} onRefund={() => setRefunding(true)} />
+        <OrderView siteId={siteId} order={o} onRefund={() => setRefunding(true)} />
       )}
     </Sheet>
   )
@@ -73,7 +78,7 @@ function remainingByItem(o: ApiOrderDetail) {
   return left
 }
 
-function OrderView({ order: o, onRefund }: { order: ApiOrderDetail; onRefund: () => void }) {
+function OrderView({ siteId, order: o, onRefund }: { siteId: string; order: ApiOrderDetail; onRefund: () => void }) {
   const left = remainingByItem(o)
   const canRefund = o.kind !== 'REFUND' && o.status !== 'CANCELLED' && [...left.values()].some((q) => q > 0)
   const refunded = o.refunds.reduce((a, r) => a - n(r.total), 0)
@@ -161,6 +166,8 @@ function OrderView({ order: o, onRefund }: { order: ApiOrderDetail; onRefund: ()
 
       {o.note && <p className="whitespace-pre-line text-sm text-[var(--color-text-secondary)]">{o.note}</p>}
 
+      {o.receiptChain && <DuplicateButton siteId={siteId} order={o} />}
+
       {canRefund && (
         <button
           type="button"
@@ -169,6 +176,67 @@ function OrderView({ order: o, onRefund }: { order: ApiOrderDetail; onRefund: ()
         >
           Retour ou échange
         </button>
+      )}
+    </div>
+  )
+}
+
+// Réimpression : toujours un duplicata numéroté, tracé au journal fiscal
+function DuplicateButton({ siteId, order: o }: { siteId: string; order: ApiOrderDetail }) {
+  const { data: config } = usePlatformConfig()
+  const { user } = useAuthStore()
+  const [state, setState] = useState<{ busy: boolean; message?: string; error?: boolean }>({ busy: false })
+  const reprint = async () => {
+    setState({ busy: true })
+    try {
+      const dup = await fiscalApi.duplicate(siteId, o.id)
+      const refund = o.kind === 'REFUND'
+      const lines = o.items.map((i) => ({ unitPrice: Math.abs(n(i.price)), quantity: i.quantity, discount: n(i.discount), taxRate: n(i.taxRate) }))
+      const priced = priceOrder(lines, { priceIncludesTax: refund ? true : (config?.priceIncludesTax ?? true), orderDiscount: n(o.discount) })
+      const sign = refund ? -1 : 1
+      const ticket = buildSaleTicket({
+        receipt: config?.receipt,
+        siteName: o.site?.name ?? 'Boutique',
+        terminalName: 'Caisse',
+        sellerName: user ? `${user.firstName}` : null,
+        number: String(o.receiptChain!.counter),
+        signedAt: new Date(o.receiptChain!.signedAt),
+        lines: o.items.map((i, k) => ({
+          quantity: i.quantity,
+          name: i.name,
+          detail: [i.variantName, i.serialNumber ? `N° de série ${i.serialNumber}` : null].filter(Boolean).join(', ') || undefined,
+          unit: sign * Math.round((priced.lines[k].ttc / i.quantity) * 100) / 100,
+          total: sign * priced.lines[k].ttc,
+          taxRate: n(i.taxRate),
+        })),
+        discount: n(o.discount) || undefined,
+        total: n(o.total),
+        taxBreakdown: priced.taxBreakdown.map((t) => ({ rate: t.rate, ht: sign * t.ht, tax: sign * t.tax })),
+        payments: (o.payments ?? []).map((p) => ({ label: p.label, amount: n(p.amount) })),
+        signature: o.receiptChain!.hash.slice(0, 16),
+        refund,
+        duplicate: dup.number,
+      })
+      await printTicket(ticket)
+      setState({ busy: false, message: `Duplicata n° ${dup.number} imprimé` })
+    } catch (e) {
+      setState({ busy: false, message: (e as Error).message, error: true })
+    }
+  }
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={reprint}
+        disabled={state.busy}
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-semibold press disabled:opacity-60"
+      >
+        <Printer size={20} aria-hidden /> {state.busy ? 'Impression' : 'Réimprimer (duplicata)'}
+      </button>
+      {state.message && (
+        <p role={state.error ? 'alert' : 'status'} className={state.error ? 'alert-box' : 'text-sm font-medium'}>
+          {state.message}
+        </p>
       )}
     </div>
   )

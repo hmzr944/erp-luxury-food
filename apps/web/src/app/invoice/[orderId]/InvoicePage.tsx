@@ -107,7 +107,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
               )}
               {order.receiptChain && (
                 <p style={{ fontSize: '10px', color: '#727276', marginTop: '4px', fontFamily: 'monospace' }}>
-                  NF525 #{order.receiptChain.counter}
+                  Ticket n° {order.receiptChain.counter}
                 </p>
               )}
             </div>

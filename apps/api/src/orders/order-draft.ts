@@ -148,7 +148,8 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
     if (!method) throw new OrderDraftError(`Moyen de paiement inconnu ou désactivé : ${p.code}`)
     // Seul le code d'avoir vient de la caisse ; la référence d'un paiement
     // carte est rattachée par le serveur à partir du TPE connecté
-    return { ...method, amount: p.amount, ...(p.code === 'CREDIT' && p.reference ? { reference: p.reference } : {}) }
+    // Référence gardée : code d'avoir, numéro de chèque
+    return { ...method, amount: p.amount, ...(p.reference ? { reference: p.reference } : {}) }
   })
 
   const paidCents = payments.reduce((a, p) => a + Math.round(p.amount * 100), 0)

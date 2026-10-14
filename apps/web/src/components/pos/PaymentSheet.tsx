@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowUUpLeft, CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle } from '@phosphor-icons/react'
+import { ArrowUUpLeft, CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle, Printer } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import { PaymentKind } from '@erp/types'
 import type { PlatformConfig } from '@/lib/api/platform'
 import type { PaymentDevice } from '@/lib/api/payments'
+import type { ReceiptSettings } from '@/lib/api/platform'
+import { canOpenDrawer, openDrawer, printTicket, usePrinterConfig } from '@/lib/printing/printer'
+import { printPlan, ticketForSale } from './receipt-ticket'
 import { productsAdminApi } from '@/lib/api/products-admin'
 import { db } from '@/lib/offline/db'
 import type { RecordedSale } from '@/lib/terminal/terminal'
@@ -32,6 +35,12 @@ export interface ReceiptView {
   sale: RecordedSale
   lines: CartLine[]
   payments: Array<{ label: string; amount: number }>
+  // Monnaie rendue au client (espèces)
+  change?: number
+  // Vente fictive du mode formation : numérotée à part, hors grand livre
+  training?: { number: number; operator: string }
+  // Encaissement en espèces : le tiroir s'ouvre
+  cashPaid?: boolean
 }
 
 interface PaymentSheetProps {
@@ -42,6 +51,9 @@ interface PaymentSheetProps {
   total: number
   methods: Method[]
   siteName: string
+  // Mentions du ticket et nom du vendeur, pour l'impression
+  receiptSettings?: ReceiptSettings
+  sellerName?: string | null
   receipt: ReceiptView | null
   busy: boolean
   error: string | null
@@ -51,7 +63,7 @@ interface PaymentSheetProps {
   onClose: () => void
 }
 
-export function PaymentSheet({ open, siteId, device, total, methods, siteName, receipt, busy, error, creditCode, onPay, onClose }: PaymentSheetProps) {
+export function PaymentSheet({ open, siteId, device, total, methods, siteName, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose }: PaymentSheetProps) {
   const [split, setSplit] = useState(false)
   const [terminal, setTerminal] = useState<Method | null>(null)
   const [parts, setParts] = useState(false)
@@ -99,7 +111,7 @@ export function PaymentSheet({ open, siteId, device, total, methods, siteName, r
     // pourrait payer sans que la vente soit enregistrée
     <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || partsLocked))}>
       {receipt ? (
-        <Receipt receipt={receipt} siteId={siteId} siteName={siteName} onNext={onClose} />
+        <Receipt receipt={receipt} siteId={siteId} siteName={siteName} settings={receiptSettings} sellerName={sellerName} onNext={onClose} />
       ) : terminal && device ? (
         <>
           {error && (
@@ -281,11 +293,52 @@ function SplitPayment({
 }
 
 // Le ticket sort de la caisse : il est signé et valable, réseau ou pas
-function Receipt({ receipt, siteId, siteName, onNext }: { receipt: ReceiptView; siteId: string; siteName: string; onNext: () => void }) {
+function Receipt({
+  receipt,
+  siteId,
+  siteName,
+  settings,
+  sellerName,
+  onNext,
+}: {
+  receipt: ReceiptView
+  siteId: string
+  siteName: string
+  settings?: ReceiptSettings
+  sellerName?: string | null
+  onNext: () => void
+}) {
   const synced = useSaleSynced(receipt.sale.clientId)
   const customLines = receipt.lines.filter((l) => l.customName)
   const { sale } = receipt
   const signedAt = new Date(sale.receipt.signedAt)
+  const printer = usePrinterConfig()
+  const [print, setPrint] = useState<{ state: 'idle' | 'printing' | 'printed' | 'error'; message?: string }>({ state: 'idle' })
+  const started = useRef(false)
+
+  const doPrint = async (copies: Array<'CLIENT' | 'DOUBLE' | undefined>, drawer: boolean) => {
+    setPrint({ state: 'printing' })
+    try {
+      for (const [i, copy] of copies.entries()) {
+        await printTicket(ticketForSale(receipt, { receipt: settings, siteName, sellerName }, { copy }), { openDrawer: drawer && i === 0 })
+      }
+      setPrint({ state: 'printed' })
+    } catch (e) {
+      setPrint({ state: 'error', message: (e as Error).message })
+    }
+  }
+
+  // Une fois, à l'affichage : ticket imprimé d'office quand il le faut,
+  // tiroir ouvert pour un paiement en espèces
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    const drawer = !!receipt.cashPaid && printer.drawerOnCash && canOpenDrawer(printer)
+    const plan = printPlan(receipt, settings)
+    if (plan.auto && printer.mode !== 'none') void doPrint(plan.copies, drawer)
+    else if (drawer) openDrawer(printer).catch((e: Error) => setPrint({ state: 'error', message: e.message }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="space-y-4">
@@ -326,17 +379,48 @@ function Receipt({ receipt, siteId, siteName, onNext }: { receipt: ReceiptView; 
               <span className="tabular">{formatPrice(p.amount)}</span>
             </p>
           ))}
-          <p className="mt-3 text-[var(--color-text-secondary)]">
-            {sale.terminalName}, ticket n° {sale.receipt.counter}
-          </p>
-          <p className="break-all text-[var(--color-text-muted)]">Signature {sale.receipt.hash.slice(0, 24)}</p>
+          {receipt.change ? (
+            <p className="flex justify-between font-body text-[15px] font-semibold">
+              <span>Rendu</span>
+              <span className="tabular">{formatPrice(receipt.change)}</span>
+            </p>
+          ) : null}
+          {receipt.training ? (
+            <p className="mt-3 font-body font-semibold">Mode formation : ticket fictif n° F-{receipt.training.number}, {receipt.training.operator}</p>
+          ) : (
+            <>
+              <p className="mt-3 text-[var(--color-text-secondary)]">
+                {sale.terminalName}, ticket n° {sale.receipt.counter}
+              </p>
+              <p className="break-all text-[var(--color-text-muted)]">Signature {sale.receipt.hash.slice(0, 24)}</p>
+            </>
+          )}
         </motion.div>
       </div>
 
-      <p className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]" role="status">
-        {synced ? <CloudCheck size={18} aria-hidden /> : <CloudSlash size={18} aria-hidden />}
-        {synced ? 'Envoyée au serveur.' : 'Gardée sur la caisse, envoi dès que le réseau revient.'}
-      </p>
+      {!receipt.training && (
+        <p className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]" role="status">
+          {synced ? <CloudCheck size={18} aria-hidden /> : <CloudSlash size={18} aria-hidden />}
+          {synced ? 'Envoyée au serveur.' : 'Gardée sur la caisse, envoi dès que le réseau revient.'}
+        </p>
+      )}
+
+      {print.state === 'error' && (
+        <p role="alert" className="alert-box">
+          {print.message}
+        </p>
+      )}
+      {printer.mode !== 'none' && (
+        <button
+          type="button"
+          disabled={print.state === 'printing' || print.state === 'printed'}
+          onClick={() => void doPrint(printPlan(receipt, settings).copies, false)}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-semibold disabled:text-[var(--color-text-secondary)] press"
+        >
+          <Printer size={20} aria-hidden />
+          {print.state === 'printing' ? 'Impression' : print.state === 'printed' ? 'Ticket imprimé' : print.state === 'error' ? 'Réessayer l’impression' : 'Imprimer le ticket'}
+        </button>
+      )}
 
       {customLines.map((l) => (
         <SaveToCatalog key={l.key} siteId={siteId} name={l.customName!} price={l.product.price} taxRate={l.product.taxRate} />
