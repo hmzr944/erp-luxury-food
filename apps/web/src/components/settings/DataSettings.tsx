@@ -4,9 +4,12 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { DownloadSimple, FileArrowUp, WarningCircle, CheckCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { toCsv } from '@erp/utils'
+import { applyMapping, guessMapping, IMPORT_FIELD_LABELS, missingRequired, parseCsv, tableToRows, toCsv, type ColumnMapping, type ImportField } from '@erp/utils'
 import { authorizedFetch } from '@/lib/api/client'
 import { sitesApi } from '@/lib/api/sites'
+
+// Colonnes du format d'import FLŌW (voir apps/api/src/data/product-import.ts)
+const CANONICAL = ['nom', 'sous_titre', 'description', 'categorie', 'prix', 'tva', 'sku', 'code_barres', 'option_1', 'valeur_1', 'option_2', 'valeur_2', 'stock']
 
 interface ImportReport {
   dryRun: boolean
@@ -64,6 +67,10 @@ export function DataSettings() {
   const [to, setTo] = useState(isoDay(new Date()))
   const [busy, setBusy] = useState<string | null>(null)
   const [file, setFile] = useState<{ name: string; text: string } | null>(null)
+  // Fichier déposé : colonnes reconnues, modifiables avant l'import
+  const [source, setSource] = useState<{ name: string; headers: string[]; rows: Array<Record<string, string>> } | null>(null)
+  const [mapping, setMapping] = useState<ColumnMapping[]>([])
+  const [dragging, setDragging] = useState(false)
   const [report, setReport] = useState<ImportReport | null>(null)
 
   const exportFile = async (key: string, dated: boolean, label: string) => {
@@ -101,12 +108,51 @@ export function DataSettings() {
     }
   }
 
+  // Lignes reconnues → CSV au format d'import FLŌW, puis aperçu sans rien écrire
+  const preview = async (src: NonNullable<typeof source>, map: ColumnMapping[]) => {
+    setReport(null)
+    if (missingRequired(map).length) return setFile(null)
+    const rows = applyMapping(src.rows, map)
+    const text = toCsv(rows, CANONICAL.map((c) => ({ header: c, value: (r: Record<string, string>) => r[c] ?? '' })))
+    setFile({ name: src.name, text })
+    await runImport(true, text)
+  }
+
   const onFile = async (f: File | undefined) => {
     setReport(null)
-    if (!f) return setFile(null)
-    const text = await f.text()
-    setFile({ name: f.name, text })
-    await runImport(true, text)
+    setFile(null)
+    if (!f) return setSource(null)
+    try {
+      let table: { headers: string[]; rows: Array<Record<string, string>> }
+      if (/\.(xlsx|xlsm)$/i.test(f.name)) {
+        const { readSheet } = await import('read-excel-file/browser')
+        table = tableToRows((await readSheet(f)) as unknown[][])
+      } else if (/\.xls$/i.test(f.name)) {
+        throw new Error('Ancien format Excel (.xls) : enregistrez le fichier en .xlsx ou en CSV')
+      } else {
+        const rows = parseCsv(await f.text())
+        table = { headers: rows.length ? Object.keys(rows[0]) : [], rows }
+      }
+      if (!table.rows.length) throw new Error('Fichier vide ou illisible')
+      const src = { name: f.name, ...table }
+      const map = guessMapping(table.headers)
+      setSource(src)
+      setMapping(map)
+      await preview(src, map)
+    } catch (e) {
+      setSource(null)
+      toast.error((e as Error).message)
+    }
+  }
+
+  const remap = (header: string, field: ImportField | null) => {
+    if (!source) return
+    // Un champ ne sert qu'à une colonne (sauf les déclinaisons, deux au plus)
+    const next = mapping.map((m) =>
+      m.header === header ? { ...m, field } : field && field !== 'option' && m.field === field ? { ...m, field: null } : m,
+    )
+    setMapping(next)
+    void preview(source, next)
   }
 
   const fieldCls =
@@ -178,13 +224,13 @@ export function DataSettings() {
         </ul>
       </section>
 
-      <section className="space-y-4" aria-labelledby="import-title">
+      <section id="import" className="scroll-mt-6 space-y-4" aria-labelledby="import-title">
         <div className="space-y-1">
           <h2 id="import-title" className="text-lg font-semibold">
             Importer un catalogue
           </h2>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Une ligne par article. Les lignes au même nom deviennent un produit et ses variantes (tailles, couleurs, formats).
+            Déposez l’export de votre ancien logiciel ou votre tableur : les colonnes sont reconnues toutes seules (désignation, prix, TVA, code-barres, stock, taille, couleur). Les lignes au même nom deviennent un produit et ses variantes.
             Les produits déjà présents ne sont pas modifiés. Rien n&apos;est importé sans votre confirmation.
           </p>
           <button type="button" onClick={downloadTemplate} className="h-11 text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
@@ -192,12 +238,61 @@ export function DataSettings() {
           </button>
         </div>
 
-        <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] p-6 text-center hover:border-[var(--color-accent)] focus-within:border-[var(--color-accent)]">
-          <FileArrowUp size={24} aria-hidden className="text-[var(--color-accent)]" />
-          <span className="text-[15px] font-medium">{file ? file.name : 'Choisir un fichier CSV'}</span>
-          <span className="text-sm text-[var(--color-text-secondary)]">Séparateur point-virgule ou virgule</span>
-          <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
+        <label
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragging(false)
+            void onFile(e.dataTransfer.files?.[0])
+          }}
+          className={[
+            'flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-dashed p-6 text-center focus-within:border-[var(--color-accent)]',
+            dragging ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)]' : 'border-[var(--color-border-strong)] hover:border-[var(--color-accent)]',
+          ].join(' ')}
+        >
+          <FileArrowUp size={28} aria-hidden className="text-[var(--color-accent)]" />
+          <span className="text-[15px] font-medium">{source ? source.name : 'Déposez votre fichier ici, ou choisissez-le'}</span>
+          <span className="text-sm text-[var(--color-text-secondary)]">Excel (.xlsx) ou CSV, export de votre ancien logiciel ou tableur maison</span>
+          <input type="file" accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
         </label>
+
+        {source && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Colonnes reconnues</p>
+            <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-md)] border border-[var(--color-border)]">
+              {mapping.map((m) => (
+                <li key={m.header} className="flex flex-wrap items-center gap-3 px-4 py-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-medium">{m.header}</span>
+                    <span className="block truncate text-sm text-[var(--color-text-secondary)]">{source.rows.find((r) => r[m.header])?.[m.header] ?? 'vide'}</span>
+                  </span>
+                  <select
+                    aria-label={`Colonne « ${m.header} »`}
+                    value={m.field ?? ''}
+                    onChange={(e) => remap(m.header, (e.target.value || null) as ImportField | null)}
+                    className={fieldCls + ' w-44'}
+                  >
+                    <option value="">Ignorer</option>
+                    {(Object.keys(IMPORT_FIELD_LABELS) as ImportField[]).map((f) => (
+                      <option key={f} value={f}>
+                        {IMPORT_FIELD_LABELS[f]}
+                      </option>
+                    ))}
+                  </select>
+                </li>
+              ))}
+            </ul>
+            {missingRequired(mapping).length > 0 && (
+              <p role="alert" className="alert-box">
+                Indiquez la colonne {missingRequired(mapping).map((f) => `« ${IMPORT_FIELD_LABELS[f]} »`).join(' et ')} pour continuer.
+              </p>
+            )}
+          </div>
+        )}
 
         {busy === 'preview' && <p role="status" className="text-sm text-[var(--color-text-secondary)]">Lecture du fichier...</p>}
 

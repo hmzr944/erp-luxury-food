@@ -159,7 +159,7 @@ export function DiscoveryChecklist({
             <p className="text-sm font-semibold">Avant la première vraie vente</p>
             <div className="flex flex-wrap gap-2">
               {canManage && (
-                <Link href="/settings/data" className="inline-flex h-10 items-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] px-3 text-sm font-medium press">
+                <Link href="/settings/data#import" className="inline-flex h-10 items-center rounded-[var(--radius-pill)] border border-[var(--color-border-strong)] px-3 text-sm font-medium press">
                   Importer mon catalogue
                 </Link>
               )}

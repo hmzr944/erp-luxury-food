@@ -30,6 +30,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.56.4",
+    "read-excel-file": "9.3.10",
     "recharts": "^2.15.3",
     "socket.io-client": "^4.8.1",
     "sonner": "^2.0.5",
