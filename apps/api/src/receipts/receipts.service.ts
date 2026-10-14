@@ -24,10 +24,11 @@ const RECEIPT_SELECT = {
   receiptSentAt: true,
   invoiceNumber: true,
   invoicedAt: true,
+  invoiceSentAt: true,
   b2bClient: { select: { name: true } },
   items: { select: { name: true, variantName: true, serialNumber: true, price: true, taxRate: true, quantity: true, discount: true } },
   payments: { select: { label: true, amount: true, reference: true, kind: true } },
-  receiptChain: { select: { counter: true, hash: true, terminalHash: true, signedAt: true, terminal: { select: { name: true } } } },
+  receiptChain: { select: { counter: true, hash: true, terminalCounter: true, terminalHash: true, signedAt: true, terminal: { select: { name: true } } } },
   site: {
     select: {
       id: true,
@@ -103,7 +104,8 @@ export class ReceiptsService {
       siteName: order.site.name,
       siteAddress: order.site.address,
       terminalName: chain.terminal?.name ?? 'Caisse',
-      number: String(chain.counter),
+      // Numéro imprimé par la caisse (compteur du terminal), sinon celui du site
+      number: String(chain.terminalCounter ?? chain.counter),
       signedAt: chain.signedAt,
       timeZone: order.site.timezone,
       lines: order.items.map((i, n) => ({
@@ -135,13 +137,13 @@ export class ReceiptsService {
       kind: order.kind,
       shop: { name: order.site.name, legalName: order.site.organization.name },
       ticket: this.ticket(order),
-      invoice: order.invoiceNumber ? { number: order.invoiceNumber, company: order.b2bClient?.name ?? null } : null,
+      invoice: order.invoiceNumber ? { number: order.invoiceNumber, company: order.b2bClient?.name ?? null, emailed: !!order.invoiceSentAt } : null,
     }
   }
 
   async pdf(token: string) {
     const order = await this.load(token)
-    return { filename: `ticket-${order.receiptChain!.counter}.pdf`, body: await renderTicketPdf(this.ticket(order)) }
+    return { filename: `ticket-${order.receiptChain!.terminalCounter ?? order.receiptChain!.counter}.pdf`, body: await renderTicketPdf(this.ticket(order)) }
   }
 
   // Envoi du reçu (lien + PDF). Mémorise l'adresse et l'heure d'envoi.
@@ -157,9 +159,9 @@ export class ReceiptsService {
     const result = await this.mail.send({
       to: address,
       subject: `Votre ticket ${shop}`,
-      text: `Bonjour,\n\nVoici votre ticket de caisse n° ${order.receiptChain!.counter} chez ${shop} (${total} €), en pièce jointe et en ligne : ${link}\n\nÀ bientôt.`,
-      html: `<p>Bonjour,</p><p>Voici votre ticket de caisse n° ${order.receiptChain!.counter} chez <strong>${esc(shop)}</strong> (${total}&nbsp;€), en pièce jointe.</p><p><a href="${link}">Voir le ticket en ligne</a> (facture pour une entreprise sur demande en boutique).</p><p>À bientôt.</p>`,
-      attachments: [{ filename: `ticket-${order.receiptChain!.counter}.pdf`, content: await renderTicketPdf(ticket) }],
+      text: `Bonjour,\n\nVoici votre ticket de caisse n° ${order.receiptChain!.terminalCounter ?? order.receiptChain!.counter} chez ${shop} (${total} €), en pièce jointe et en ligne : ${link}\n\nÀ bientôt.`,
+      html: `<p>Bonjour,</p><p>Voici votre ticket de caisse n° ${order.receiptChain!.terminalCounter ?? order.receiptChain!.counter} chez <strong>${esc(shop)}</strong> (${total}&nbsp;€), en pièce jointe.</p><p><a href="${link}">Voir le ticket en ligne</a> (facture pour une entreprise sur demande en boutique).</p><p>À bientôt.</p>`,
+      attachments: [{ filename: `ticket-${order.receiptChain!.terminalCounter ?? order.receiptChain!.counter}.pdf`, content: await renderTicketPdf(ticket) }],
     })
     await this.prisma.order.update({
       where: { id: order.id },

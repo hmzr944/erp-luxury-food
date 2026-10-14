@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CheckCircle, Printer, Tray } from '@phosphor-icons/react'
 import { BridgePairing } from './BridgePairing'
+import { PrinterSearch } from './PrinterSearch'
 import { canOpenDrawer, openDrawer, printTicket, setPrinterConfig, usePrinterConfig, type PrinterConfig } from '@/lib/printing/printer'
 import { buildSaleTicket } from '@/lib/printing/ticket'
 import { usePlatformConfig } from '@/lib/api/platform'
@@ -71,6 +72,8 @@ export function PrinterDevice() {
         </div>
       </fieldset>
 
+      {draft.mode === 'bridge' && <PrinterSearch kind="ticket" onPick={(p) => setDraft({ ...draft, host: p.host, port: p.port })} />}
+
       {needsHost && (
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
           <label className="space-y-1.5">
@@ -116,6 +119,44 @@ export function PrinterDevice() {
 
       {draft.mode === 'bridge' && <BridgePairing />}
 
+      <fieldset className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] p-4">
+        <legend className="px-1 text-sm font-semibold">Factures A4</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {([
+            ['system', 'Fenêtre d’impression', 'AirPrint sur iPad et Mac, ou l’imprimante installée sur l’ordinateur.'],
+            ['ipp', 'Imprimante de bureau en direct', 'Wi-Fi ou Ethernet, sans pilote, par FLŌW-Bridge (IPP).'],
+          ] as const).map(([key, label, hint]) => (
+            <label
+              key={key}
+              className={[
+                'flex cursor-pointer flex-col rounded-[var(--radius-md)] border p-3 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--color-accent)]',
+                (draft.a4?.mode ?? 'system') === key ? 'border-[var(--color-accent)] bg-[var(--color-accent-muted)]' : 'border-[var(--color-border-strong)]',
+              ].join(' ')}
+            >
+              <input type="radio" name="a4-mode" className="sr-only" checked={(draft.a4?.mode ?? 'system') === key} onChange={() => setDraft({ ...draft, a4: { ...draft.a4, mode: key } })} />
+              <span className="text-[15px] font-semibold">{label}</span>
+              <span className="text-sm text-[var(--color-text-secondary)]">{hint}</span>
+            </label>
+          ))}
+        </div>
+        {draft.a4?.mode === 'ipp' && (
+          <>
+            <BridgePairing />
+            <PrinterSearch
+              kind="a4"
+              onPick={(p) =>
+                setDraft({ ...draft, a4: { mode: 'ipp', name: p.model || p.name, host: p.host, port: p.ippPort ?? p.port, path: p.rp ? `/${p.rp.replace(/^\//, '')}` : undefined, tls: p.protocols.includes('ipps') && !p.protocols.includes('ipp') } })
+              }
+            />
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">Adresse de l’imprimante A4</span>
+              <input className={field} inputMode="url" placeholder="192.168.1.40" value={draft.a4.host ?? ''} onChange={(e) => setDraft({ ...draft, a4: { ...draft.a4!, host: e.target.value.trim() } })} />
+            </label>
+            {draft.a4.name && <p className="text-sm text-[var(--color-text-secondary)]">{draft.a4.name}</p>}
+          </>
+        )}
+      </fieldset>
+
       {state.kind === 'error' && (
         <p role="alert" className="alert-box">
           {state.message}
@@ -131,7 +172,7 @@ export function PrinterDevice() {
         <button
           type="button"
           className="inline-flex h-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-accent)] px-5 text-[15px] font-semibold text-[var(--color-on-accent)] press disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
-          disabled={!dirty || (needsHost && !draft.host)}
+          disabled={!dirty || (needsHost && !draft.host) || (draft.a4?.mode === 'ipp' && !draft.a4.host)}
           onClick={() => {
             setPrinterConfig(draft)
             setState({ kind: 'ok', message: 'Réglage enregistré sur cet appareil' })

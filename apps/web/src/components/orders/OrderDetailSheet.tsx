@@ -200,9 +200,10 @@ function DuplicateButton({ siteId, order: o }: { siteId: string; order: ApiOrder
       const ticket = buildSaleTicket({
         receipt: config?.receipt,
         siteName: o.site?.name ?? 'Boutique',
-        terminalName: 'Caisse',
+        terminalName: o.receiptChain!.terminal?.name ?? 'Caisse',
         sellerName: user ? `${user.firstName}` : null,
-        number: String(o.receiptChain!.counter),
+        // Même numéro que le ticket d'origine, imprimé par la caisse
+        number: String(o.receiptChain!.terminalCounter ?? o.receiptChain!.counter),
         signedAt: new Date(o.receiptChain!.signedAt),
         lines: o.items.map((i, k) => ({
           quantity: i.quantity,
@@ -216,7 +217,7 @@ function DuplicateButton({ siteId, order: o }: { siteId: string; order: ApiOrder
         total: n(o.total),
         taxBreakdown: priced.taxBreakdown.map((t) => ({ rate: t.rate, ht: sign * t.ht, tax: sign * t.tax })),
         payments: (o.payments ?? []).map((p) => ({ label: p.label, amount: n(p.amount) })),
-        signature: o.receiptChain!.hash.slice(0, 16),
+        signature: (o.receiptChain!.terminalHash ?? o.receiptChain!.hash).slice(0, 16),
         refund,
         duplicate: dup.number,
         receiptUrl: o.clientId ? receiptUrl(o.clientId) : undefined,

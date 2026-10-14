@@ -74,6 +74,24 @@ describe('ESC/POS', () => {
   })
 })
 
+describe('Ticket dématérialisé', () => {
+  it('imprime le QR code du reçu en ligne (GS ( k), sauf en formation', () => {
+    const url = 'https://flow.example/r/55041315-c62b-45d6-8c73-29ec91f731a5'
+    const bytes = [...encodeTicket(sale({ receiptUrl: url }))]
+    const store = bytes.findIndex((b, i) => b === 0x1d && bytes[i + 1] === 0x28 && bytes[i + 2] === 0x6b && bytes[i + 6] === 0x50)
+    expect(store).toBeGreaterThan(0)
+    expect(bytes[store + 3] + (bytes[store + 4] << 8)).toBe(url.length + 3)
+    expect(new TextDecoder().decode(new Uint8Array(bytes.slice(store + 8, store + 8 + url.length)))).toBe(url)
+    expect(sale({ receiptUrl: url, training: { operator: 'Léa' } }).qr).toBeUndefined()
+    expect(eposDocument(sale({ receiptUrl: url }))).toContain('qrcode_model_2')
+  })
+
+  it('les paiements carte portent la référence du TPE', () => {
+    const lines = layoutTicket(sale({ payments: [{ label: 'Carte', amount: 17, reference: 'STR-982341' }] }), 48).map((l) => l.text)
+    expect(lines).toContain('   Réf. STR-982341')
+  })
+})
+
 describe('Epson ePOS', () => {
   it('enveloppe SOAP, texte échappé, impulsion tiroir', () => {
     const doc = eposDocument(sale({ siteName: 'A & B <test>' }), { openDrawer: true })

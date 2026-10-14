@@ -50,6 +50,10 @@ export interface ApiOrder {
     counter: number
     hash: string
     signedAt: string
+    // Numéro et empreinte de la caisse qui a signé le ticket
+    terminalCounter?: number | null
+    terminalHash?: string | null
+    terminal?: { name: string } | null
   } | null
   items: ApiOrderItem[]
 }

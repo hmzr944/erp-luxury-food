@@ -114,7 +114,7 @@ export function mapCompanies(payload: unknown, query: string): Company[] {
         vatNumber: frenchVatNumber(r.siren!),
         address: street(etab),
         zipCode: etab.code_postal ?? null,
-        city: etab.libelle_commune ?? null,
+        city: etab.libelle_commune ? titleCase(etab.libelle_commune) : null,
         active: (etab.etat_administratif ?? r.etat_administratif) !== 'F' && r.etat_administratif !== 'C',
       }
     })

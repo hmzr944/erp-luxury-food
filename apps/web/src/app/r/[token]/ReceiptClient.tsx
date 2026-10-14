@@ -11,7 +11,7 @@ type View =
   | { status: 'loading' }
   | { status: 'pending' }
   | { status: 'missing' }
-  | { status: 'ready'; kind: 'SALE' | 'REFUND'; shop: { name: string; legalName: string }; ticket: TicketModel; invoice: { number: string; company: string | null } | null }
+  | { status: 'ready'; kind: 'SALE' | 'REFUND'; shop: { name: string; legalName: string }; ticket: TicketModel; invoice: { number: string; company: string | null; emailed: boolean } | null }
 
 const euros = (n: number) => n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
 
@@ -92,11 +92,19 @@ function Ticket({ token, view }: { token: string; view: Extract<View, { status: 
       </a>
 
       {view.invoice && (
-        <p className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] p-3 text-[15px]">
-          <ReceiptIcon size={20} aria-hidden className="shrink-0 text-[var(--color-accent)]" />
-          Facture n° {view.invoice.number}
-          {view.invoice.company ? ` au nom de ${view.invoice.company}` : ''}, envoyée par e-mail.
-        </p>
+        <a
+          href={`${API}/receipts/${encodeURIComponent(token)}/invoice`}
+          className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] p-3 text-[15px] hover:border-[var(--color-border-strong)]"
+        >
+          <ReceiptIcon size={22} aria-hidden className="shrink-0 text-[var(--color-accent)]" />
+          <span>
+            <span className="block font-medium">Facture n° {view.invoice.number}</span>
+            <span className="block text-sm text-[var(--color-text-secondary)]">
+              {view.invoice.company ? `Au nom de ${view.invoice.company}. ` : ''}
+              {view.invoice.emailed ? 'Envoyée par e-mail. ' : ''}Télécharger le PDF
+            </span>
+          </span>
+        </a>
       )}
 
       <article className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5 font-data text-[13px] leading-relaxed">
@@ -186,7 +194,9 @@ function Ticket({ token, view }: { token: string; view: Extract<View, { status: 
           <p>{t.software}</p>
         </div>
       </article>
-      <p className="text-center text-sm text-[var(--color-text-secondary)]">Besoin d’une facture au nom de votre entreprise ? Demandez-la en boutique avec ce ticket.</p>
+      {!view.invoice && view.kind === 'SALE' && (
+        <p className="text-center text-sm text-[var(--color-text-secondary)]">Besoin d’une facture au nom de votre entreprise ? Demandez-la en boutique avec ce ticket.</p>
+      )}
     </>
   )
 }

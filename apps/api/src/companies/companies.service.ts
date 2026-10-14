@@ -19,13 +19,16 @@ export class CompaniesService {
     if (hit && Date.now() - hit.at < TTL) return hit.companies
 
     const url = `${API}?${new URLSearchParams({ q: term, per_page: '8', page: '1'})}`
-    let res: Response
-    try {
-      res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(4000) })
-    } catch (e) {
-      this.logger.warn(`Recherche d'entreprises injoignable : ${(e as Error).message}`)
-      throw new ServiceUnavailableException('Annuaire des entreprises injoignable : saisissez les coordonnées à la main.')
+    let res: Response | null = null
+    // Un second essai rattrape une coupure passagère
+    for (let attempt = 0; attempt < 2 && !res; attempt++) {
+      try {
+        res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) })
+      } catch (e) {
+        this.logger.warn(`Recherche d'entreprises injoignable : ${(e as Error).message}`)
+      }
     }
+    if (!res) throw new ServiceUnavailableException('Annuaire des entreprises injoignable : saisissez les coordonnées à la main.')
     if (res.status === 429) throw new ServiceUnavailableException('Annuaire des entreprises très sollicité : réessayez dans un instant.')
     if (!res.ok) throw new ServiceUnavailableException('Annuaire des entreprises indisponible : saisissez les coordonnées à la main.')
 

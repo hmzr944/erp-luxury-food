@@ -28,9 +28,9 @@ describe('Annuaire des entreprises', () => {
       ],
     }
     const [siege] = mapCompanies(payload, 'danone')
-    expect(siege).toMatchObject({ name: 'DANONE', siren: '552032534', siret: '55203253400646', address: '17 boulevard Haussmann', zipCode: '75009', city: 'PARIS', active: true })
+    expect(siege).toMatchObject({ name: 'DANONE', siren: '552032534', siret: '55203253400646', address: '17 boulevard Haussmann', zipCode: '75009', city: 'Paris', active: true })
     expect(siege.vatNumber).toBe(frenchVatNumber('552032534'))
     const [etab] = mapCompanies(payload, '552 032 534 00687')
-    expect(etab).toMatchObject({ siret: '55203253400687', address: '3 RUE SAARINEN', city: 'RUNGIS' })
+    expect(etab).toMatchObject({ siret: '55203253400687', address: '3 RUE SAARINEN', city: 'Rungis' })
   })
 })

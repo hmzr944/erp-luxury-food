@@ -115,7 +115,7 @@ export class InvoiceFromReceiptService {
         discount: true,
         items: { select: { name: true, variantName: true, serialNumber: true, price: true, taxRate: true, quantity: true, discount: true } },
         payments: { select: { label: true, amount: true } },
-        receiptChain: { select: { counter: true, signedAt: true } },
+        receiptChain: { select: { counter: true, terminalCounter: true, signedAt: true, terminal: { select: { name: true } } } },
         b2bClient: true,
         site: {
           select: {
@@ -163,7 +163,7 @@ export class InvoiceFromReceiptService {
           b?.vatNumber ? `TVA intracommunautaire ${b.vatNumber}` : '',
         ].filter(Boolean),
       },
-      reference: `Ticket de caisse n° ${order.receiptChain.counter} du ${date(order.receiptChain.signedAt)}, ${order.site.name}.`,
+      reference: `Ticket de caisse n° ${order.receiptChain.terminalCounter ?? order.receiptChain.counter} (${order.receiptChain.terminal?.name ?? 'caisse'}) du ${date(order.receiptChain.signedAt)}, ${order.site.name}.`,
       nature: org.sector === 'SERVICES' ? 'Prestation de services' : 'Livraison de biens',
       lines: order.items.map((i, k) => {
         const ht = priced.lines[k]?.ht ?? 0

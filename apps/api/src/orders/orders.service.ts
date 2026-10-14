@@ -25,7 +25,7 @@ const ORDER_INCLUDE = {
   payments: true,
   site: { select: { name: true } },
   receiptChain: {
-    select: { id: true, counter: true, hash: true, signedAt: true, terminalCounter: true, terminalHash: true },
+    select: { id: true, counter: true, hash: true, signedAt: true, terminalCounter: true, terminalHash: true, terminal: { select: { name: true } } },
   },
 } satisfies Prisma.OrderInclude
 

@@ -115,7 +115,8 @@ export function buildSaleTicket(i: SaleTicketInput): TicketModel {
   return {
     title: i.refund ? 'REMBOURSEMENT' : serviceNote ? 'NOTE' : 'TICKET',
     marks,
-    shop: { name: i.siteName, address: i.siteAddress, legal: legalLines(i.receipt) },
+    // L'adresse légale n'est répétée que si elle diffère de celle de la boutique
+    shop: { name: i.siteName, address: i.siteAddress, legal: legalLines(i.receipt).filter((l) => !i.siteAddress || l.trim().toLowerCase() !== i.siteAddress.trim().toLowerCase()) },
     meta,
     lines: i.lines,
     discount: i.discount,
