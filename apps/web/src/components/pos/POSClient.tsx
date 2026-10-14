@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -27,6 +27,7 @@ import { CustomItemSheet, QuickProductSheet } from './QuickSheets'
 import type { PayLine } from './CreditPayment'
 import { ReturnFinder } from './ReturnFinder'
 import { CashCloseSheet, CashOpenSheet, useCashState } from './CashSheets'
+import { DiscoveryChecklist, useDiscovery } from './Discovery'
 import { ClosingChecklist, LockScreen, RoutineBanner, YesterdayClosure, useIdle, useRoutine } from './Routine'
 import { PinPad } from '@/components/auth/PinPad'
 import { BadgeLogin } from '@/components/auth/BadgeLogin'
@@ -38,11 +39,13 @@ import type { RecordedSale } from '@/lib/terminal/terminal'
 
 interface POSClientProps {
   siteId: string
+  // Arrivée juste après l'inscription : mode découverte
+  discovery?: boolean
 }
 
 // Caisse : choisir les articles, encaisser, ticket signé. Trois gestes pour
 // une vente simple, sans dépendre du réseau.
-export function POSClient({ siteId }: POSClientProps) {
+export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps) {
   const { lines, orderDiscount, addProduct, clearCart } = useCartStore()
   const { data: config } = usePlatformConfig()
   const queue = useSaleQueue(siteId)
@@ -81,6 +84,24 @@ export function POSClient({ siteId }: POSClientProps) {
   useEffect(() => {
     if (level === 3 && routine.data?.autoLock && !locked && Date.now() > lockSnooze) setLocked('unclosed')
   }, [level, routine.data?.autoLock, locked, lockSnooze])
+  const discoveryChecklist = (variant: 'panel' | 'floating') =>
+    discovery.state && (
+      <DiscoveryChecklist
+        variant={variant}
+        siteId={siteId}
+        state={discovery.state}
+        canManage={manager}
+        onToggle={discovery.toggle}
+        onPrinter={() => setPrinterOpen(true)}
+        onGoLive={async () => {
+          if (training && !(await setTrainingMode(false))) return
+          discovery.finish()
+          toast.success('Caisse en vente réelle : chaque vente compte désormais')
+          setCashSheet('open')
+        }}
+      />
+    )
+
   const requestLock = () => {
     if (pendingTasks && level >= 1) setChecklist('lock')
     else setLocked('manual')
@@ -96,13 +117,13 @@ export function POSClient({ siteId }: POSClientProps) {
       // stockage indisponible : le mode formation reste désactivé
     }
   }, [trainingKey])
-  const toggleTraining = async () => {
-    const next = !training
+  const toggleTraining = () => setTrainingMode(!training)
+  const setTrainingMode = async (next: boolean) => {
     try {
       await fiscalApi.training(siteId, next, terminalId)
     } catch (e) {
       toast.error(`Mode formation : ${(e as Error).message}. Une connexion est nécessaire pour le tracer.`)
-      return
+      return false
     }
     try {
       if (next) window.localStorage.setItem(trainingKey, '1')
@@ -112,7 +133,19 @@ export function POSClient({ siteId }: POSClientProps) {
     }
     setTraining(next)
     toast(next ? 'Mode formation : les ventes sont fictives' : 'Mode formation terminé')
+    return true
   }
+
+  // Mode découverte : première visite après l'inscription, ventes fictives
+  const discovery = useDiscovery(siteId, !!startDiscovery)
+  const discoveryStarted = useRef(false)
+  useEffect(() => {
+    if (!discovery.state?.active || discoveryStarted.current) return
+    discoveryStarted.current = true
+    if (startDiscovery) window.history.replaceState(null, '', window.location.pathname)
+    if (!training && window.localStorage.getItem(trainingKey) !== '1') void setTrainingMode(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discovery.state?.active])
   const [picking, setPicking] = useState<ApiProduct | null>(null)
   const [modifying, setModifying] = useState<{ product: ApiProduct; variant?: ApiVariant; serialNumber?: string } | null>(null)
   const [composing, setComposing] = useState<ApiProduct | null>(null)
@@ -315,6 +348,7 @@ export function POSClient({ siteId }: POSClientProps) {
           change,
           training: { number: t.number, operator: t.userName },
         })
+        discovery.record({ payments: payments.length, card: payments.some((p) => cardCodes.has(p.code)) })
         clearCart()
         setTicketOpen(false)
       } catch (e) {
@@ -412,7 +446,12 @@ export function POSClient({ siteId }: POSClientProps) {
             aria-label="Vente en cours"
             className="hidden w-[380px] shrink-0 border-l border-[var(--color-border)] bg-[var(--color-bg-surface)] md:block lg:w-[420px]"
           >
-            <Ticket totals={totals} priceIncludesTax={priceIncludesTax} onCheckout={() => setPaying(true)} />
+            <Ticket
+              totals={totals}
+              priceIncludesTax={priceIncludesTax}
+              onCheckout={() => setPaying(true)}
+              emptyState={discovery.state?.active ? discoveryChecklist('panel') : undefined}
+            />
           </aside>
         </div>
 
@@ -506,6 +545,7 @@ export function POSClient({ siteId }: POSClientProps) {
                 (!!cash.data &&
                   !cash.data.session &&
                   !openDismissed &&
+                  !discovery.state?.active &&
                   (!cash.data.lastClosedAt || new Date(cash.data.lastClosedAt).toDateString() !== new Date().toDateString()))
               }
               onClose={() => {
@@ -559,6 +599,7 @@ export function POSClient({ siteId }: POSClientProps) {
             setLocked('manual')
           }}
         />
+        {discovery.state?.active && !locked && lines.length === 0 && discoveryChecklist('floating')}
         {locked && (
           <LockScreen
             reason={locked}

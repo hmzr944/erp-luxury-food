@@ -10,9 +10,11 @@ interface TicketProps {
   totals: { subtotal: number; taxAmount: number; total: number; itemCount: number }
   priceIncludesTax: boolean
   onCheckout: () => void
+  // Contenu affiché quand la vente est vide (accueil du mode découverte)
+  emptyState?: React.ReactNode
 }
 
-export function Ticket({ totals, priceIncludesTax, onCheckout }: TicketProps) {
+export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState }: TicketProps) {
   const { lines, clearCart } = useCartStore()
   const empty = lines.length === 0
 
@@ -39,7 +41,9 @@ export function Ticket({ totals, priceIncludesTax, onCheckout }: TicketProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5">
-        {empty ? (
+        {empty && emptyState ? (
+          <div className="py-2">{emptyState}</div>
+        ) : empty ? (
           <p className="pt-10 text-center text-[15px] text-[var(--color-text-muted)]">
             Touchez un produit pour l&apos;ajouter.
           </p>
