@@ -52,9 +52,27 @@ export function encodeTicket(t: TicketModel, o: EscPosOptions = {}): Uint8Array 
     bytes.push(...encodePc858(line.text), 0x0a)
   }
   bytes.push(ESC, 0x61, 0, ESC, 0x45, 0, GS, 0x21, 0)
+  if (t.qr) {
+    bytes.push(0x0a, ESC, 0x61, 1, ...encodeQr(t.qr.url, width >= 40 ? 6 : 4), ...encodePc858(t.qr.caption), 0x0a, ESC, 0x61, 0)
+  }
   bytes.push(ESC, 0x64, 4) // avance avant la coupe
   if (o.cut !== false) bytes.push(GS, 0x56, 0x42, 0x00) // coupe partielle avec avance
   return new Uint8Array(bytes)
+}
+
+// QR code natif de l'imprimante (GS ( k, modèle 2, correction M) : Epson,
+// Star en émulation ESC/POS, Bixolon. Pas besoin d'image.
+export function encodeQr(data: string, size = 6): number[] {
+  const payload = Array.from(new TextEncoder().encode(data))
+  const len = payload.length + 3
+  return [
+    GS, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00, // modèle 2
+    GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, size, // taille du module
+    GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31, // correction M
+    GS, 0x28, 0x6b, len & 0xff, len >> 8, 0x31, 0x50, 0x30, ...payload, // données
+    GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30, // impression
+    0x0a,
+  ]
 }
 
 export function encodeDrawerOnly(pin: 0 | 1 = 0): Uint8Array {

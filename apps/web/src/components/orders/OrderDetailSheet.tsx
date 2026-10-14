@@ -12,6 +12,7 @@ import { usePlatformConfig } from '@/lib/api/platform'
 import { fiscalApi } from '@/lib/api/fiscal'
 import { buildSaleTicket } from '@/lib/printing/ticket'
 import { printTicket } from '@/lib/printing/printer'
+import { receiptUrl } from '@/lib/receipts'
 import { useAuthStore } from '@/stores/auth.store'
 
 const n = (v: number | string) => Number(v)
@@ -216,6 +217,7 @@ function DuplicateButton({ siteId, order: o }: { siteId: string; order: ApiOrder
         signature: o.receiptChain!.hash.slice(0, 16),
         refund,
         duplicate: dup.number,
+        receiptUrl: o.clientId ? receiptUrl(o.clientId) : undefined,
       })
       await printTicket(ticket)
       setState({ busy: false, message: `Duplicata n° ${dup.number} imprimé` })

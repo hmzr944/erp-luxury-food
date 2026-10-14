@@ -313,6 +313,11 @@ model Order {
   paymentTerms   Int? // jours de paiement B2B (30, 60, 90)
   invoiceNumber  String?        @unique
   invoicedAt     DateTime?
+  // Facture envoyée par e-mail (service comptable du client)
+  invoiceSentAt  DateTime?
+  invoiceSentTo  String?
+  // Ticket dématérialisé envoyé par e-mail à customerEmail
+  receiptSentAt  DateTime?
   receiptChainId String?        @unique
   receiptChain   ReceiptChain?  @relation(fields: [receiptChainId], references: [id])
   // Identifiant généré par la caisse : une vente renvoyée deux fois

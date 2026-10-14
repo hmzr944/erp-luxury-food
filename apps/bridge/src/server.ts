@@ -12,17 +12,22 @@ import type { AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { normalizeOrigin, type BridgeConfig } from './config.js'
+import { defaultDiscoveryDeps, DEFAULT_DISCOVER_TIMEOUT_MS, discoverPrinters, MAX_DISCOVER_TIMEOUT_MS, type DiscoveryDeps } from './discovery.js'
+import { DEFAULT_IPP_PORT, MAX_DOCUMENT_BYTES, printDocument } from './ipp.js'
+import { resolveLanHost } from './lan.js'
 import { createLogger, type Logger } from './log.js'
 import { PairingManager, type PairingOptions } from './pairing.js'
 import { PaymentManager, PAYMENT_ADAPTERS, type PaymentManagerOptions } from './payment/manager.js'
 import { DEFAULT_PRINTER_PORT, PrinterService, probe } from './printer.js'
-import { BridgeError, int, isRecord, requireParams, str, type RpcErrorBody, type RpcEvent } from './protocol.js'
+import { BridgeError, bool, int, isRecord, requireParams, str, type RpcErrorBody, type RpcEvent } from './protocol.js'
 import { ConfigStore, type PairedClient } from './store.js'
 import { NAME, VERSION } from './version.js'
 
 export const CAPABILITIES = [
   'printer.escpos',
   'printer.probe',
+  'printer.discover',
+  'printer.ipp',
   'drawer',
   ...PAYMENT_ADAPTERS.map((a) => `payment.${a}`),
 ]
@@ -44,6 +49,8 @@ export interface BridgeServerOptions {
   payments?: PaymentManagerOptions
   // Imprime un nouveau code même si des caisses sont déjà appairées
   forcePairingCode?: boolean
+  // Accès réseau de printer.discover (remplacé en test)
+  discovery?: DiscoveryDeps
 }
 
 const ALLOWED_HOSTNAMES = new Set(['127.0.0.1', 'localhost'])
@@ -63,6 +70,21 @@ function decodeBase64(data: string): Buffer {
     throw new BridgeError('invalid_params', "Données d'impression invalides (base64 attendu).")
   }
   return Buffer.from(clean, 'base64')
+}
+
+function decodePdf(data: string): Buffer {
+  // Contrôle de taille avant décodage : 4 caractères base64 = 3 octets
+  if (data.length > Math.ceil(MAX_DOCUMENT_BYTES / 3) * 4 + 1024) {
+    throw new BridgeError('document_too_large', `Document trop volumineux (${Math.round(MAX_DOCUMENT_BYTES / 1024 / 1024)} Mo au plus).`)
+  }
+  const pdf = decodeBase64(data)
+  if (pdf.length > MAX_DOCUMENT_BYTES) {
+    throw new BridgeError('document_too_large', `Document trop volumineux (${Math.round(MAX_DOCUMENT_BYTES / 1024 / 1024)} Mo au plus).`)
+  }
+  if (pdf.subarray(0, 5).toString('latin1') !== '%PDF-') {
+    throw new BridgeError('invalid_params', "Le document n'est pas un PDF.")
+  }
+  return pdf
 }
 
 export class BridgeServer {
@@ -316,6 +338,35 @@ export class BridgeServer {
         const port = int(p, 'port', { min: 1, max: 65535, def: DEFAULT_PRINTER_PORT })
         const timeoutMs = int(p, 'timeoutMs', { min: 200, max: 10_000, def: 2000 })
         return probe(host, port, timeoutMs)
+      },
+
+      'printer.discover': async (p) => {
+        const timeoutMs = int(p, 'timeoutMs', { min: 500, max: MAX_DISCOVER_TIMEOUT_MS, def: DEFAULT_DISCOVER_TIMEOUT_MS })
+        const scan = bool(p, 'scan', true)
+        const r = await discoverPrinters({ timeoutMs, scan }, this.opts.discovery ?? defaultDiscoveryDeps)
+        this.log.info('Recherche des imprimantes', { trouvees: r.printers.length })
+        return r
+      },
+
+      'printer.printDocument': async (p) => {
+        const host = str(p, 'host', { required: true, max: 253 })!
+        const port = int(p, 'port', { min: 1, max: 65535, def: DEFAULT_IPP_PORT })
+        const path = str(p, 'path', { max: 255 })
+        if (path !== undefined && !/^\/?[A-Za-z0-9._~\-/]*$/.test(path)) {
+          throw new BridgeError('invalid_params', 'Paramètre « path » invalide.')
+        }
+        const tls = bool(p, 'tls', false)
+        const jobName = str(p, 'jobName', { max: 255 })
+        const copies = int(p, 'copies', { min: 1, max: 20, def: 1 })
+        const timeoutMs = int(p, 'timeoutMs', { min: 1000, max: 120_000, def: 30_000 })
+        const pdf = decodePdf(str(p, 'data', { required: true })!)
+        // Même file que les tickets : un seul travail à la fois par imprimante
+        const ip = await resolveLanHost(host)
+        const r = await this.printers.queues.run(`ipp:${ip}:${port}`, () =>
+          printDocument({ host, port, path, tls, pdf, jobName, copies, timeoutMs }),
+        )
+        this.log.info('Document imprimé', { imprimante: `${host}:${port}`, octets: pdf.length, travail: r.jobId })
+        return r
       },
 
       'drawer.open': async (p) => {

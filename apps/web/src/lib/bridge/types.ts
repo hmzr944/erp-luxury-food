@@ -58,6 +58,59 @@ export interface PrinterProbeResult {
   message?: string
 }
 
+export type PrinterProtocol = 'escpos' | 'ipp' | 'ipps'
+
+export interface PrinterDiscoverParams {
+  // Durée d'écoute mDNS : 2500 par défaut, 10000 au plus
+  timeoutMs?: number
+  // Balayage du port 9100 sur le /24 privé du pont (true par défaut)
+  scan?: boolean
+}
+export interface DiscoveredPrinter {
+  name: string
+  // Adresse IPv4 du réseau local
+  host: string
+  // Port du protocole principal (9100 si ESC/POS, sinon IPP)
+  port: number
+  // Vide si l'appareil n'annonce que LPD (port 515)
+  protocols: PrinterProtocol[]
+  // Port IPP/IPPS annoncé, à passer à printer.printDocument
+  ippPort?: number
+  model?: string
+  airprint?: boolean
+  // Chemin IPP annoncé (TXT rp), à passer en path
+  rp?: string
+  source: 'mdns' | 'scan'
+}
+export interface PrinterDiscoverResult {
+  printers: DiscoveredPrinter[]
+}
+
+// Le pont peut mettre jusqu'à timeoutMs (30 s par défaut) plus 10 s de
+// vérification : appeler call() avec un délai plus long que les 15 s par défaut,
+// ex. call('printer.printDocument', params, 60_000).
+export interface PrinterPrintDocumentParams {
+  host: string
+  // 631 par défaut
+  port?: number
+  // '/ipp/print' par défaut, ou le rp de la découverte
+  path?: string
+  // IPPS (certificat auto-signé de l'imprimante accepté)
+  tls?: boolean
+  // PDF encodé en base64 (14 Mo au plus)
+  data: string
+  jobName?: string
+  // 1 à 20
+  copies?: number
+  timeoutMs?: number
+}
+export interface PrinterPrintDocumentResult {
+  ok: true
+  jobId?: number
+  // Marque et modèle annoncés par l'imprimante
+  printer?: string
+}
+
 export interface DrawerOpenParams {
   host: string
   port?: number
@@ -122,6 +175,8 @@ export interface BridgeMethods {
   'bridge.info': [undefined, BridgeInfo]
   'printer.print': [PrinterPrintParams, PrinterPrintResult]
   'printer.probe': [PrinterProbeParams, PrinterProbeResult]
+  'printer.discover': [PrinterDiscoverParams | undefined, PrinterDiscoverResult]
+  'printer.printDocument': [PrinterPrintDocumentParams, PrinterPrintDocumentResult]
   'drawer.open': [DrawerOpenParams, { ok: true }]
   'payment.start': [PaymentStartParams, PaymentResult]
   'payment.cancel': [{ paymentId: string }, PaymentCancelResult]

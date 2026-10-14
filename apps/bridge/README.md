@@ -164,11 +164,14 @@ N'importe quel site ouvert dans le navigateur du magasin peut essayer de joindre
 - **Appairage** : code à 6 chiffres, valable 10 minutes, à usage unique, affiché seulement sur l'ordinateur du pont. 5 codes faux : le code est annulé, un nouveau est affiché et l'appairage est bloqué 30 secondes. Le jeton remis (32 octets aléatoires) n'est stocké que **haché en SHA-256**, dans un fichier lisible par le seul utilisateur (`0600`).
 - **Authentification obligatoire** : en dehors de `bridge.pair` et `bridge.hello`, toute méthode exige une connexion authentifiée.
 - **Pas de relais vers Internet** : imprimantes et TPE doivent être sur le réseau local (10.x, 172.16-31.x, 192.168.x, 169.254.x, 127.x) ou nommés `localhost` / `*.local`. Le nom est résolu puis l'adresse obtenue revérifiée. IPv6 n'est pas accepté pour l'instant.
-- **Messages limités à 1 Mo**, JSON invalide et méthodes inconnues renvoient une erreur sans arrêter le pont.
+- **Pas de balayage hors du magasin** : `printer.discover` ne sonde que le /24 privé (RFC 1918) de chaque carte réseau de l'ordinateur du pont, jamais une plage publique ni le lien local.
+- **Messages limités à 20 Mo** (pour un PDF A4 de 14 Mo encodé en base64), JSON invalide et méthodes inconnues renvoient une erreur sans arrêter le pont.
 
 ## Matériel pris en charge
 
 - **Imprimantes ticket réseau ESC/POS** (port RAW 9100) : Epson TM-m30 / TM-T20, Star en émulation ESC/POS, Bixolon, Sunmi... Le ticket est mis en forme par la caisse, le pont transmet les octets tels quels. Les travaux sont mis en file par imprimante : deux tickets ne s'entremêlent jamais.
+- **Imprimantes de bureau et AirPrint en IPP** (`printer.printDocument`, port 631, sans pilote) : factures et documents A4 en PDF. Le pont interroge d'abord l'imprimante (Get-Printer-Attributes) et refuse proprement (`format_unsupported`) si elle n'accepte pas le PDF : il faut alors passer par la fenêtre d'impression du navigateur. IPPS (`tls: true`) accepte le certificat auto-signé de l'imprimante.
+- **Détection automatique** (`printer.discover`) : annonces mDNS / Bonjour (`_pdl-datastream._tcp`, `_ipp._tcp`, `_ipps._tcp`, `_printer._tcp`) et, en complément, balayage du port 9100 sur le /24 du magasin (300 ms par adresse, 64 à la fois).
 - **Tiroir-caisse** branché sur la prise RJ11/RJ12 de l'imprimante : commande `ESC p m t1 t2` (`1B 70 m 19 FA`), broche 2 (`pin: 0`) ou 5 (`pin: 1`).
 - **Terminal de paiement simulé** (`simulator`) : accepte après environ 2 s, refuse les montants en ,13 (ex. 10,13 €), émet les étapes « Présentez la carte », « Carte lue », « Code saisi », « Autorisation en cours ».
 - **TPE Caisse-AP sur IP** (`caisse-ap`), voir ci-dessous.
@@ -200,6 +203,8 @@ Après une coupure en plein paiement, la caisse peut retrouver l'issue avec `pay
 - Paiement sans contact sur téléphone (Tap to Pay) : demande une application Android native, hors de portée d'un agent Node.
 - Version Android du pont.
 - Imprimantes USB ou série (seul le réseau est géré).
+- Impression IPP **jamais testée sur une vraie imprimante** (seulement contre un faux serveur IPP) : à valider sur une HP, Brother, Epson ou Canon de bureau. Pas d'IPP avec authentification, pas de suivi du travail après l'envoi (Get-Job-Attributes).
+- Découverte mDNS **jamais testée sur un vrai réseau de magasin** ; IPv6 ignoré.
 
 ## Protocole
 
@@ -224,14 +229,18 @@ WebSocket, messages texte JSON.
 | `bridge.info` | | `{ name, version, capabilities, platform, arch, node }` |
 | `printer.print` | `host`, `port=9100`, `data` (base64), `timeoutMs=8000` | `{ ok, bytes }` |
 | `printer.probe` | `host`, `port=9100`, `timeoutMs=2000` | `{ reachable, latencyMs }` |
+| `printer.discover` | `timeoutMs=2500` (10000 max), `scan=true` | `{ printers: [{ name, host, port, protocols: (escpos\|ipp\|ipps)[], ippPort?, model?, airprint?, rp?, source: mdns\|scan }] }` |
+| `printer.printDocument` | `host`, `port=631`, `path=/ipp/print` (ou `rp` de la découverte), `tls=false`, `data` (PDF base64, 14 Mo max), `jobName=FLOW`, `copies=1` (1 à 20), `timeoutMs=30000` | `{ ok, jobId?, printer? }` |
 | `drawer.open` | `host`, `port=9100`, `pin=0` | `{ ok }` |
 | `payment.start` | `adapter`, `amountCents`, `currency=EUR`, `reference`, `paymentId?` ; Caisse-AP : `host`, `port=8888`, `posNumber=01`, `mode=card\|check`, `refund`, `timeoutMs=180000` | `{ paymentId, status, message?, authorizationCode?, maskedPan?, cardType?, transactionId?, receiptText?, raw? }` |
 | `payment.cancel` | `paymentId` | `{ accepted, message }` |
 | `payment.status` | `paymentId` | `{ state: pending\|done\|unknown, result? }` |
 
+`printer.discover` répond après `timeoutMs` : fusion par adresse IP, mDNS prioritaire (nom, modèle `ty`/`product`, `airprint` si la clé TXT `URF` est présente, chemin IPP `rp`). Un appareil seulement trouvé par le balayage a `source: "scan"` et son adresse pour nom. Pour imprimer un A4 sur une imprimante trouvée : `printer.printDocument` avec `host`, `port: ippPort`, `path: rp` et `tls` si seul `ipps` est annoncé. Côté caisse, prévoir un délai d'appel plus long que les 15 s par défaut pour `printer.printDocument`.
+
 `payment.start` ne répond qu'à la fin du paiement ; un seul paiement à la fois par terminal (`payment_busy` sinon). Fournir son propre `paymentId` permet d'annuler sans attendre.
 
-Codes d'erreur courants : `parse_error`, `invalid_request`, `invalid_params`, `unknown_method`, `unauthorized`, `invalid_token`, `pairing_closed`, `pairing_code_invalid`, `pairing_code_invalidated`, `pairing_locked`, `host_not_allowed`, `host_unresolved`, `printer_unreachable`, `printer_timeout`, `printer_reset`, `printer_error`, `payment_busy`, `unknown_adapter`, `payment_currency`, `internal_error`.
+Codes d'erreur courants : `parse_error`, `invalid_request`, `invalid_params`, `unknown_method`, `unauthorized`, `invalid_token`, `pairing_closed`, `pairing_code_invalid`, `pairing_code_invalidated`, `pairing_locked`, `host_not_allowed`, `host_unresolved`, `printer_unreachable`, `printer_timeout`, `printer_reset`, `printer_error`, `printer_busy`, `format_unsupported`, `ipp_error`, `document_too_large`, `payment_busy`, `unknown_adapter`, `payment_currency`, `internal_error`.
 
 `GET /health` (sans authentification) : `{ name: "FLŌW-Bridge", version, capabilities }`.
 

@@ -1,6 +1,7 @@
 import type { ReceiptSettings } from '@/lib/api/platform'
 import { buildSaleTicket, SERVICE_NOTE_THRESHOLD, type TicketModel } from '@/lib/printing/ticket'
 import type { ReceiptView } from './PaymentSheet'
+import { receiptUrl } from '@/lib/receipts'
 
 // Ticket imprimable d'une vente de la caisse (ou d'une vente de formation)
 export function ticketForSale(
@@ -37,6 +38,8 @@ export function ticketForSale(
     training: view.training ? { operator: view.training.operator } : undefined,
     duplicate: extra.duplicate,
     copy: extra.copy,
+    // Le double conservé par le commerçant n'a pas besoin du lien
+    receiptUrl: view.training || extra.copy === 'DOUBLE' ? undefined : receiptUrl(sale.clientId),
   })
 }
 

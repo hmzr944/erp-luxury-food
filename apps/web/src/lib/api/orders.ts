@@ -25,6 +25,8 @@ export interface ApiOrderPayment {
 }
 
 export interface ApiOrder {
+  // Identifiant de la vente tiré par la caisse : lien du ticket en ligne
+  clientId?: string | null
   id: string
   siteId: string
   kind?: 'SALE' | 'REFUND'

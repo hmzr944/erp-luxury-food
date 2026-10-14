@@ -2,7 +2,8 @@ import { request } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
 import { createPendingCode } from './pairing.js'
-import { fakePrinter, ORIGIN, pairClient, startBridge, TestClient, type FakePrinter } from './test-utils.js'
+import { findAttribute, TAG_JOB } from './ipp.js'
+import { fakePrinter, ORIGIN, pairClient, startBridge, startFakeIpp, TestClient, type FakePrinter } from './test-utils.js'
 
 type Bridge = Awaited<ReturnType<typeof startBridge>>
 
@@ -38,6 +39,8 @@ describe('serveur du pont', () => {
       const body = JSON.parse(r.body)
       expect(body.name).toBe('FLŌW-Bridge')
       expect(body.capabilities).toContain('printer.escpos')
+      expect(body.capabilities).toContain('printer.discover')
+      expect(body.capabilities).toContain('printer.ipp')
       expect(r.headers['access-control-allow-origin']).toBe(ORIGIN)
     })
 
@@ -85,6 +88,8 @@ describe('serveur du pont', () => {
       expect(r.error?.code).toBe('unauthorized')
       const p = await c.call('printer.print', { host: '127.0.0.1', data: 'AA==' })
       expect(p.error?.code).toBe('unauthorized')
+      expect((await c.call('printer.discover')).error?.code).toBe('unauthorized')
+      expect((await c.call('printer.printDocument', { host: '127.0.0.1', data: 'AA==' })).error?.code).toBe('unauthorized')
       c.close()
     })
 
@@ -272,6 +277,128 @@ describe('serveur du pont', () => {
       expect(p.log).toEqual(['open0', 'close0', 'open1', 'close1'])
       expect(p.jobs[0].every((x) => x === 0x41)).toBe(true)
       expect(p.jobs[1].every((x) => x === 0x42)).toBe(true)
+      client.close()
+    })
+  })
+
+  describe('impression A4 (IPP)', () => {
+    const pdf = Buffer.from('%PDF-1.4\n1 0 obj << >> endobj\n%%EOF\n')
+
+    it('vérifie le format puis envoie le PDF par Print-Job', async () => {
+      const ipp = await startFakeIpp()
+      const { client } = await pairClient(b.server.url, b.server)
+      try {
+        const r = await client.call('printer.printDocument', {
+          host: '127.0.0.1',
+          port: ipp.port,
+          data: pdf.toString('base64'),
+          jobName: 'Facture F-2026-0001',
+          copies: 2,
+        })
+        expect(r.result).toEqual({ ok: true, jobId: 123, printer: 'HP LaserJet Pro M404' })
+        expect(ipp.requests.map((q) => q.msg.code)).toEqual([0x000b, 0x0002])
+        const job = ipp.requests[1]
+        expect(job.contentType).toBe('application/ipp')
+        expect(findAttribute(job.msg, 'printer-uri')?.values).toEqual([`ipp://127.0.0.1:${ipp.port}/ipp/print`])
+        expect(findAttribute(job.msg, 'job-name')?.values).toEqual(['Facture F-2026-0001'])
+        expect(findAttribute(job.msg, 'copies', TAG_JOB)?.values).toEqual([2])
+        expect(job.msg.data?.equals(pdf)).toBe(true)
+      } finally {
+        client.close()
+        await ipp.close()
+      }
+    })
+
+    it('suit le chemin rp annoncé par la découverte', async () => {
+      const ipp = await startFakeIpp({ path: '/printers/bureau' })
+      const { client } = await pairClient(b.server.url, b.server)
+      try {
+        const r = await client.call('printer.printDocument', { host: '127.0.0.1', port: ipp.port, path: 'printers/bureau', data: pdf.toString('base64') })
+        expect(r.result).toMatchObject({ ok: true })
+        const ko = await client.call('printer.printDocument', { host: '127.0.0.1', port: ipp.port, data: pdf.toString('base64') })
+        expect(ko.error?.code).toBe('printer_error')
+        expect(ko.error?.message).toContain('HTTP 404')
+      } finally {
+        client.close()
+        await ipp.close()
+      }
+    })
+
+    it('refuse une imprimante qui ne lit pas le PDF', async () => {
+      const ipp = await startFakeIpp({ formats: ['image/urf', 'image/pwg-raster'] })
+      const { client } = await pairClient(b.server.url, b.server)
+      try {
+        const r = await client.call('printer.printDocument', { host: '127.0.0.1', port: ipp.port, data: pdf.toString('base64') })
+        expect(r.error?.code).toBe('format_unsupported')
+        expect(r.error?.message).toContain("fenêtre d'impression du navigateur")
+        expect(r.error?.message).not.toContain('—')
+        // Aucun travail envoyé
+        expect(ipp.requests).toHaveLength(1)
+      } finally {
+        client.close()
+        await ipp.close()
+      }
+    })
+
+    it('traduit un statut IPP d’erreur', async () => {
+      const ipp = await startFakeIpp({ printStatus: 0x0507 })
+      const { client } = await pairClient(b.server.url, b.server)
+      try {
+        const r = await client.call('printer.printDocument', { host: '127.0.0.1', port: ipp.port, data: pdf.toString('base64') })
+        expect(r.error?.code).toBe('printer_busy')
+        expect(r.error?.message).toContain('server-error-busy')
+      } finally {
+        client.close()
+        await ipp.close()
+      }
+    })
+
+    it('refuse adresse publique, non-PDF et paramètres invalides', async () => {
+      const { client } = await pairClient(b.server.url, b.server)
+      const data = pdf.toString('base64')
+      expect((await client.call('printer.printDocument', { host: '8.8.8.8', data })).error?.code).toBe('host_not_allowed')
+      expect((await client.call('printer.printDocument', { host: 'imprimante.example.com', data })).error?.code).toBe('host_not_allowed')
+      const notPdf = await client.call('printer.printDocument', { host: '127.0.0.1', data: Buffer.from('bonjour').toString('base64') })
+      expect(notPdf.error).toMatchObject({ code: 'invalid_params', message: "Le document n'est pas un PDF." })
+      expect((await client.call('printer.printDocument', { host: '127.0.0.1', data, copies: 50 })).error?.code).toBe('invalid_params')
+      expect((await client.call('printer.printDocument', { host: '127.0.0.1', data, tls: 'oui' })).error?.code).toBe('invalid_params')
+      expect((await client.call('printer.printDocument', { host: '127.0.0.1', data, path: '/../x?y' })).error?.code).toBe('invalid_params')
+      client.close()
+    })
+
+    it('connexion refusée : message français', async () => {
+      const ipp = await startFakeIpp()
+      const port = ipp.port
+      await ipp.close()
+      const { client } = await pairClient(b.server.url, b.server)
+      const r = await client.call('printer.printDocument', { host: '127.0.0.1', port, data: pdf.toString('base64') })
+      expect(r.error?.code).toBe('printer_unreachable')
+      expect(r.error?.message).toContain(`127.0.0.1:${port}`)
+      client.close()
+    })
+  })
+
+  describe('découverte des imprimantes', () => {
+    it('printer.discover passe par les accès réseau injectés', async () => {
+      await b.stop()
+      const scanned: string[] = []
+      b = await startBridge({
+        discovery: {
+          interfaces: () => [{ address: '10.0.0.5', netmask: '255.255.255.0' }],
+          createSocket: () => ({ on: () => {}, bind: (_a, cb) => cb(), send: () => {}, close: () => {} }),
+          connect: async (ip) => {
+            scanned.push(ip)
+            return ip === '10.0.0.9'
+          },
+        },
+      })
+      const { client } = await pairClient(b.server.url, b.server)
+      const r = await client.call('printer.discover', { timeoutMs: 500 })
+      expect(r.result).toEqual({ printers: [{ name: '10.0.0.9', host: '10.0.0.9', port: 9100, protocols: ['escpos'], source: 'scan' }] })
+      expect(scanned).toHaveLength(253)
+      const noScan = await client.call('printer.discover', { timeoutMs: 500, scan: false })
+      expect(noScan.result).toEqual({ printers: [] })
+      expect((await client.call('printer.discover', { timeoutMs: 60_000 })).error?.code).toBe('invalid_params')
       client.close()
     })
   })

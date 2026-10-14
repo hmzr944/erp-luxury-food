@@ -50,6 +50,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
     home: env.FLOW_BRIDGE_HOME || defaultHome(),
     tls,
     logLevel: levelFromEnv(env.FLOW_BRIDGE_LOG),
-    maxMessageBytes: 1024 * 1024,
+    // 20 Mo : assez pour un PDF A4 de 14 Mo encodé en base64 (printer.printDocument)
+    maxMessageBytes: 20 * 1024 * 1024,
   }
 }

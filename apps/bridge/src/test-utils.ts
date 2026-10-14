@@ -1,11 +1,27 @@
 // Outils partagés par les tests (exclu du build par tsconfig.json)
 
 import { mkdtempSync, rmSync } from 'node:fs'
+import { createServer as createHttpServer } from 'node:http'
 import { createServer, type Server, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import WebSocket from 'ws'
 import type { BridgeConfig } from './config.js'
+import {
+  decodeIpp,
+  encodeIpp,
+  OP_GET_PRINTER_ATTRIBUTES,
+  TAG_JOB,
+  TAG_OPERATION,
+  TAG_PRINTER,
+  VT_CHARSET,
+  VT_ENUM,
+  VT_INTEGER,
+  VT_LANGUAGE,
+  VT_MIME,
+  VT_TEXT,
+  type IppMessage,
+} from './ipp.js'
 import { createLogger } from './log.js'
 import { BridgeServer, type BridgeServerOptions } from './server.js'
 
@@ -141,4 +157,75 @@ export async function pairClient(url: string, server: BridgeServer, name = 'Cais
   const r = await client.call('bridge.pair', { code, name })
   if (r.error) throw new Error(r.error.message)
   return { client, token: (r.result as { token: string }).token }
+}
+
+// Fausse imprimante IPP (HTTP sur 127.0.0.1) : répond à Get-Printer-Attributes
+// et Print-Job, garde les requêtes décodées
+export interface FakeIpp {
+  port: number
+  requests: Array<{ path: string; contentType?: string; msg: IppMessage }>
+  close(): Promise<void>
+}
+
+export async function startFakeIpp(
+  opts: { formats?: string[]; printStatus?: number; model?: string; path?: string } = {},
+): Promise<FakeIpp> {
+  const requests: FakeIpp['requests'] = []
+  const server = createHttpServer((req, res) => {
+    const chunks: Buffer[] = []
+    req.on('data', (c: Buffer) => chunks.push(c))
+    req.on('end', () => {
+      if (req.method !== 'POST' || req.url !== (opts.path ?? '/ipp/print')) {
+        res.writeHead(404).end()
+        return
+      }
+      const msg = decodeIpp(Buffer.concat(chunks))
+      requests.push({ path: req.url, contentType: req.headers['content-type'], msg })
+      const op = {
+        tag: TAG_OPERATION,
+        attributes: [
+          { tag: VT_CHARSET, name: 'attributes-charset', values: ['utf-8'] },
+          { tag: VT_LANGUAGE, name: 'attributes-natural-language', values: ['fr'] },
+        ],
+      }
+      let reply: IppMessage
+      if (msg.code === OP_GET_PRINTER_ATTRIBUTES) {
+        reply = {
+          version: [1, 1],
+          code: 0,
+          requestId: msg.requestId,
+          groups: [
+            op,
+            {
+              tag: TAG_PRINTER,
+              attributes: [
+                { tag: VT_MIME, name: 'document-format-supported', values: opts.formats ?? ['application/octet-stream', 'application/pdf', 'image/urf'] },
+                { tag: VT_ENUM, name: 'printer-state', values: [3] },
+                { tag: VT_TEXT, name: 'printer-make-and-model', values: [opts.model ?? 'HP LaserJet Pro M404'] },
+              ],
+            },
+          ],
+        }
+      } else {
+        const status = opts.printStatus ?? 0
+        reply = {
+          version: [1, 1],
+          code: status,
+          requestId: msg.requestId,
+          groups: status < 0x100 ? [op, { tag: TAG_JOB, attributes: [{ tag: VT_INTEGER, name: 'job-id', values: [123] }] }] : [op],
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/ipp' }).end(encodeIpp(reply))
+    })
+  })
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
+  return {
+    port: (server.address() as { port: number }).port,
+    requests,
+    close: () =>
+      new Promise<void>((r) => {
+        server.close(() => r())
+        server.closeAllConnections()
+      }),
+  }
 }

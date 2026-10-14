@@ -16,6 +16,9 @@ export function eposDocument(t: TicketModel | null, o: { width?: number; cut?: b
         `<text align="${line.align === 'center' ? 'center' : 'left'}"/><text em="${line.bold ? 'true' : 'false'}"/><text dh="${line.big ? 'true' : 'false'}"/><text lang="fr">${xml(line.text)}&#10;</text>`,
       )
     }
+    if (t.qr) {
+      parts.push(`<text align="center"/><symbol type="qrcode_model_2" level="level_m" width="${(o.width ?? 48) >= 40 ? 6 : 4}">${xml(t.qr.url)}</symbol><text lang="fr">&#10;${xml(t.qr.caption)}&#10;</text>`)
+    }
     parts.push('<feed line="3"/>')
     if (o.cut !== false) parts.push('<cut type="feed"/>')
   }

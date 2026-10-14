@@ -16,6 +16,7 @@ import type { RecordedSale } from '@/lib/terminal/terminal'
 import type { CartLine } from '@/stores/cart.store'
 import { Sheet } from './Sheet'
 import { FlowBeat } from '@/components/brand/FlowLogo'
+import { DigitalReceipt } from './DigitalReceipt'
 import { EASE_DRAWER } from '@/lib/motion'
 import { TerminalWait } from './TerminalWait'
 import { BridgeTerminalWait } from './BridgeTerminalWait'
@@ -42,7 +43,9 @@ export interface PayOptions {
 export interface ReceiptView {
   sale: RecordedSale
   lines: CartLine[]
-  payments: Array<{ label: string; amount: number }>
+  payments: Array<{ label: string; amount: number; reference?: string }>
+  // E-mail saisi à l'encaissement : le ticket part tout seul
+  email?: string
   // Monnaie rendue au client (espèces)
   change?: number
   // Vente fictive du mode formation : numérotée à part, hors grand livre
@@ -652,6 +655,8 @@ function Receipt({
           )}
         </motion.div>
       </div>
+
+      {!receipt.training && <DigitalReceipt siteId={siteId} clientId={sale.clientId} initialEmail={receipt.email} />}
 
       {!receipt.training && (
         <p className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]" role="status">

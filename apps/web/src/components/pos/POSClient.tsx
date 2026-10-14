@@ -176,6 +176,7 @@ export function POSClient({ siteId }: POSClientProps) {
     const sold = [...lines]
     const labels = new Map(methods.map((m) => [m.code, m.label]))
     const cashCodes = new Set(methods.filter((m) => m.kind === 'CASH').map((m) => m.code))
+    const cardCodes = new Set(methods.filter((m) => m.kind === 'CARD').map((m) => m.code))
     const cashPaid = payments.some((p) => cashCodes.has(p.code))
     // Monnaie rendue : espèces remises moins la part payée en espèces
     const cashDue = payments.filter((p) => cashCodes.has(p.code)).reduce((a, p) => a + Math.round(p.amount * 100), 0)
@@ -238,7 +239,9 @@ export function POSClient({ siteId }: POSClientProps) {
       setReceipt({
         sale,
         lines: sold,
-        payments: payments.map((p) => ({ label: labels.get(p.code) ?? p.code, amount: p.amount })),
+        // Référence du TPE imprimée sous le paiement carte
+        payments: payments.map((p) => ({ label: labels.get(p.code) ?? p.code, amount: p.amount, ...(p.reference && cardCodes.has(p.code) ? { reference: p.reference } : {}) })),
+        email,
         change,
         cashPaid,
       })

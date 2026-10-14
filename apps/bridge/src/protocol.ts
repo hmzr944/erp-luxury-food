@@ -75,3 +75,10 @@ export function int(
   }
   return v
 }
+
+export function bool(p: Record<string, unknown>, key: string, def: boolean): boolean {
+  const v = p[key]
+  if (v === undefined || v === null) return def
+  if (typeof v !== 'boolean') throw new BridgeError('invalid_params', `Paramètre « ${key} » invalide (vrai ou faux attendu).`)
+  return v
+}

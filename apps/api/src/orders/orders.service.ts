@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import {
   Injectable,
   BadRequestException,
@@ -353,7 +354,8 @@ export class OrdersService {
         customerEmail: extra.customerEmail ?? null,
         note: extra.note ?? null,
         receiptChainId: extra.receiptChainId,
-        clientId: extra.clientId,
+        // Vente sans identifiant de caisse : on en tire un, il sert de lien au reçu en ligne
+        clientId: extra.clientId ?? randomUUID(),
         soldAt: extra.soldAt,
         ...(extra.createdAt ? { createdAt: extra.createdAt } : {}),
         items: {
