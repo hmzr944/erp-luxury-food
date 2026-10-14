@@ -28,6 +28,7 @@ import { InvoicesModule } from './invoices/invoices.module'
 import { PlatformModule } from './platform/platform.module'
 import { MailModule } from './common/mail/mail.module'
 import { ReceiptsModule } from './receipts/receipts.module'
+import { CompaniesModule } from './companies/companies.module'
 import { TerminalsModule } from './terminals/terminals.module'
 import { DataModule } from './data/data.module'
 import { PaymentsModule } from './payments/payments.module'
@@ -56,6 +57,7 @@ import { HealthController } from './health/health.controller'
     PrismaModule,
     MailModule,
     ReceiptsModule,
+    CompaniesModule,
     AuditModule,
     AuthModule,
     OrganizationsModule,

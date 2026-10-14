@@ -19,6 +19,18 @@ export interface PrinterConfig {
   drawerPin: 0 | 1
   // Le tiroir s'ouvre à chaque encaissement en espèces
   drawerOnCash: boolean
+  // Imprimante bureautique pour les factures A4 : fenêtre d'impression du
+  // système (AirPrint sur iPad et Mac), ou envoi direct en IPP par le pont
+  a4?: A4PrinterConfig
+}
+
+export interface A4PrinterConfig {
+  mode: 'system' | 'ipp'
+  name?: string
+  host?: string
+  port?: number
+  path?: string
+  tls?: boolean
 }
 
 const KEY = 'flow-printer'
@@ -111,3 +123,41 @@ export async function openDrawer(config?: PrinterConfig) {
 
 // Ouverture du tiroir seule, octets bruts (diagnostic, pont local)
 export const drawerBytes = encodeDrawerOnly
+
+// Facture A4 (PDF) : imprimante bureautique en IPP par le pont, sinon la
+// fenêtre d'impression du système (AirPrint, imprimante installée)
+export async function printPdf(url: string, opts: { jobName?: string; config?: PrinterConfig } = {}) {
+  const a4 = (opts.config ?? getPrinterConfig()).a4 ?? { mode: 'system' }
+  const res = await fetch(url, { cache: 'no-store' })
+  if (!res.ok) throw new Error('Document introuvable')
+  const blob = await res.blob()
+  if (a4.mode === 'ipp' && a4.host) {
+    const bridge = await bridgeReady()
+    const data = bytesToBase64(new Uint8Array(await blob.arrayBuffer()))
+    await bridge.call('printer.printDocument', { host: a4.host, port: a4.port, path: a4.path, tls: a4.tls, data, jobName: opts.jobName ?? 'FLOW' }, 60_000)
+    return
+  }
+  // PDF servi par l'API (autre origine) : copie locale pour pouvoir l'imprimer
+  const local = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+  const frame = document.createElement('iframe')
+  frame.setAttribute('aria-hidden', 'true')
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0'
+  frame.src = local
+  document.body.appendChild(frame)
+  await new Promise<void>((resolve) => {
+    frame.onload = () => {
+      try {
+        frame.contentWindow!.focus()
+        frame.contentWindow!.print()
+      } catch {
+        // Navigateur qui n'imprime pas un PDF intégré (Safari iOS) : on l'ouvre
+        window.open(local, '_blank', 'noopener')
+      }
+      resolve()
+    }
+  })
+  setTimeout(() => {
+    frame.remove()
+    URL.revokeObjectURL(local)
+  }, 60_000)
+}

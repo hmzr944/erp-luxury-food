@@ -17,6 +17,7 @@ import type { CartLine } from '@/stores/cart.store'
 import { Sheet } from './Sheet'
 import { FlowBeat } from '@/components/brand/FlowLogo'
 import { DigitalReceipt } from './DigitalReceipt'
+import { BusinessInvoice } from './BusinessInvoice'
 import { EASE_DRAWER } from '@/lib/motion'
 import { TerminalWait } from './TerminalWait'
 import { BridgeTerminalWait } from './BridgeTerminalWait'
@@ -681,6 +682,8 @@ function Receipt({
           {print.state === 'printing' ? 'Impression' : print.state === 'printed' ? 'Ticket imprimé' : print.state === 'error' ? 'Réessayer l’impression' : 'Imprimer le ticket'}
         </button>
       )}
+
+      {!receipt.training && <BusinessInvoice siteId={siteId} clientId={sale.clientId} />}
 
       {customLines.map((l) => (
         <SaveToCatalog key={l.key} siteId={siteId} name={l.customName!} price={l.product.price} taxRate={l.product.taxRate} />

@@ -13,6 +13,7 @@ import { fiscalApi } from '@/lib/api/fiscal'
 import { buildSaleTicket } from '@/lib/printing/ticket'
 import { printTicket } from '@/lib/printing/printer'
 import { receiptUrl } from '@/lib/receipts'
+import { BusinessInvoice } from '@/components/pos/BusinessInvoice'
 import { useAuthStore } from '@/stores/auth.store'
 
 const n = (v: number | string) => Number(v)
@@ -168,6 +169,7 @@ function OrderView({ siteId, order: o, onRefund }: { siteId: string; order: ApiO
       {o.note && <p className="whitespace-pre-line text-sm text-[var(--color-text-secondary)]">{o.note}</p>}
 
       {o.receiptChain && <DuplicateButton siteId={siteId} order={o} />}
+      {o.receiptChain && o.clientId && o.kind !== 'REFUND' && <BusinessInvoice siteId={siteId} clientId={o.clientId} />}
 
       {canRefund && (
         <button
