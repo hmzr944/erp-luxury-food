@@ -8,6 +8,7 @@ import { Sheet } from '@/components/pos/Sheet'
 import { FlowLogo } from '@/components/brand/FlowLogo'
 import { useSiteStore } from '@/stores/site.store'
 import { NAV, NAV_BOTTOM } from './Sidebar'
+import { SupportNavButton } from '@/components/support/SupportNavButton'
 
 // Téléphone : la barre latérale laisse place à une barre d'onglets en bas
 // (les quatre écrans les plus ouverts) et à « Plus » pour le reste
@@ -95,6 +96,9 @@ export function MobileNav() {
                 </Link>
               </li>
             ))}
+            <li>
+              <SupportNavButton iconSize={20} onOpen={() => setMore(false)} className="flex h-12 w-full items-center gap-3 px-4 text-[15px] font-medium" />
+            </li>
           </ul>
         </div>
       </Sheet>

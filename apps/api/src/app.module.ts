@@ -35,6 +35,7 @@ import { DataModule } from './data/data.module'
 import { PaymentsModule } from './payments/payments.module'
 import { DisplaysModule } from './displays/displays.module'
 import { CustomersModule } from './customers/customers.module'
+import { SupportModule } from './support/support.module'
 import { HealthController } from './health/health.controller'
 
 @Module({
@@ -87,6 +88,7 @@ import { HealthController } from './health/health.controller'
     PaymentsModule,
     CashModule,
     CustomersModule,
+    SupportModule,
   ],
   // Espaces par rôle (vendeur, atelier, gérant), vérifiés sur chaque route
   providers: [

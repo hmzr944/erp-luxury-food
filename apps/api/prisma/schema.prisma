@@ -1318,3 +1318,66 @@ model LoyaltyEntry {
 
   @@index([customerId, createdAt])
 }
+
+// ============================================================
+// AIDE ET SUPPORT : conversation commerçant et équipe FLŌW dans l'application
+// Délai annoncé : configuration (SUPPORT_SLA_MINUTES, SUPPORT_HOURS).
+// Identifiants simples, sans relation vers Organization ou User : le fil
+// reste lisible par l'équipe si un compte est supprimé.
+// ============================================================
+
+enum SupportStatus {
+  OPEN // à traiter par l'équipe
+  WAITING_CUSTOMER // l'équipe a répondu, on attend le commerçant
+  RESOLVED
+}
+
+enum SupportPriority {
+  NORMAL
+  URGENT // la caisse ne peut plus encaisser
+}
+
+enum SupportAuthor {
+  USER
+  AGENT
+  SYSTEM
+}
+
+model SupportThread {
+  id              String           @id @default(cuid())
+  organizationId  String
+  siteId          String?
+  userId          String
+  subject         String
+  status          SupportStatus    @default(OPEN)
+  priority        SupportPriority  @default(NORMAL)
+  // Réponse attendue avant : délai annoncé, heures d'ouverture comprises
+  dueAt           DateTime
+  firstResponseAt DateTime?
+  // Première réponse arrivée avant dueAt
+  slaMet          Boolean?
+  lastMessageAt   DateTime         @default(now())
+  // Version, page, caisse, réseau, navigateur, dernières erreurs
+  context         Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  messages        SupportMessage[]
+
+  @@index([organizationId, lastMessageAt])
+  @@index([status, dueAt])
+}
+
+model SupportMessage {
+  id         String        @id @default(cuid())
+  threadId   String
+  thread     SupportThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author     SupportAuthor
+  authorId   String?
+  authorName String
+  body       String
+  createdAt  DateTime      @default(now())
+  // Lu par l'autre partie
+  readAt     DateTime?
+
+  @@index([threadId, createdAt])
+}

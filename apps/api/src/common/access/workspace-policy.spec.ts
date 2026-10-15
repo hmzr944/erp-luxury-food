@@ -7,6 +7,8 @@ describe('espaces par rôle', () => {
     expect(isAllowed('PRODUCTION', 'POST', '/api/sites/s1/supply/orders/o1/ship')).toBe(true)
     expect(isAllowed('PRODUCTION', 'POST', '/api/sites/s1/supply/alerts')).toBe(true)
     expect(isAllowed('PRODUCTION', 'GET', '/api/sites/s1/orders')).toBe(false)
+    expect(isAllowed('PRODUCTION', 'POST', '/api/support/threads')).toBe(true)
+    expect(isAllowed('SELLER', 'POST', '/api/support/threads/t1/messages')).toBe(true)
     expect(isAllowed('PRODUCTION', 'POST', '/api/sites/s1/orders/checkout')).toBe(false)
     expect(isAllowed('PRODUCTION', 'GET', '/api/sites/s1/dashboard/summary')).toBe(false)
     expect(isAllowed('PRODUCTION', 'GET', '/api/sites/s1/cash/current')).toBe(false)

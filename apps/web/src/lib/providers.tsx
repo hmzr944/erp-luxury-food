@@ -6,6 +6,7 @@ import { MotionConfig } from 'framer-motion'
 import { useState } from 'react'
 import { ServiceWorkerRegistrar } from '@/components/ui/ServiceWorkerRegistrar'
 import { OfflineIndicator } from '@/components/ui/OfflineIndicator'
+import { SupportHost } from '@/components/support/SupportSheet'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -27,6 +28,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ServiceWorkerRegistrar />
       <OfflineIndicator />
       {children}
+      {/* Aide et support : un seul panneau, ouvert depuis n'importe quel écran */}
+      <SupportHost />
       {/* En haut, sous l'en-tête : la barre de vente et le bouton Encaisser restent libres en bas */}
       <Toaster
         position="top-center"

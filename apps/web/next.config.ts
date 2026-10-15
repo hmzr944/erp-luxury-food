@@ -44,6 +44,8 @@ const security = [
 const config: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
+  // Version jointe aux demandes d'aide (lancé par pnpm : version du paquet)
+  env: { NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || process.env.npm_package_version || 'dev' },
   transpilePackages: ['@erp/ui', '@erp/utils', '@erp/types'],
   // Requis pour le Dockerfile multi-stage (copie .next/standalone)
   output: isProd ? 'standalone' : undefined,

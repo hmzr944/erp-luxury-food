@@ -13,6 +13,8 @@ const PRODUCTION_ALLOW: Rule[] = [
   { method: 'GET', path: /^\/sites$/ },
   { method: 'GET', path: /^\/platform\/config$/ },
   { method: 'GET', path: /^\/billing$/ },
+  // Aide et support : chacun peut écrire à l'équipe FLŌW
+  { path: /^\/support(\/|$)/ },
   { path: new RegExp(`^${SITE}/supply/production(/start)?$`) },
   { method: 'POST', path: new RegExp(`^${SITE}/supply/orders/[^/]+/ship$`) },
   { method: 'GET', path: new RegExp(`^${SITE}/supply/catalog$`) },

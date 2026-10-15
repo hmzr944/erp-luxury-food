@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowUUpLeft, CaretLeft, CloudCheck, CloudSlash, DotsThreeVertical, GraduationCap, Monitor, Money, Printer, UserSwitch, WarningCircle, SignOut, LockSimple } from '@phosphor-icons/react'
+import { ArrowUUpLeft, CaretLeft, CloudCheck, CloudSlash, DotsThreeVertical, GraduationCap, Lifebuoy, Monitor, Money, Printer, UserSwitch, WarningCircle, SignOut, LockSimple } from '@phosphor-icons/react'
 import { Sheet } from './Sheet'
 import { FlowMark } from '@/components/brand/FlowLogo'
 import { useAuthStore } from '@/stores/auth.store'
 import type { SaleQueueState } from './useSaleQueue'
 import { SupplyButton } from './SupplyButton'
+import { openSupport } from '@/lib/support/context'
 
 interface POSHeaderProps {
   siteName: string
@@ -124,6 +125,7 @@ export function POSHeader({ siteName, siteId, terminalName, queue, onReturn, cas
             { label: 'Écran client', icon: Monitor, run: onDisplay },
             ...(onTraining ? [{ label: training ? 'Quitter le mode formation' : 'Mode formation', icon: GraduationCap, run: onTraining }] : []),
             ...(onLock ? [{ label: 'Verrouiller la caisse', icon: LockSimple, run: onLock }] : []),
+            { label: 'Aide et support', icon: Lifebuoy, run: () => openSupport() },
             {
               label: 'Se déconnecter',
               icon: SignOut,

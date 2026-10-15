@@ -23,6 +23,7 @@ import { useSiteStore } from '@/stores/site.store'
 import { FlowLogo } from '@/components/brand/FlowLogo'
 import { sitesApi } from '@/lib/api/sites'
 import { useBilling } from '@/lib/api/billing'
+import { SupportNavButton } from '@/components/support/SupportNavButton'
 
 export const NAV = [
   { href: '/dashboard',  icon: ChartLine,   label: 'Tableau de bord' },
@@ -143,6 +144,7 @@ export function Sidebar() {
       {/* Navigation bas */}
       <div className="px-3 pb-4 space-y-0.5 border-t border-[var(--color-border)] pt-3">
         <BillingNotice />
+        <SupportNavButton className="flex w-full items-center gap-2.5 h-10 px-3 rounded-[var(--radius-md)] font-body text-[15px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]" />
         {NAV_BOTTOM.map(({ href, icon: Icon, label }) => {
           const active = isActive(href)
           return (
