@@ -253,3 +253,15 @@ pnpm --filter @erp/bridge test    # vitest : fausses imprimantes et faux TPE en 
 pnpm --filter @erp/bridge build   # tsc vers dist/
 pnpm --filter @erp/bridge lint
 ```
+
+## Banc d'essai sans matériel
+
+Pour répéter la recette avant d'avoir le matériel, ou pour isoler une panne :
+
+```sh
+pnpm --filter @erp/bridge build
+pnpm --filter @erp/bridge banc            # faux TPE Caisse-AP (8888) et fausse imprimante ESC/POS (9100)
+pnpm --filter @erp/bridge banc -- --manuel   # accepter, refuser ou abandonner chaque paiement au clavier
+```
+
+Le faux TPE parle le même protocole que les TPE Caisse-AP (montants en ,13 refusés par défaut). La fausse imprimante affiche chaque ticket reçu en texte, avec l'impulsion du tiroir, la coupe, le QR code et les caractères hors PC858. Ce banc ne remplace pas l'essai sur le vrai matériel : il vérifie ce que la caisse envoie, pas ce que le matériel en fait.

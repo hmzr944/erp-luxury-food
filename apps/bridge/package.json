@@ -21,7 +21,8 @@
     "lint": "eslint src",
     "package": "node scripts/package.mjs",
     "binaries": "node scripts/build-binaries.mjs",
-    "smoke": "node scripts/smoke-test.mjs"
+    "smoke": "node scripts/smoke-test.mjs",
+    "banc": "node scripts/banc-essai.mjs"
   },
   "dependencies": {
     "ws": "8.21.0"
