@@ -207,11 +207,21 @@ export class ProductsService {
 
   // Produit technique « Article libre » du site, créé à la première demande
   async customProduct(siteId: string) {
-    const existing = await this.prisma.product.findFirst({ where: { siteId, isCustom: true }, select: { id: true, taxRate: true } })
+    const existing = await this.prisma.product.findFirst({ where: { siteId, isCustom: true, isGiftCard: false }, select: { id: true, taxRate: true } })
     if (existing) return existing
     const org = await this.organizationOf(siteId)
     return this.prisma.product.create({
       data: { siteId, name: 'Article libre', price: new Decimal(0), taxRate: new Decimal(org.defaultTaxRate), isCustom: true, isActive: false },
+      select: { id: true, taxRate: true },
+    })
+  }
+
+  // Produit technique « Carte cadeau » : bon polyvalent, TVA due à l'utilisation (0 % à la vente)
+  async giftCardProduct(siteId: string) {
+    const existing = await this.prisma.product.findFirst({ where: { siteId, isGiftCard: true }, select: { id: true, taxRate: true } })
+    if (existing) return existing
+    return this.prisma.product.create({
+      data: { siteId, name: 'Carte cadeau', price: new Decimal(0), taxRate: new Decimal(0), isCustom: true, isGiftCard: true, isActive: false },
       select: { id: true, taxRate: true },
     })
   }

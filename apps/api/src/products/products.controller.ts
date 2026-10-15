@@ -59,6 +59,11 @@ export class ProductsController {
     return this.products.customProduct(siteId)
   }
 
+  @Get('products/gift-card')
+  giftCardProduct(@Param('siteId') siteId: string) {
+    return this.products.giftCardProduct(siteId)
+  }
+
   // Catalogue d'exemple de l'inscription : combien il en reste, et les retirer
   @Get('products/samples')
   samples(@Param('siteId') siteId: string) {

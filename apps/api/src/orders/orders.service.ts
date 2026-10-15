@@ -19,6 +19,7 @@ import { verifyTerminalReceipt } from '../compliance/terminal-receipt'
 import type { SyncSaleDto } from './dto/sync-sale.dto'
 import { buildOrderDraft, draftContent, OrderDraftError, type DraftInput, type OrderDraft } from './order-draft'
 import { redeemCredit } from './credits'
+import { CustomersService, giftCardsOf } from '../customers/customers.service'
 
 const ORDER_INCLUDE = {
   items: { include: { product: { select: { name: true } } } },
@@ -37,6 +38,7 @@ export class OrdersService {
     private printing: PrintingService,
     private stock: StockService,
     private eventEmitter: EventEmitter2,
+    private customers: CustomersService,
   ) {}
 
   // Vente encaissée par le serveur (API, B2B, intégrations)
@@ -66,6 +68,7 @@ export class OrdersService {
         receiptChainId: receipt.id,
       })
       await this.redeemCredits(tx, ref.organizationId, draft, order.id, true)
+      await this.customers.applyToSale(tx, this.loyaltyInput(ref, draft, order.id, dto, true))
       return order
     })
 
@@ -199,7 +202,10 @@ export class OrdersService {
         createdAt: await this.bookingDate(tx, siteId, signedAt),
       })
       // Vente déjà faite hors ligne : un avoir insuffisant est signalé, pas refusé
-      const shortfalls = await this.redeemCredits(tx, ref.organizationId, draft, order.id, false)
+      const shortfalls = [
+        ...(await this.redeemCredits(tx, ref.organizationId, draft, order.id, false)),
+        ...(await this.customers.applyToSale(tx, this.loyaltyInput(ref, draft, order.id, dto, false))),
+      ]
       if (shortfalls.length) {
         return tx.order.update({
           where: { id: order.id },
@@ -221,11 +227,39 @@ export class OrdersService {
     return order
   }
 
+  private loyaltyInput(
+    ref: { organizationId: string; products: Array<{ id: string; isGiftCard: boolean }> },
+    draft: OrderDraft,
+    orderId: string,
+    dto: { customerId?: string; loyaltyPointsUsed?: number },
+    strict: boolean,
+  ) {
+    const giftIds = new Set(ref.products.filter((p) => p.isGiftCard).map((p) => p.id))
+    const items = draft.items.map((it) => ({
+      name: it.name,
+      price: it.price,
+      quantity: it.quantity,
+      isGiftCard: giftIds.has(it.productId),
+    }))
+    return {
+      organizationId: ref.organizationId,
+      orderId,
+      customerId: dto.customerId,
+      pointsUsed: dto.loyaltyPointsUsed,
+      paid: draft.pricing.total,
+      giftCards: giftCardsOf(items),
+      strict,
+    }
+  }
+
   // Paiements par avoir : le code est dans la référence du paiement
   private async redeemCredits(tx: Prisma.TransactionClient, organizationId: string, draft: OrderDraft, orderId: string, strict: boolean) {
     const notes: string[] = []
-    for (const p of draft.payments.filter((x) => x.code === 'CREDIT')) {
+    // Avoirs et cartes cadeaux : même solde à débiter, retrouvé par son code
+    for (const p of draft.payments.filter((x) => x.code === 'CREDIT' || x.code === 'GIFT_CARD')) {
       if (!p.reference) {
+        // Ancienne carte cadeau papier, sans code dans FLŌW : encaissée telle quelle
+        if (p.code === 'GIFT_CARD') continue
         if (strict) throw new BadRequestException("Code de l'avoir manquant")
         notes.push(`Avoir sans code : ${p.amount.toFixed(2)} € à vérifier`)
         continue
@@ -282,7 +316,7 @@ export class OrdersService {
       // L'article libre est masqué du catalogue mais toujours vendable
       where: { id: { in: [...new Set(productIds)] }, siteId, ...(activeOnly ? { OR: [{ isActive: true }, { isCustom: true }] } : {}) },
       select: {
-        id: true, name: true, price: true, taxRate: true, tracking: true, isCustom: true, mealVoucherEligible: true,
+        id: true, name: true, price: true, taxRate: true, tracking: true, isCustom: true, isGiftCard: true, mealVoucherEligible: true,
         isMenu: true, soldByWeight: true, scaleCode: true,
         variants: {
           where: activeOnly ? { isActive: true } : {},

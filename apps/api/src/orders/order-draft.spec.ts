@@ -132,3 +132,22 @@ describe('buildOrderDraft', () => {
     ).toThrow("Nom manquant pour l'article libre")
   })
 })
+
+describe('carte cadeau vendue en caisse', () => {
+  const gift = { id: 'gift', name: 'Carte cadeau', price: 0, taxRate: 0, tracking: 'NONE', isCustom: true, isGiftCard: true, variants: [] }
+  const line = (over: Record<string, unknown> = {}) => ({ productId: 'gift', quantity: 1, unitPrice: 50, taxRate: 0, customName: 'Carte cadeau CC-AB23-CD45-EF67', ...over })
+  const sell = (over: Record<string, unknown> = {}) => buildOrderDraft(base({ products: [gift], items: [line(over)] }))
+
+  it('se vend sans TVA, au montant choisi', () => {
+    const d = sell()
+    expect(d.pricing.total).toBe(50)
+    expect(d.pricing.taxAmount).toBe(0)
+  })
+
+  it('refuse une carte sans code, avec TVA, hors plafond ou en plusieurs exemplaires', () => {
+    expect(() => sell({ customName: 'Carte cadeau' })).toThrow(OrderDraftError)
+    expect(() => sell({ taxRate: 20 })).toThrow('sans TVA')
+    expect(() => sell({ unitPrice: 2000 })).toThrow('1 500')
+    expect(() => sell({ quantity: 2 })).toThrow('Une carte cadeau par ligne')
+  })
+})

@@ -9,7 +9,9 @@ import { AuditService } from '../audit/audit.service'
 import { creditCode, normalizeCreditCode } from './credits'
 import { planRefund, RefundPlanError } from './refund-plan'
 import type { RefundDto } from './dto/refund.dto'
-import { stableStringify } from '@erp/utils'
+import { GIFT_CARD_CODE, stableStringify } from '@erp/utils'
+
+import { CustomersService } from '../customers/customers.service'
 
 // Retours et avoirs. Un remboursement est un ticket négatif signé dans la
 // même chaîne que les ventes : rien n'est effacé, tout se retrouve à l'audit.
@@ -22,6 +24,7 @@ export class RefundsService {
     private payments: PaymentsService,
     private events: EventEmitter2,
     private audit: AuditService,
+    private customers: CustomersService,
   ) {}
 
   async refund(siteId: string, orderId: string, dto: RefundDto, user: { id: string; organizationId: string; email?: string }) {
@@ -50,6 +53,10 @@ export class RefundsService {
     } else {
       method = { code: 'CREDIT', label: 'Avoir', kind: 'VOUCHER' }
     }
+
+    // Carte cadeau déjà entamée : refus avant tout remboursement sur la carte bancaire
+    const byId = new Map(sale.items.map((i) => [i.id, i.name]))
+    await this.cancelGiftCards(this.prisma, sale.id, plan.lines.map((l) => byId.get(l.orderItemId) ?? ''), false)
 
     // Carte passée sur un TPE connecté : on rembourse la carte avant
     // d'écrire quoi que ce soit. Si le prestataire refuse, rien n'est enregistré.
@@ -137,6 +144,8 @@ export class RefundsService {
         include: { items: true, payments: true, receiptChain: { select: { counter: true, signedAt: true } } },
       })
       if (credit) await tx.storeCredit.update({ where: { id: credit.id }, data: { issuedOrderId: refund.id } })
+      await this.cancelGiftCards(tx, sale.id, plan.lines.map((l) => byItem.get(l.orderItemId)!.name), true)
+      await this.customers.reverseForRefund(tx, sale, refund.id, plan.total)
 
       if (dto.restock) {
         for (const l of plan.lines) await this.restock(tx, siteId, byItem.get(l.orderItemId)!, l.quantity, refund.id, user.id)
@@ -168,11 +177,22 @@ export class RefundsService {
     const code = normalizeCreditCode(rawCode)
     const credit = await this.prisma.storeCredit.findFirst({
       where: { organizationId, code },
-      select: { code: true, balance: true, initialAmount: true, expiresAt: true, createdAt: true },
+      select: { code: true, kind: true, balance: true, initialAmount: true, expiresAt: true, createdAt: true },
     })
-    if (!credit) throw new NotFoundException(`Avoir ${code} introuvable`)
+    if (!credit) throw new NotFoundException(`Avoir ou carte cadeau ${code} introuvable`)
     const expired = !!credit.expiresAt && credit.expiresAt < new Date()
     return { ...credit, balance: Number(credit.balance), initialAmount: Number(credit.initialAmount), expired }
+  }
+
+  // Carte cadeau rendue : elle doit être intacte, puis elle ne vaut plus rien
+  private async cancelGiftCards(tx: Prisma.TransactionClient, saleId: string, lineNames: string[], apply: boolean) {
+    const codes = lineNames.map((n) => n.match(GIFT_CARD_CODE)?.[0]).filter((c): c is string => !!c)
+    if (!codes.length) return
+    const cards = await tx.storeCredit.findMany({ where: { soldOrderId: saleId, kind: 'GIFT_CARD', code: { in: codes } } })
+    for (const c of cards) {
+      if (!c.balance.equals(c.initialAmount)) throw new BadRequestException(`Carte cadeau ${c.code} déjà utilisée : remboursement impossible`)
+      if (apply) await tx.storeCredit.update({ where: { id: c.id }, data: { balance: new Decimal(0) } })
+    }
   }
 
   private plan(

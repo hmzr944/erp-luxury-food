@@ -15,6 +15,7 @@ datasource db {
 // ============================================================
 
 model Organization {
+  customers            Customer[]
   id                   String                @id @default(cuid())
   name                 String
   slug                 String                @unique
@@ -54,29 +55,38 @@ model Organization {
 
 // Informations légales de l'organisation (SIRET, TVA, PDP...)
 model OrganizationSettings {
-  id             String       @id @default(cuid())
-  organizationId String       @unique
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                   String       @id @default(cuid())
+  organizationId       String       @unique
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   // Identité légale
-  siret          String? // 14 chiffres
-  vatNumber      String? // FR + 11 chiffres
-  legalForm      String? // SAS, SARL, SA...
-  capital        Decimal?     @db.Decimal(15, 2)
-  rcs            String? // Tribunal de commerce
-  legalAddress   String?
-  legalCity      String?
-  legalZipCode   String?
+  siret                String? // 14 chiffres
+  vatNumber            String? // FR + 11 chiffres
+  legalForm            String? // SAS, SARL, SA...
+  capital              Decimal?     @db.Decimal(15, 2)
+  rcs                  String? // Tribunal de commerce
+  legalAddress         String?
+  legalCity            String?
+  legalZipCode         String?
   // E-invoicing Plateforme Agréée (sept. 2026)
-  pdpName        String? // ex. "Chorus Pro", "Yooz", "Pennylane"
-  pdpEndpoint    String? // URL endpoint PDP
-  pdpApiKey      String? // Clé API chiffrée (at-rest)
-  pdpEnabled     Boolean      @default(false)
+  pdpName              String? // ex. "Chorus Pro", "Yooz", "Pennylane"
+  pdpEndpoint          String? // URL endpoint PDP
+  pdpApiKey            String? // Clé API chiffrée (at-rest)
+  pdpEnabled           Boolean      @default(false)
   // Ticket : sur demande du client (AGEC), toujours, ou jamais ; note de
   // service imprimée en double à partir de 25 € TTC (restauration, services)
-  receiptPolicy  String       @default("ASK")
-  serviceNote    Boolean      @default(false)
-  receiptFooter  String?
-  updatedAt      DateTime     @updatedAt
+  receiptPolicy        String       @default("ASK")
+  serviceNote          Boolean      @default(false)
+  receiptFooter        String?
+  // Fidélité, incluse dans tous les forfaits : désactivée tant que le
+  // commerçant ne l'a pas réglée (c'est lui qui fixe ce qu'il offre)
+  loyaltyEnabled       Boolean      @default(false)
+  // Points gagnés par euro payé, seuil et valeur de la récompense (remise)
+  loyaltyPointsPerEuro Decimal      @default(1) @db.Decimal(6, 2)
+  loyaltyThreshold     Int          @default(100)
+  loyaltyReward        Decimal      @default(5) @db.Decimal(10, 2)
+  // Validité des cartes cadeaux vendues, en mois (null : sans limite)
+  giftCardMonths       Int?         @default(12)
+  updatedAt            DateTime     @updatedAt
 }
 
 // Séquence de numérotation factures — JAMAIS de gap (obligation légale FR)
@@ -250,6 +260,8 @@ model Product {
   // Produit technique « Article libre » du site : nom et prix saisis en caisse
   // Article du catalogue d'exemple chargé à l'inscription (retirable d'un geste)
   isSample            Boolean                @default(false)
+  // Produit technique « Carte cadeau » : montant saisi en caisse, code imprimé
+  isGiftCard          Boolean                @default(false)
   isCustom            Boolean                @default(false)
   // Produit d'un labo ou d'un dépôt proposé aux boutiques, à son prix de cession
   orderable           Boolean                @default(false)
@@ -373,52 +385,57 @@ model Variant {
 // ============================================================
 
 model Order {
-  id             String         @id @default(cuid())
+  id                  String         @id @default(cuid())
   // Vente, ou remboursement (ticket négatif signé : rien n'est jamais effacé)
-  kind           OrderKind      @default(SALE)
-  refundOfId     String?
-  refundOf       Order?         @relation("Refunds", fields: [refundOfId], references: [id])
-  refunds        Order[]        @relation("Refunds")
-  refundReason   String?
-  siteId         String
-  site           Site           @relation(fields: [siteId], references: [id])
-  channel        Channel        @default(IN_STORE)
-  status         OrderStatus    @default(COMPLETED)
-  items          OrderItem[]
-  subtotal       Decimal        @db.Decimal(10, 2)
-  taxAmount      Decimal        @db.Decimal(10, 2)
-  total          Decimal        @db.Decimal(10, 2) // calculé serveur
-  discount       Decimal        @default(0) @db.Decimal(10, 2)
-  paymentMode    PaymentMode    @default(CARD)
-  customerEmail  String?
-  customerName   String? // click & collect — nom du client
-  note           String?
+  kind                OrderKind      @default(SALE)
+  refundOfId          String?
+  refundOf            Order?         @relation("Refunds", fields: [refundOfId], references: [id])
+  refunds             Order[]        @relation("Refunds")
+  refundReason        String?
+  siteId              String
+  site                Site           @relation(fields: [siteId], references: [id])
+  channel             Channel        @default(IN_STORE)
+  status              OrderStatus    @default(COMPLETED)
+  items               OrderItem[]
+  subtotal            Decimal        @db.Decimal(10, 2)
+  taxAmount           Decimal        @db.Decimal(10, 2)
+  total               Decimal        @db.Decimal(10, 2) // calculé serveur
+  discount            Decimal        @default(0) @db.Decimal(10, 2)
+  paymentMode         PaymentMode    @default(CARD)
+  customerEmail       String?
+  customerName        String? // click & collect — nom du client
+  note                String?
   // Click & collect — Sprint 3
-  pickupCode     String?        @unique
-  scheduledAt    DateTime?
+  pickupCode          String?        @unique
+  scheduledAt         DateTime?
   // B2B — Sprint 7
-  b2bClientId    String?
-  b2bClient      B2BClient?     @relation(fields: [b2bClientId], references: [id])
-  paymentTerms   Int? // jours de paiement B2B (30, 60, 90)
-  invoiceNumber  String?        @unique
-  invoicedAt     DateTime?
+  b2bClientId         String?
+  b2bClient           B2BClient?     @relation(fields: [b2bClientId], references: [id])
+  // Client fidélité rattaché à la vente, points utilisés et gagnés
+  customerId          String?
+  customer            Customer?      @relation(fields: [customerId], references: [id])
+  loyaltyPointsUsed   Int?
+  loyaltyPointsEarned Int?
+  paymentTerms        Int? // jours de paiement B2B (30, 60, 90)
+  invoiceNumber       String?        @unique
+  invoicedAt          DateTime?
   // Facture envoyée par e-mail (service comptable du client)
-  invoiceSentAt  DateTime?
-  invoiceSentTo  String?
+  invoiceSentAt       DateTime?
+  invoiceSentTo       String?
   // Ticket dématérialisé envoyé par e-mail à customerEmail
-  receiptSentAt  DateTime?
-  receiptChainId String?        @unique
-  receiptChain   ReceiptChain?  @relation(fields: [receiptChainId], references: [id])
+  receiptSentAt       DateTime?
+  receiptChainId      String?        @unique
+  receiptChain        ReceiptChain?  @relation(fields: [receiptChainId], references: [id])
   // Identifiant généré par la caisse : une vente renvoyée deux fois
   // (coupure réseau pendant l'envoi) n'est enregistrée qu'une fois
-  clientId       String?        @unique
+  clientId            String?        @unique
   // Heure réelle de la vente (diffère de createdAt pour une vente hors
   // ligne synchronisée après la clôture du jour)
-  soldAt         DateTime?
+  soldAt              DateTime?
   // Paiements détaillés (paiement fractionné, moyens configurables)
-  payments       OrderPayment[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  payments            OrderPayment[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   @@index([siteId, createdAt])
   @@index([siteId, status])
@@ -910,6 +927,10 @@ model StoreCredit {
   organizationId String
   organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   code           String                  @unique // ex. AV-7K3P-9QXM, imprimé sur le ticket
+  // CREDIT : avoir né d'un retour ; GIFT_CARD : carte cadeau vendue en caisse
+  kind           String                  @default("CREDIT")
+  // Vente de la carte cadeau
+  soldOrderId    String?
   initialAmount  Decimal                 @db.Decimal(10, 2)
   balance        Decimal                 @db.Decimal(10, 2)
   issuedOrderId  String? // remboursement qui l'a créé
@@ -1256,4 +1277,44 @@ model CustomerDisplay {
   createdAt     DateTime  @default(now())
 
   @@index([siteId])
+}
+
+// Client particulier, pour la fidélité : retrouvé par téléphone ou e-mail
+model Customer {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  firstName      String?
+  lastName       String?
+  // Téléphone normalisé (+33...) et e-mail en minuscules
+  phone          String?
+  email          String?
+  points         Int            @default(0)
+  totalSpent     Decimal        @default(0) @db.Decimal(12, 2)
+  visits         Int            @default(0)
+  lastVisitAt    DateTime?
+  // Accord pour recevoir des offres (distinct de l'inscription à la fidélité)
+  marketingOptIn Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  orders         Order[]
+  entries        LoyaltyEntry[]
+
+  @@unique([organizationId, phone])
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+// Mouvement de points : gagnés, utilisés, repris sur un remboursement, ajustés
+model LoyaltyEntry {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId    String?
+  points     Int
+  reason     String // EARN, REDEEM, REFUND, ADJUST
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, createdAt])
 }

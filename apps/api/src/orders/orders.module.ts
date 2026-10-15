@@ -8,9 +8,10 @@ import { OrdersGateway } from './orders.gateway'
 import { ComplianceModule } from '../compliance/compliance.module'
 import { PrintingModule } from '../printing/printing.module'
 import { StockModule } from '../stock/stock.module'
+import { CustomersModule } from '../customers/customers.module'
 
 @Module({
-  imports: [ComplianceModule, PrintingModule, StockModule, PaymentsModule, JwtModule.register({})],
+  imports: [ComplianceModule, PrintingModule, StockModule, PaymentsModule, CustomersModule, JwtModule.register({})],
   controllers: [OrdersController, PickupController, CreditsController],
   providers: [OrdersService, RefundsService, OrdersGateway],
   exports: [OrdersService],

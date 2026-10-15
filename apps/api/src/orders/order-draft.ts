@@ -1,3 +1,4 @@
+import { GIFT_CARD_CODE } from '@erp/utils'
 import {
   DEFAULT_SCALE_RULES,
   modifiersTotal,
@@ -22,6 +23,8 @@ export interface DraftProduct {
   taxRate: number
   tracking: string
   isCustom?: boolean
+  // Carte cadeau : montant saisi en caisse, code imprimé dans le nom de la ligne
+  isGiftCard?: boolean
   variants: Array<{ id: string; name: string; price: number }>
   // Options proposées par ses groupes d'options
   modifiers?: ModifierChoice[]
@@ -257,6 +260,14 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
       name = custom.slice(0, 120)
       price = item.unitPrice
       taxRate = item.taxRate
+      if (product.isGiftCard) {
+        // Bon à usages multiples (art. 256 ter CGI) : pas de TVA à la vente,
+        // elle sera due sur les achats payés avec la carte
+        if (!GIFT_CARD_CODE.test(custom)) throw new OrderDraftError('Code de la carte cadeau manquant')
+        if (taxRate !== 0) throw new OrderDraftError('Une carte cadeau se vend sans TVA')
+        if (price <= 0 || price > 1500) throw new OrderDraftError('Montant de carte cadeau invalide (1 500 € au plus)')
+        if (item.quantity !== 1) throw new OrderDraftError('Une carte cadeau par ligne')
+      }
     } else if (signed) {
       if (item.unitPrice === undefined || item.taxRate === undefined) {
         throw new OrderDraftError(`Prix signé manquant pour ${product.name}`)

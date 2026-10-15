@@ -68,6 +68,17 @@ export class SyncSaleDto {
   @IsBoolean()
   nonResident?: boolean
 
+  // Client fidélité (hors ticket signé) et points utilisés pour la remise
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  customerId?: string
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  loyaltyPointsUsed?: number
+
   @IsUUID()
   clientId!: string
 
