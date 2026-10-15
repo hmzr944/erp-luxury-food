@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { formatPrice, giftCardCode } from '@erp/utils'
-import { customerName, customersApi, type ApiCustomer } from '@/lib/api/customers'
+import { customerName, customersApi, displayPhone, type ApiCustomer } from '@/lib/api/customers'
 import { Sheet } from './Sheet'
 
 const fieldCls =
@@ -161,7 +161,7 @@ export function CustomerSheet({ open, onClose, onChoose }: { open: boolean; onCl
                   <button type="button" onClick={() => onChoose(c)} className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-[var(--color-bg-hover)]">
                     <span className="min-w-0">
                       <span className="block truncate text-[15px] font-medium">{customerName(c)}</span>
-                      <span className="block truncate text-sm text-[var(--color-text-secondary)]">{[c.phone, c.email].filter(Boolean).join(' · ')}</span>
+                      <span className="block truncate text-sm text-[var(--color-text-secondary)]">{[displayPhone(c.phone), c.email].filter(Boolean).join(' · ')}</span>
                     </span>
                     <span className="shrink-0 text-right text-sm">
                       <span className="tabular block font-semibold">{c.points} pts</span>

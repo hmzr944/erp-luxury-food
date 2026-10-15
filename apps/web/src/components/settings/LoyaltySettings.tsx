@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { formatPrice } from '@erp/utils'
 import { customersApi, type LoyaltySettings as Rules } from '@/lib/api/customers'
 import { Loading } from '@/components/brand/FlowLogo'
+import { LoyaltyCustomers } from './LoyaltyCustomers'
 
 const field = 'tabular h-11 w-28 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 text-right text-[15px]'
 const num = (v: string) => Number(v.replace(',', '.'))
@@ -86,6 +87,8 @@ export function LoyaltySettings() {
           </button>
         </form>
       </section>
+
+      <LoyaltyCustomers />
 
       <section className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5">
         <h2 className="text-[16px] font-semibold">Cartes cadeaux</h2>

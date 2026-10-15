@@ -24,7 +24,12 @@ class LoyaltyRulesDto {
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsInt() @Min(1) @Max(120) giftCardMonths?: number | null
 }
 
-type Actor = { organizationId: string }
+class AdjustDto {
+  @IsInt() @Min(-100_000) @Max(100_000) points!: number
+  @IsString() @MaxLength(200) note!: string
+}
+
+type Actor = { id: string; organizationId: string; role: string }
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard)
@@ -46,6 +51,8 @@ export class CustomersController {
   @Get()
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   search(@CurrentUser() user: Actor, @Query('q') q = '') {
+    // Liste complète sans recherche : gérants seulement (données personnelles)
+    if (!q.trim() && user.role !== Role.OWNER && user.role !== Role.MANAGER) return []
     return this.customers.search(user.organizationId, q)
   }
 
@@ -59,10 +66,17 @@ export class CustomersController {
     return this.customers.get(user.organizationId, id)
   }
 
+  @Post(':id/adjust')
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER)
+  adjust(@CurrentUser() user: Actor, @Param('id') id: string, @Body() dto: AdjustDto) {
+    return this.customers.adjust(user.organizationId, id, dto, user)
+  }
+
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(Role.OWNER, Role.MANAGER)
   remove(@CurrentUser() user: Actor, @Param('id') id: string) {
-    return this.customers.remove(user.organizationId, id)
+    return this.customers.remove(user.organizationId, id, user)
   }
 }

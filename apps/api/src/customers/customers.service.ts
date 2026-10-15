@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/library'
 import { GIFT_CARD_CODE, normalizePhone, pointsEarned, pointsToReverse, rewardsAvailable, type LoyaltyRules } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { AuditService } from '../audit/audit.service'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const CUSTOMER_SELECT = { id: true, firstName: true, lastName: true, phone: true, email: true, points: true, visits: true, totalSpent: true, lastVisitAt: true, marketingOptIn: true, createdAt: true } as const
@@ -30,7 +31,10 @@ export interface SaleLoyaltyInput {
 // commerçant active le programme et fixe lui-même ce qu'il offre.
 @Injectable()
 export class CustomersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   async rules(organizationId: string, tx: Prisma.TransactionClient = this.prisma): Promise<LoyaltyRules & { giftCardMonths: number | null }> {
     const s = await tx.organizationSettings.findUnique({
@@ -64,6 +68,17 @@ export class CustomersService {
   // Recherche par téléphone, e-mail ou nom
   async search(organizationId: string, q: string) {
     const query = q.trim()
+    // Sans recherche : les clients vus le plus récemment
+    if (!query) {
+      const recent = await this.prisma.customer.findMany({
+        where: { organizationId },
+        orderBy: [{ lastVisitAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+        take: 50,
+        select: CUSTOMER_SELECT,
+      })
+      const r = await this.rules(organizationId)
+      return recent.map((c) => this.view(c, r))
+    }
     if (query.length < 2) return []
     const phone = normalizePhone(query)
     // Chiffres tapés : « 0612 » doit trouver +33612..., le 0 national est retiré
@@ -114,14 +129,41 @@ export class CustomersService {
     return { ...this.view(c, await this.rules(organizationId)), entries: c.entries }
   }
 
+  // Ajustement manuel (litige, geste commercial) : réservé au gérant, motif
+  // obligatoire, tracé dans l'historique du client et le journal d'audit
+  async adjust(organizationId: string, id: string, input: { points: number; note: string }, user: { id: string }) {
+    const note = input.note.trim()
+    if (!Number.isInteger(input.points) || input.points === 0) throw new BadRequestException('Nombre de points invalide')
+    if (!note) throw new BadRequestException('Motif obligatoire')
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.customer.findFirst({ where: { id, organizationId }, select: { id: true } })
+      if (!c) throw new NotFoundException('Client introuvable')
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'fidelite:' + id}))`
+      const { points } = await tx.customer.findUniqueOrThrow({ where: { id }, select: { points: true } })
+      if (points + input.points < 0) throw new BadRequestException(`Le client n'a que ${points} points`)
+      await tx.loyaltyEntry.create({ data: { customerId: id, points: input.points, reason: 'ADJUST', note: note.slice(0, 200) } })
+      return tx.customer.update({ where: { id }, data: { points: { increment: input.points } }, select: { points: true } })
+    })
+    await this.audit.log({
+      organizationId,
+      userId: user.id,
+      action: 'customer.points_adjusted',
+      target: id,
+      detail: `${input.points > 0 ? '+' : ''}${input.points} points, ${note}`,
+    })
+    return this.get(organizationId, id).then((c) => ({ ...c, points: updated.points }))
+  }
+
   // Droit à l'effacement (RGPD) : le client disparaît, ses ventes restent sans lui
-  async remove(organizationId: string, id: string) {
+  async remove(organizationId: string, id: string, user?: { id: string }) {
     const c = await this.prisma.customer.findFirst({ where: { id, organizationId }, select: { id: true } })
     if (!c) throw new NotFoundException('Client introuvable')
     await this.prisma.$transaction([
       this.prisma.order.updateMany({ where: { customerId: id }, data: { customerId: null } }),
       this.prisma.customer.delete({ where: { id } }),
     ])
+    // Aucune donnée personnelle dans le journal : seulement l'identifiant
+    if (user) await this.audit.log({ organizationId, userId: user.id, action: 'customer.deleted', target: id, detail: 'Effacement à la demande du client' })
     return { deleted: true }
   }
 
