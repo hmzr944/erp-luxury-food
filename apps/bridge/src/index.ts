@@ -10,6 +10,23 @@ import { BridgeServer } from './server.js'
 import { ConfigStore } from './store.js'
 import { NAME, VERSION } from './version.js'
 
+// Exécutable autonome (scripts/build-binaries.mjs) : lancé d'un double-clic,
+// il affiche toujours un code d'appairage et garde la fenêtre ouverte en cas d'erreur
+const STANDALONE = process.env.FLOW_BRIDGE_BUILD_STANDALONE === '1'
+
+// Double-clic sous Windows : la console se ferme dès la sortie du programme,
+// on laisse le temps de lire le message
+async function exitWithError(): Promise<never> {
+  if (STANDALONE && process.platform === 'win32' && process.stdin.isTTY) {
+    console.error('\nAppuyez sur Entrée pour fermer cette fenêtre.')
+    await new Promise((resolve) => {
+      process.stdin.resume()
+      process.stdin.once('data', resolve)
+    })
+  }
+  process.exit(1)
+}
+
 const HELP = `${NAME} ${VERSION}
 
 Utilisation :
@@ -54,6 +71,8 @@ async function main() {
     return
   }
 
+  if (STANDALONE) process.title = NAME
+
   if (args.length > 0 && !args.includes('--pair')) {
     console.error(`Argument inconnu : ${args.join(' ')}\n`)
     console.log(HELP)
@@ -61,7 +80,9 @@ async function main() {
     return
   }
 
-  const server = new BridgeServer(config, { logger: createLogger(config.logLevel), forcePairingCode: args.includes('--pair') })
+  // Exécutable lancé sans argument (double-clic) : comme « --pair »
+  const forcePairingCode = args.includes('--pair') || (STANDALONE && args.length === 0)
+  const server = new BridgeServer(config, { logger: createLogger(config.logLevel), forcePairingCode })
   try {
     await server.listen()
   } catch (err) {
@@ -71,8 +92,9 @@ async function main() {
     } else {
       log.error('Démarrage impossible', { erreur: e.message })
     }
-    process.exit(1)
+    return exitWithError()
   }
+  if (STANDALONE) console.log("Laissez cette fenêtre ouverte pendant la journée. Pour arrêter le pont, fermez-la ou appuyez sur Ctrl+C.\n")
 
   let stopping = false
   const stop = async (signal: string) => {
@@ -91,4 +113,7 @@ async function main() {
   process.on('unhandledRejection', (err) => log.error('Promesse rejetée non gérée', { erreur: String(err) }))
 }
 
-void main()
+main().catch((err: unknown) => {
+  console.error(`${NAME} : ${err instanceof Error ? err.message : String(err)}`)
+  return exitWithError()
+})

@@ -1,0 +1,165 @@
+name: FLŌW-Bridge exécutables
+
+# Exécutables autonomes du pont (sans Node.js à installer) pour Windows,
+# macOS et Linux. Voir docs/flow-bridge-executables.md.
+# Une étiquette « bridge-v0.1.0 » publie les fichiers dans une Release GitHub.
+
+on:
+  push:
+    tags: ['bridge-v*']
+  pull_request:
+    paths:
+      - 'apps/bridge/**'
+      - '.github/workflows/bridge-binaries.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Adresse de la caisse inscrite dans le pont (variable du dépôt, pas un secret)
+  FLOW_APP_URL: ${{ vars.FLOW_APP_URL }}
+
+jobs:
+  build:
+    name: Construction ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            targets: linux-x64
+            smoke: flow-bridge-linux-x64
+          - name: Windows
+            os: windows-latest
+            targets: windows-x64
+            smoke: flow-bridge-windows-x64.exe
+          # Les binaires macOS doivent être signés sur un Mac (au moins ad hoc),
+          # sinon un Mac Apple Silicon refuse de les lancer
+          - name: macOS
+            os: macos-14
+            targets: macos-arm64,macos-x64
+            smoke: flow-bridge-macos-universal
+    env:
+      # Notarisation Apple : facultative, active seulement si les secrets existent.
+      # Aucun identifiant n'est inscrit ici.
+      APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      - name: pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Dépendances du pont
+        run: pnpm install --frozen-lockfile --filter @erp/bridge...
+
+      - name: Cache des binaires Node.js
+        uses: actions/cache@v4
+        with:
+          path: apps/bridge/node_modules/.cache/flow-bridge-sea
+          key: flow-bridge-sea-${{ runner.os }}-${{ hashFiles('apps/bridge/scripts/build-binaries.mjs') }}
+
+      - name: Certificat Developer ID (facultatif)
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_P12 != ''
+        shell: bash
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/flow-bridge.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "FLOW_BRIDGE_CODESIGN_IDENTITY=$APPLE_CODESIGN_IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Construction des exécutables
+        working-directory: apps/bridge
+        run: node scripts/build-binaries.mjs --targets ${{ matrix.targets }}
+
+      - name: Essai de fumée
+        working-directory: apps/bridge
+        run: node scripts/smoke-test.mjs dist/bin/${{ matrix.smoke }}
+
+      - name: Essai de fumée (Apple Silicon seul)
+        if: runner.os == 'macOS'
+        working-directory: apps/bridge
+        run: node scripts/smoke-test.mjs dist/bin/flow-bridge-macos-arm64
+
+      - name: Notarisation Apple (facultative)
+        if: runner.os == 'macOS' && env.APPLE_ID != '' && env.APPLE_CERTIFICATE_P12 != ''
+        working-directory: apps/bridge/dist/bin
+        run: |
+          for f in flow-bridge-macos-universal.zip flow-bridge-macos-arm64.zip flow-bridge-macos-x64.zip; do
+            xcrun notarytool submit "$f" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          done
+
+      - name: Artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-bridge-${{ matrix.name }}
+          path: |
+            apps/bridge/dist/bin/flow-bridge-*
+            !apps/bridge/dist/bin/flow-bridge-binaries.json
+          if-no-files-found: error
+
+  release:
+    name: Publication
+    if: startsWith(github.ref, 'refs/tags/bridge-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      - name: Version cohérente avec l'étiquette
+        run: |
+          expected="bridge-v$(node -p "require('./apps/bridge/package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "L'étiquette $GITHUB_REF_NAME ne correspond pas à apps/bridge/package.json ($expected)"
+            exit 1
+          fi
+
+      - name: Récupération des artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Empreintes
+        working-directory: release
+        run: |
+          rm -f SHASUMS256-*.txt
+          sha256sum flow-bridge-* > SHASUMS256.txt
+          cat SHASUMS256.txt
+
+      - name: Release GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --title "FLŌW-Bridge ${GITHUB_REF_NAME#bridge-v}" --generate-notes
+          fi

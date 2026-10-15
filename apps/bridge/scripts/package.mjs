@@ -6,32 +6,13 @@
 //   flow-bridge/LISEZMOI.txt
 // Usage : node scripts/package.mjs [dossier de sortie]
 // FLOW_APP_URL (ou NEXT_PUBLIC_APP_URL) : adresse de la caisse, acceptée d'office.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { build } from 'esbuild'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { zipSync, strToU8 } from 'fflate'
+import { ROOT, bundleBridge } from './bundle.mjs'
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const out = resolve(process.argv[2] ?? join(ROOT, 'release'))
-const appUrl = (process.env.FLOW_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
-const version = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
-
-const result = await build({
-  entryPoints: [join(ROOT, 'src/index.ts')],
-  bundle: true,
-  platform: 'node',
-  target: 'node22',
-  format: 'esm',
-  write: false,
-  minify: false,
-  legalComments: 'inline',
-  // Accélérateurs natifs facultatifs de « ws » : absents, le pont s'en passe
-  external: ['bufferutil', 'utf-8-validate'],
-  define: { 'process.env.FLOW_BRIDGE_BUILD_ORIGINS': JSON.stringify(appUrl), 'process.env.FLOW_BRIDGE_BUILD_VERSION': JSON.stringify(version) },
-  banner: { js: "import { createRequire as __flowRequire } from 'node:module'; const require = __flowRequire(import.meta.url);" },
-})
-const code = result.outputFiles[0].text
+const { code, appUrl, version } = await bundleBridge({ format: 'esm' })
 
 const readme = `FLŌW-Bridge ${version}
 Pont local entre la caisse FLŌW (${appUrl}) et le matériel de la boutique :

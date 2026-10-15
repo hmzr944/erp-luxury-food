@@ -10,7 +10,9 @@ Navigateur (caisse FLŌW)  --ws://127.0.0.1:51717-->  FLŌW-Bridge  --TCP-->  im
 
 ## Installation et lancement
 
-Prérequis : Node.js 22 ou plus récent.
+Pour un commerçant : exécutables autonomes, sans Node.js (Windows, macOS, Linux), voir [docs/flow-bridge-executables.md](../../docs/flow-bridge-executables.md).
+
+En développement, prérequis : Node.js 22 ou plus récent.
 
 ```bash
 pnpm install --filter @erp/bridge
