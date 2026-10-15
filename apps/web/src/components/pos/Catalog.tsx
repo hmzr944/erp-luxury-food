@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Barcode, X, Plus } from '@phosphor-icons/react'
+import { MagnifyingGlass, Barcode, X, Plus, Gift } from '@phosphor-icons/react'
 import { formatPrice, parseScaleBarcode, type ScaleBarcode, type ScaleBarcodeRule } from '@erp/utils'
 import { motion } from 'framer-motion'
 import { rayonShapes, type RayonShape } from '@/lib/brand'
@@ -20,6 +20,7 @@ interface CatalogProps {
   scaleRules?: ScaleBarcodeRule[]
   // Vendre un article hors catalogue (nom et prix saisis)
   onCustom: () => void
+  onGiftCard?: () => void
   // Créer un produit à partir d'un code-barres ou d'un nom introuvable
   onCreate: (seed: string) => void
 }
@@ -27,7 +28,7 @@ interface CatalogProps {
 const normalize = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-export function Catalog({ products, categories, isLoading, isError, onPick, scaleRules, onCustom, onCreate }: CatalogProps) {
+export function Catalog({ products, categories, isLoading, isError, onPick, scaleRules, onCustom, onGiftCard, onCreate }: CatalogProps) {
   const [category, setCategory] = useState<string | null>(null)
   // Une forme par rayon (choisie, sinon attribuée dans l'ordre)
   const shapeOf = useMemo(() => rayonShapes(categories), [categories])
@@ -197,6 +198,21 @@ export function Catalog({ products, categories, isLoading, isError, onPick, scal
                   <span>
                     <span className="block text-[15px] font-semibold">Article libre</span>
                     <span className="block text-sm text-[var(--color-text-secondary)]">Prix saisi à la main</span>
+                  </span>
+                </button>
+              </li>
+            )}
+            {!query && onGiftCard && (
+              <li>
+                <button
+                  type="button"
+                  onClick={onGiftCard}
+                  className="flex h-full min-h-[112px] w-full flex-col items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] p-4 text-left hover:border-[var(--color-accent)] press"
+                >
+                  <Gift size={20} aria-hidden className="text-[var(--color-accent)]" />
+                  <span>
+                    <span className="block text-[15px] font-semibold">Carte cadeau</span>
+                    <span className="block text-sm text-[var(--color-text-secondary)]">Montant au choix, sans TVA</span>
                   </span>
                 </button>
               </li>

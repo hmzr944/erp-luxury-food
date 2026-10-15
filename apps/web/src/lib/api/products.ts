@@ -90,6 +90,7 @@ export const productsApi = {
 
   // Produit technique « Article libre » (nom et prix saisis en caisse)
   customProduct: (siteId: string) => apiClient<{ id: string; taxRate: string }>(`/sites/${siteId}/products/custom`),
+  giftCardProduct: (siteId: string) => apiClient<{ id: string; taxRate: string }>(`/sites/${siteId}/products/gift-card`),
 
   // Code-barres inconnu : fiche proposée par les bases ouvertes (Open Food Facts...)
   lookup: (siteId: string, code: string) =>

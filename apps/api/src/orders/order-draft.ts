@@ -267,6 +267,7 @@ export function buildOrderDraft(input: DraftInput): OrderDraft {
         if (taxRate !== 0) throw new OrderDraftError('Une carte cadeau se vend sans TVA')
         if (price <= 0 || price > 1500) throw new OrderDraftError('Montant de carte cadeau invalide (1 500 € au plus)')
         if (item.quantity !== 1) throw new OrderDraftError('Une carte cadeau par ligne')
+        if ((item.discount ?? 0) > 0) throw new OrderDraftError('Une carte cadeau ne se remise pas')
       }
     } else if (signed) {
       if (item.unitPrice === undefined || item.taxRate === undefined) {

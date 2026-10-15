@@ -145,7 +145,13 @@ export class RefundsService {
       })
       if (credit) await tx.storeCredit.update({ where: { id: credit.id }, data: { issuedOrderId: refund.id } })
       await this.cancelGiftCards(tx, sale.id, plan.lines.map((l) => byItem.get(l.orderItemId)!.name), true)
-      await this.customers.reverseForRefund(tx, sale, refund.id, plan.total)
+      const giftValue = (items: Array<{ name: string; price: Decimal; quantity: number }>) =>
+        items.filter((i) => GIFT_CARD_CODE.test(i.name)).reduce((a, i) => a + Number(i.price) * i.quantity, 0)
+      await this.customers.reverseForRefund(tx, sale, refund.id, {
+        refunded: plan.total,
+        refundedGiftCards: giftValue(plan.lines.map((l) => ({ ...byItem.get(l.orderItemId)!, quantity: l.quantity }))),
+        saleGiftCards: giftValue(sale.items),
+      })
 
       if (dto.restock) {
         for (const l of plan.lines) await this.restock(tx, siteId, byItem.get(l.orderItemId)!, l.quantity, refund.id, user.id)

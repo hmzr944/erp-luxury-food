@@ -66,12 +66,14 @@ export class CustomersService {
     const query = q.trim()
     if (query.length < 2) return []
     const phone = normalizePhone(query)
+    // Chiffres tapés : « 0612 » doit trouver +33612..., le 0 national est retiré
+    const digits = query.replace(/\D/g, '').replace(/^0+/, '')
     const rows = await this.prisma.customer.findMany({
       where: {
         organizationId,
         OR: [
           ...(phone ? [{ phone }] : []),
-          { phone: { contains: query.replace(/\D/g, '').slice(-8) || '§' } },
+          ...(digits.length >= 3 ? [{ phone: { contains: digits } }] : []),
           { email: { contains: query.toLowerCase() } },
           { firstName: { contains: query, mode: 'insensitive' as const } },
           { lastName: { contains: query, mode: 'insensitive' as const } },
@@ -172,10 +174,16 @@ export class CustomersService {
     return notes
   }
 
-  // Remboursement : points repris au prorata (jamais sous zéro)
-  async reverseForRefund(tx: Prisma.TransactionClient, sale: { id: string; customerId: string | null; loyaltyPointsEarned: number | null; total: Decimal }, refundOrderId: string, refunded: number) {
+  // Remboursement : points repris au prorata (jamais sous zéro). Les cartes
+  // cadeaux ne rapportent pas de points : elles sortent des deux montants.
+  async reverseForRefund(
+    tx: Prisma.TransactionClient,
+    sale: { id: string; customerId: string | null; loyaltyPointsEarned: number | null; total: Decimal },
+    refundOrderId: string,
+    amounts: { refunded: number; refundedGiftCards: number; saleGiftCards: number },
+  ) {
     if (!sale.customerId || !sale.loyaltyPointsEarned) return
-    const back = pointsToReverse(sale.loyaltyPointsEarned, refunded, Number(sale.total))
+    const back = pointsToReverse(sale.loyaltyPointsEarned, Math.abs(amounts.refunded) - amounts.refundedGiftCards, Number(sale.total) - amounts.saleGiftCards)
     if (!back) return
     const c = await tx.customer.findUnique({ where: { id: sale.customerId }, select: { points: true } })
     if (!c) return

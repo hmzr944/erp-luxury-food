@@ -23,6 +23,7 @@ export function CreditPayment({
   methods,
   busy,
   initialCode,
+  kind = 'CREDIT',
   onPay,
   onLock,
   onBack,
@@ -33,6 +34,8 @@ export function CreditPayment({
   methods: Method[]
   busy: boolean
   initialCode?: string
+  // Moyen choisi : avoir ou carte cadeau (une carte d'un autre réseau se paie sans code)
+  kind?: 'CREDIT' | 'GIFT_CARD'
   onPay: (payments: PayLine[], clientId?: string) => void
   onLock: (locked: boolean) => void
   onBack: () => void
@@ -40,18 +43,21 @@ export function CreditPayment({
   const [code, setCode] = useState(initialCode ?? '')
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [credit, setCredit] = useState<{ code: string; balance: number } | null>(null)
+  const [credit, setCredit] = useState<{ code: string; balance: number; gift: boolean } | null>(null)
+  const gift = kind === 'GIFT_CARD'
+  const noun = gift ? 'Carte cadeau' : 'Avoir'
   const [terminalFor, setTerminalFor] = useState<Method | null>(null)
 
   const check = async () => {
-    if (!navigator.onLine) return setError('Un avoir se vérifie en ligne : reconnectez la caisse ou payez autrement.')
+    if (!navigator.onLine) return setError(`${gift ? 'Une carte cadeau' : 'Un avoir'} se vérifie en ligne : reconnectez la caisse ou payez autrement.`)
     setChecking(true)
     setError(null)
     try {
       const c = await ordersApi.credit(siteId, code)
-      if (c.expired) setError(`Avoir ${c.code} expiré`)
-      else if (c.balance <= 0) setError(`Avoir ${c.code} déjà utilisé en entier`)
-      else setCredit({ code: c.code, balance: c.balance })
+      const name = c.kind === 'GIFT_CARD' ? 'Carte cadeau' : 'Avoir'
+      if (c.expired) setError(`${name} ${c.code} expiré${c.kind === 'GIFT_CARD' ? 'e' : ''}`)
+      else if (c.balance <= 0) setError(`${name} ${c.code} déjà utilisé${c.kind === 'GIFT_CARD' ? 'e' : ''} en entier`)
+      else setCredit({ code: c.code, balance: c.balance, gift: c.kind === 'GIFT_CARD' })
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -70,7 +76,7 @@ export function CreditPayment({
       >
         <div className="space-y-2">
           <label htmlFor="credit-code" className="block text-sm font-medium">
-            Code de l&apos;avoir
+            {gift ? 'Code de la carte cadeau' : <>Code de l&apos;avoir</>}
           </label>
           <input
             id="credit-code"
@@ -78,7 +84,7 @@ export function CreditPayment({
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
-            placeholder="AV-XXXX-XXXX"
+            placeholder={gift ? 'CC-XXXX-XXXX-XXXX' : 'AV-XXXX-XXXX'}
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             className={fieldCls + ' font-data text-xl tracking-wider'}
@@ -96,6 +102,16 @@ export function CreditPayment({
         >
           {checking ? 'Vérification...' : 'Vérifier le solde'}
         </button>
+        {gift && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onPay([{ code: 'GIFT_CARD', amount: total }])}
+            className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium hover:border-[var(--color-accent)] disabled:opacity-50"
+          >
+            Carte d&apos;un autre réseau, sans code : {formatPrice(total)}
+          </button>
+        )}
         <button type="button" onClick={onBack} className="h-11 w-full text-sm font-medium text-[var(--color-text-secondary)]">
           Autre moyen de paiement
         </button>
@@ -105,7 +121,9 @@ export function CreditPayment({
 
   const used = Math.min(credit.balance, total)
   const rest = Math.round((total - used) * 100) / 100
-  const creditLine: PayLine = { code: 'CREDIT', amount: used, reference: credit.code }
+  // Carte cadeau FLŌW : enregistrée sous « Carte cadeau » si ce moyen existe
+  const creditLine: PayLine = { code: credit.gift && gift ? 'GIFT_CARD' : 'CREDIT', amount: used, reference: credit.code }
+  const label = credit.gift ? 'Carte cadeau' : 'Avoir'
 
   if (terminalFor && device) {
     return (
@@ -128,7 +146,7 @@ export function CreditPayment({
       <dl className="space-y-1 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] p-4 text-[15px]">
         <div className="flex justify-between">
           <dt>
-            Avoir <span className="font-data">{credit.code}</span>
+            {label} <span className="font-data">{credit.code}</span>
           </dt>
           <dd className="tabular">{formatPrice(credit.balance)}</dd>
         </div>
@@ -138,7 +156,7 @@ export function CreditPayment({
         </div>
         {credit.balance > used && (
           <div className="flex justify-between text-[var(--color-text-secondary)]">
-            <dt>Restera sur l&apos;avoir</dt>
+            <dt>Restera sur {credit.gift ? 'la carte' : <>l&apos;avoir</>}</dt>
             <dd className="tabular">{formatPrice(credit.balance - used)}</dd>
           </div>
         )}
@@ -151,7 +169,7 @@ export function CreditPayment({
           onClick={() => onPay([creditLine])}
           className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)]"
         >
-          Payer {formatPrice(total)} avec l&apos;avoir
+          Payer {formatPrice(total)} avec {credit.gift ? 'la carte cadeau' : <>l&apos;avoir</>}
         </button>
       ) : (
         <>
@@ -188,7 +206,7 @@ export function CreditPayment({
         }}
         className="h-11 w-full text-sm font-medium text-[var(--color-text-secondary)]"
       >
-        Autre avoir
+        {credit.gift ? 'Autre carte' : 'Autre avoir'}
       </button>
     </div>
   )

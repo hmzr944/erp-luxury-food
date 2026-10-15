@@ -152,6 +152,7 @@ export interface RefundPayload {
 
 export interface StoreCreditView {
   code: string
+  kind?: 'CREDIT' | 'GIFT_CARD'
   balance: number
   expiresAt: string | null
 }

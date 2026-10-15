@@ -75,6 +75,9 @@ export interface SaleInput {
   clientId?: string
   // Client non résident déclaré (plafond espèces 15 000 €), hors contenu signé
   nonResident?: boolean
+  // Client fidélité et points utilisés, hors contenu signé
+  customerId?: string
+  loyaltyPointsUsed?: number
 }
 
 export interface RecordedSale {
@@ -128,6 +131,8 @@ export async function recordSale(siteId: string, input: SaleInput): Promise<Reco
         customerEmail: input.customerEmail,
         note: input.note,
         ...(input.nonResident ? { nonResident: true } : {}),
+        ...(input.customerId ? { customerId: input.customerId } : {}),
+        ...(input.loyaltyPointsUsed ? { loyaltyPointsUsed: input.loyaltyPointsUsed } : {}),
         receipt,
       },
     }

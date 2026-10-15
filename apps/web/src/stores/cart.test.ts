@@ -49,3 +49,16 @@ describe('panier vers lignes vendues', () => {
     )
   })
 })
+
+describe('withLoyalty', () => {
+  it('répartit la récompense hors cartes cadeaux', () => {
+    const lines: CartLine[] = [
+      { key: 'g', product: { id: 'g', name: 'Carte cadeau', price: 50, taxRate: 0, giftCard: true }, customName: 'Carte cadeau', quantity: 1, discount: 0 },
+      { key: 'b', product: { id: 'b', name: 'Ceinture', price: 45, taxRate: 20 }, quantity: 1, discount: 0 },
+    ]
+    const t = computeCartTotals(lines, 0, true, 5)
+    expect(t.total).toBe(90)
+    expect(t.items.map((i) => i.discount ?? 0)).toEqual([0, 5])
+    expect(t.taxAmount).toBe(6.67)
+  })
+})

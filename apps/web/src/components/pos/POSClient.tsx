@@ -4,13 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { formatPrice, priceForWeight, priceMenu, priceOrder, priceWithModifiers, type ModifierChoice, type ScaleBarcode } from '@erp/utils'
+import { formatPrice, giftCardLineName, priceForWeight, priceMenu, priceOrder, priceWithModifiers, type ModifierChoice, type ScaleBarcode } from '@erp/utils'
 import { productsApi, type ApiProduct, type ApiVariant } from '@/lib/api/products'
 import { sitesApi } from '@/lib/api/sites'
 import { paymentsApi, type PaymentDevice } from '@/lib/api/payments'
 import { usePlatformConfig } from '@/lib/api/platform'
 import { ensureTerminal, recordSale, type TerminalNotRegisteredError } from '@/lib/terminal/terminal'
-import { useCartStore, computeCartTotals, isFixedLine, lineDetail, saleItems, signedItem, type CartMenuPart } from '@/stores/cart.store'
+import { useCartStore, computeCartTotals, isFixedLine, lineDetail, loyaltyRoom, saleItems, signedItem, withLoyalty, type CartMenuPart } from '@/stores/cart.store'
+import { customerName, customersApi } from '@/lib/api/customers'
+import { CustomerSheet, GiftCardSheet } from './LoyaltySheets'
 import { useDisplayPublisher } from '@/lib/display/publisher'
 import type { DisplayState } from '@/lib/display/state'
 import { receiptUrl } from '@/lib/receipts'
@@ -46,7 +48,7 @@ interface POSClientProps {
 // Caisse : choisir les articles, encaisser, ticket signé. Trois gestes pour
 // une vente simple, sans dépendre du réseau.
 export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps) {
-  const { lines, orderDiscount, addProduct, clearCart } = useCartStore()
+  const { lines, orderDiscount, addProduct, clearCart, customer, loyalty, setCustomer, setLoyalty } = useCartStore()
   const { data: config } = usePlatformConfig()
   const queue = useSaleQueue(siteId)
   const [terminalName, setTerminalName] = useState<string>()
@@ -156,6 +158,8 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
   const [payError, setPayError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<ReceiptView | null>(null)
   const [customOpen, setCustomOpen] = useState(false)
+  const [giftOpen, setGiftOpen] = useState(false)
+  const [customerOpen, setCustomerOpen] = useState(false)
   const [createSeed, setCreateSeed] = useState<string | null>(null)
   const [returning, setReturning] = useState(false)
   // Échange : l'écran de retour renvoie ici avec le code de l'avoir
@@ -184,6 +188,13 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
     queryFn: () => productsApi.customProduct(siteId),
     staleTime: Infinity,
   })
+  // Carte cadeau : produit technique à 0 % de TVA, gardé pour le hors ligne
+  const giftProduct = useQuery({
+    queryKey: ['gift-card-product', siteId],
+    queryFn: () => productsApi.giftCardProduct(siteId),
+    staleTime: Infinity,
+  })
+  const loyaltyRules = useQuery({ queryKey: ['loyalty'], queryFn: customersApi.loyalty, staleTime: 5 * 60_000 })
   const sites = useQuery({ queryKey: ['sites'], queryFn: sitesApi.getAll, staleTime: 5 * 60_000 })
   const siteName = sites.data?.find((s) => s.id === siteId)?.name ?? 'Caisse'
   // TPE connecté de cette caisse : celui choisi sur cet appareil, sinon le premier
@@ -204,7 +215,12 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
   }, [siteId])
 
   const priceIncludesTax = config?.priceIncludesTax ?? true
-  const totals = computeCartTotals(lines, orderDiscount, priceIncludesTax)
+  const totals = computeCartTotals(lines, orderDiscount, priceIncludesTax, loyalty?.amount)
+  // Articles retirés après la récompense : elle ne peut plus dépasser la vente
+  useEffect(() => {
+    if (!loyalty) return
+    if (loyaltyRoom(lines) + 0.001 < loyalty.amount) setLoyalty(null)
+  }, [lines, loyalty, setLoyalty])
   const methods = (config?.paymentMethods ?? []).filter((m) => m.isActive)
   // TTC de chaque ligne, remise globale répartie : base des règles d'encaissement
   // Écran client : ce que voit le client, à chaque changement de la vente
@@ -312,7 +328,8 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
   const pay = async (payments: PayLine[], email?: string, clientId?: string, options: PayOptions = {}) => {
     setBusy(true)
     setPayError(null)
-    const sold = [...lines]
+    // Récompense fidélité : remises de ligne, imprimées et signées avec la vente
+    const sold = withLoyalty([...lines], loyalty?.amount)
     const items = saleItems(sold)
     const labels = new Map(methods.map((m) => [m.code, m.label]))
     const cashCodes = new Set(methods.filter((m) => m.kind === 'CASH').map((m) => m.code))
@@ -364,6 +381,8 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
         payments,
         orderDiscount: orderDiscount || undefined,
         customerEmail: email,
+        customerId: customer?.id,
+        loyaltyPointsUsed: loyalty?.points,
         priceIncludesTax,
         clientId,
         nonResident: options.nonResident || undefined,
@@ -438,6 +457,7 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
             onPick={pick}
             scaleRules={config?.scaleBarcodes}
             onCustom={() => setCustomOpen(true)}
+            onGiftCard={() => setGiftOpen(true)}
             onCreate={setCreateSeed}
           />
 
@@ -449,6 +469,8 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
             <Ticket
               totals={totals}
               priceIncludesTax={priceIncludesTax}
+              loyalty={loyaltyRules.data}
+              onCustomer={() => setCustomerOpen(true)}
               onCheckout={() => setPaying(true)}
               emptyState={discovery.state?.active ? discoveryChecklist('panel') : undefined}
             />
@@ -491,6 +513,8 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
             <Ticket
               totals={totals}
               priceIncludesTax={priceIncludesTax}
+              loyalty={loyaltyRules.data}
+              onCustomer={() => setCustomerOpen(true)}
               onCheckout={() => {
                 setTicketOpen(false)
                 setPaying(true)
@@ -517,6 +541,26 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
             if (!custom) return toast.error('Article libre indisponible : connectez la caisse une première fois.')
             addProduct({ id: custom.id, name: item.name, price: item.price, taxRate: item.taxRate }, { customName: item.name })
             setCustomOpen(false)
+          }}
+        />
+
+        <GiftCardSheet
+          open={giftOpen}
+          onClose={() => setGiftOpen(false)}
+          onAdd={({ code, amount }) => {
+            const gift = giftProduct.data
+            if (!gift) return toast.error('Carte cadeau indisponible : connectez la caisse une première fois.')
+            const name = giftCardLineName(code)
+            addProduct({ id: gift.id, name, price: amount, taxRate: 0, giftCard: true }, { customName: name })
+            setGiftOpen(false)
+          }}
+        />
+        <CustomerSheet
+          open={customerOpen}
+          onClose={() => setCustomerOpen(false)}
+          onChoose={(c) => {
+            setCustomer({ id: c.id, name: customerName(c), points: c.points })
+            setCustomerOpen(false)
           }}
         />
 

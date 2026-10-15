@@ -149,5 +149,6 @@ describe('carte cadeau vendue en caisse', () => {
     expect(() => sell({ taxRate: 20 })).toThrow('sans TVA')
     expect(() => sell({ unitPrice: 2000 })).toThrow('1 500')
     expect(() => sell({ quantity: 2 })).toThrow('Une carte cadeau par ligne')
+    expect(() => sell({ discount: 5 })).toThrow('ne se remise pas')
   })
 })

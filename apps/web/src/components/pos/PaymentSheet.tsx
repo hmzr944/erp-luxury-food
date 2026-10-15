@@ -91,7 +91,8 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
   const [bridgeCard, setBridgeCard] = useState<Method | null>(null)
   const [parts, setParts] = useState(false)
   const [partsLocked, setPartsLocked] = useState(false)
-  const [credit, setCredit] = useState(false)
+  // Avoir ou carte cadeau FLŌW : vérifiés par leur code
+  const [credit, setCredit] = useState<false | 'CREDIT' | 'GIFT_CARD'>(false)
   // Étape propre à un moyen : espèces (rendu), chèque (numéro)
   const [cash, setCash] = useState<Method | null>(null)
   const [reference, setReference] = useState<Method | null>(null)
@@ -125,7 +126,7 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
     : terminal || bridgeCard
       ? 'Paiement sur le TPE'
       : credit
-        ? `Payer ${formatPrice(total)} par avoir`
+        ? `Payer ${formatPrice(total)} par ${credit === 'GIFT_CARD' ? 'carte cadeau' : 'avoir'}`
         : cash
         ? `Espèces : ${formatPrice(total)}`
         : reference
@@ -139,7 +140,7 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
   // Carte + TPE connecté + réseau : le montant part au TPE. Sinon, TPE autonome.
   const choose = (m: Method) => {
     setNotice(null)
-    if (m.code === 'CREDIT') return setCredit(true)
+    if (m.code === 'CREDIT' || m.code === 'GIFT_CARD') return setCredit(m.code)
     if (m.kind === PaymentKind.CARD && device && navigator.onLine) return setTerminal(m)
     if (m.kind === PaymentKind.CARD && getBridgeTpe().enabled) return setBridgeCard(m)
     // Titre-restaurant : articles éligibles seulement, plafonné par ticket.
@@ -220,6 +221,7 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
           methods={plain}
           busy={busy}
           initialCode={creditCode}
+          kind={credit}
           onLock={setPartsLocked}
           onPay={(p, clientId) => onPay(p, mail, clientId)}
           onBack={() => setCredit(false)}

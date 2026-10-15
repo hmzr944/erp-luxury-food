@@ -1,9 +1,10 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { Minus, Plus, Trash } from '@phosphor-icons/react'
-import { formatPrice } from '@erp/utils'
-import { isFixedLine, lineDetail, useCartStore, type CartLine } from '@/stores/cart.store'
+import { Minus, Plus, Trash, UserCircle, X } from '@phosphor-icons/react'
+import { formatPrice, rewardsAvailable } from '@erp/utils'
+import { isFixedLine, lineDetail, loyaltyRoom, useCartStore, type CartLine } from '@/stores/cart.store'
+import type { LoyaltySettings } from '@/lib/api/customers'
 import { EASE } from './Sheet'
 
 interface TicketProps {
@@ -12,10 +13,13 @@ interface TicketProps {
   onCheckout: () => void
   // Contenu affiché quand la vente est vide (accueil du mode découverte)
   emptyState?: React.ReactNode
+  // Programme de fidélité actif : client rattaché à la vente
+  loyalty?: LoyaltySettings
+  onCustomer?: () => void
 }
 
-export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState }: TicketProps) {
-  const { lines, clearCart } = useCartStore()
+export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState, loyalty, onCustomer }: TicketProps) {
+  const { lines, clearCart, loyalty: used } = useCartStore()
   const empty = lines.length === 0
 
   return (
@@ -59,7 +63,14 @@ export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState }: Tic
       </div>
 
       <div className="border-t border-[var(--color-border)] px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {loyalty?.enabled && onCustomer && <CustomerRow rules={loyalty} onCustomer={onCustomer} />}
         <dl className="space-y-1 text-sm text-[var(--color-text-secondary)]">
+          {used && (
+            <div className="flex justify-between">
+              <dt>Fidélité ({used.points} points)</dt>
+              <dd className="tabular">-{formatPrice(used.amount)}</dd>
+            </div>
+          )}
           <div className="flex justify-between">
             <dt>{priceIncludesTax ? 'dont TVA' : 'TVA'}</dt>
             <dd className="tabular">{formatPrice(totals.taxAmount)}</dd>
@@ -84,6 +95,62 @@ export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState }: Tic
   )
 }
 
+// Client de la vente : points, récompense à utiliser, détacher
+function CustomerRow({ rules, onCustomer }: { rules: LoyaltySettings; onCustomer: () => void }) {
+  const { lines, customer, setCustomer, loyalty, setLoyalty } = useCartStore()
+  if (!customer) {
+    return (
+      <button
+        type="button"
+        onClick={onCustomer}
+        className="mb-3 flex h-11 w-full items-center gap-2 rounded-[var(--radius-pill)] border border-dashed border-[var(--color-border-strong)] px-4 text-sm font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]"
+      >
+        <UserCircle size={20} aria-hidden /> Ajouter un client fidélité
+      </button>
+    )
+  }
+  // Récompense : paliers atteints, sans dépasser les articles hors cartes cadeaux
+  const room = loyaltyRoom(lines)
+  const available = rewardsAvailable(customer.points, rules)
+  const fits = rules.reward > 0 ? Math.min(available.count, Math.floor((room + 0.001) / rules.reward)) : 0
+  return (
+    <div className="mb-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] p-3">
+      <div className="flex items-center gap-2">
+        <UserCircle size={22} aria-hidden className="shrink-0 text-[var(--color-accent)]" />
+        <p className="min-w-0 flex-1 truncate text-[15px] font-medium">
+          {customer.name} <span className="tabular font-normal text-[var(--color-text-secondary)]">{customer.points} pts</span>
+        </p>
+        <button
+          type="button"
+          onClick={() => setCustomer(null)}
+          aria-label={`Détacher ${customer.name} de la vente`}
+          className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-pill)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]"
+        >
+          <X size={18} />
+        </button>
+      </div>
+      {loyalty ? (
+        <button type="button" onClick={() => setLoyalty(null)} className="mt-1 h-11 w-full rounded-[var(--radius-pill)] text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]">
+          Garder les points pour plus tard
+        </button>
+      ) : available.count > 0 ? (
+        <button
+          type="button"
+          disabled={fits === 0}
+          onClick={() => setLoyalty({ points: fits * rules.threshold, amount: Math.round(fits * rules.reward * 100) / 100 })}
+          className="mt-2 h-11 w-full rounded-[var(--radius-pill)] bg-[var(--color-bg-inverse)] text-sm font-semibold text-[var(--color-text-inverse)] disabled:opacity-50"
+        >
+          {fits === 0 ? `${formatPrice(rules.reward)} offerts dès ${formatPrice(rules.reward)} d’achat` : `Utiliser ${formatPrice(fits * rules.reward)} offerts`}
+        </button>
+      ) : (
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+          Encore {rules.threshold - (customer.points % rules.threshold)} points avant {formatPrice(rules.reward)} offerts
+        </p>
+      )}
+    </div>
+  )
+}
+
 function TicketLine({ line }: { line: CartLine }) {
   const { setQuantity, removeLine } = useCartStore()
   const lineTotal = line.product.price * line.quantity - line.discount
@@ -98,7 +165,7 @@ function TicketLine({ line }: { line: CartLine }) {
       className="flex items-center gap-3 border-b border-[var(--color-border)] py-3 last:border-0"
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-medium">{line.product.name}</p>
+        <p className="truncate text-[15px] font-medium">{line.product.giftCard ? 'Carte cadeau' : line.product.name}</p>
         <p className="line-clamp-2 text-sm text-[var(--color-text-secondary)]">{lineDetail(line) || formatPrice(line.product.price)}</p>
       </div>
 

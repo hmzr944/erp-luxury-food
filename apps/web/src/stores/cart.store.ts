@@ -12,6 +12,8 @@ export interface CartProduct {
   categoryId?: string
   // Payable en titre-restaurant
   mealVoucher?: boolean
+  // Carte cadeau vendue : ni remise fidélité, ni points
+  giftCard?: boolean
 }
 
 // Composant choisi dans une formule
@@ -60,17 +62,31 @@ interface AddOptions {
 }
 
 // Une ligne pesée ou numérotée est unique : quantité 1, jamais fusionnée
-export const isFixedLine = (l: Pick<CartLine, 'serialNumber' | 'weight' | 'label'>) => !!l.serialNumber || l.weight !== undefined || !!l.label
+// Carte cadeau : un code par carte, donc une ligne par carte
+export const isFixedLine = (l: Pick<CartLine, 'serialNumber' | 'weight' | 'label'> & { product?: Pick<CartProduct, 'giftCard'> }) =>
+  !!l.serialNumber || l.weight !== undefined || !!l.label || !!l.product?.giftCard
+
+// Client fidélité rattaché à la vente (hors ticket signé)
+export interface CartCustomer {
+  id: string
+  name: string
+  points: number
+}
 
 interface CartState {
   lines: CartLine[]
   orderDiscount: number
+  customer: CartCustomer | null
+  // Récompense fidélité utilisée : points dépensés et remise accordée
+  loyalty: { points: number; amount: number } | null
   lastAddedKey: string | null
   addProduct: (product: CartProduct, options?: AddOptions) => void
   removeLine: (key: string) => void
   setQuantity: (key: string, quantity: number) => void
   setLineDiscount: (key: string, discount: number) => void
   setOrderDiscount: (discount: number) => void
+  setCustomer: (customer: CartCustomer | null) => void
+  setLoyalty: (loyalty: { points: number; amount: number } | null) => void
   clearCart: () => void
 }
 
@@ -89,6 +105,8 @@ function lineKey(productId: string, options: AddOptions = {}, price?: number) {
 export const useCartStore = create<CartState>()((set) => ({
   lines: [],
   orderDiscount: 0,
+  customer: null,
+  loyalty: null,
   lastAddedKey: null,
 
   addProduct: (product, options = {}) => {
@@ -125,7 +143,9 @@ export const useCartStore = create<CartState>()((set) => ({
     })),
 
   setOrderDiscount: (discount) => set({ orderDiscount: Math.max(0, discount) }),
-  clearCart: () => set({ lines: [], orderDiscount: 0, lastAddedKey: null }),
+  setCustomer: (customer) => set({ customer, loyalty: null }),
+  setLoyalty: (loyalty) => set({ loyalty }),
+  clearCart: () => set({ lines: [], orderDiscount: 0, customer: null, loyalty: null, lastAddedKey: null }),
 }))
 
 // Ligne vendue : ce que la caisse signe, plus de quoi l'afficher
@@ -208,8 +228,8 @@ export const soldView = (i: SaleItem): SoldItemView => ({ ...i, modifiers: i.mod
 
 // Totaux calculés avec la même fonction que le serveur : le montant affiché
 // est exactement celui qui sera signé sur le ticket
-export function computeCartTotals(lines: CartLine[], orderDiscount: number, priceIncludesTax: boolean) {
-  const items = saleItems(lines)
+export function computeCartTotals(lines: CartLine[], orderDiscount: number, priceIncludesTax: boolean, loyaltyAmount = 0) {
+  const items = saleItems(withLoyalty(lines, loyaltyAmount))
   const pricing = priceOrder(
     items.map((i) => ({ unitPrice: i.unitPrice, quantity: i.quantity, discount: i.discount, taxRate: i.taxRate })),
     { priceIncludesTax, orderDiscount },
@@ -217,8 +237,23 @@ export function computeCartTotals(lines: CartLine[], orderDiscount: number, pric
   return { ...pricing, items, itemCount: lines.reduce((sum, l) => sum + (l.weight !== undefined || l.label ? 1 : l.quantity), 0) }
 }
 
+// Récompense fidélité : remise répartie sur les lignes, jamais sur une carte
+// cadeau (son montant doit rester celui crédité). Remise de ligne : elle est
+// enregistrée article par article, tickets et factures la retrouvent.
+export function withLoyalty(lines: CartLine[], amount = 0): CartLine[] {
+  if (!amount) return lines
+  const bases = lines.map((l) => (l.product.giftCard ? 0 : Math.max(0, l.product.price * l.quantity - l.discount)))
+  const shares = splitDiscount(amount, bases)
+  return lines.map((l, i) => (shares[i] ? { ...l, discount: Math.round((l.discount + shares[i]) * 100) / 100 } : l))
+}
+
+// Hors cartes cadeaux : ce sur quoi porte la récompense
+export const loyaltyRoom = (lines: CartLine[]) =>
+  lines.filter((l) => !l.product.giftCard).reduce((a, l) => a + Math.max(0, l.product.price * l.quantity - l.discount), 0)
+
 // Variante, composants d'une formule, options, poids, n° de série
 export function lineDetail(line: CartLine) {
+  if (line.product.giftCard) return line.product.name.replace(/^Carte cadeau /, 'Code ')
   const menu = line.menu?.parts
     .map((p) => [p.name, p.variantName, p.modifiers.length ? `(${modifiersLabel(p.modifiers)})` : null, p.supplement ? `+${formatPrice(p.supplement)}` : null].filter(Boolean).join(' '))
     .join(', ')
