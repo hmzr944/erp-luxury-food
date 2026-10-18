@@ -4,6 +4,7 @@ import {
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
+import { RequireSubscription } from '../common/decorators/require-subscription.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { SitesService } from './sites.service'
 import { Role } from '@erp/types'
@@ -38,6 +39,7 @@ export class SitesController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(Role.OWNER)
+  @RequireSubscription()
   create(
     @CurrentUser() user: { organizationId: string },
     @Body() dto: SiteDto,

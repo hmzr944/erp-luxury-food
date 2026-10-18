@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
 import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
+import { RequireSubscription } from '../common/decorators/require-subscription.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { TerminalsService } from './terminals.service'
 
@@ -29,6 +30,7 @@ export class TerminalsController {
   // par code ou badge
   @Post()
   @Roles(Role.OWNER, Role.MANAGER)
+  @RequireSubscription()
   register(
     @Param('siteId') siteId: string,
     @Body() dto: RegisterTerminalDto,

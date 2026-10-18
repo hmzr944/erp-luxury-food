@@ -84,6 +84,10 @@ interface CartState {
   // Récompense fidélité utilisée : points dépensés et remise accordée
   loyalty: { points: number; amount: number } | null
   lastAddedKey: string | null
+  // Compte verrouillé (essai terminé) : pas de nouvelle vente. Une vente
+  // déjà commencée se termine normalement. Jamais gardé sur l'appareil
+  salesLocked: boolean
+  setSalesLocked: (locked: boolean) => void
   addProduct: (product: CartProduct, options?: AddOptions) => void
   removeLine: (key: string) => void
   setQuantity: (key: string, quantity: number) => void
@@ -121,10 +125,14 @@ export const useCartStore = create<CartState>()(
   customer: null,
   loyalty: null,
   lastAddedKey: null,
+  salesLocked: false,
+  setSalesLocked: (salesLocked) => set({ salesLocked }),
 
   addProduct: (product, options = {}) => {
     const key = lineKey(product.id, options, product.price)
     set((state) => {
+      // Premier article d'une vente : refusé si le compte est verrouillé
+      if (state.salesLocked && !state.lines.length) return {}
       const existing = state.lines.find((l) => l.key === key)
       if (existing && !isFixedLine(options)) {
         return {

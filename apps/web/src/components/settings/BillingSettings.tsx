@@ -63,6 +63,16 @@ export function BillingSettings() {
           </p>
         )}
         {data.status === 'PAST_DUE' && <p className="pt-2 text-[15px] font-medium">Le dernier prélèvement a échoué : mettez à jour la carte pour continuer.</p>}
+        {data.access === 'grace' && data.lockAt && (
+          <p role="status" className="pt-2 text-[15px] font-medium">
+            La caisse reste ouverte jusqu&apos;au {day(data.lockAt)}. Ensuite, elle ne pourra plus commencer de vente sans abonnement.
+          </p>
+        )}
+        {data.access === 'locked' && (
+          <p role="status" className="pt-2 text-[15px] font-medium">
+            La caisse ne commence plus de vente. Les ventes en attente, les clôtures, les archives et les exports restent accessibles.
+          </p>
+        )}
         {data.hasPaymentMethod && owner && (
           <button
             type="button"

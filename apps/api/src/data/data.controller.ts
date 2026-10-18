@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
 import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
+import { RequireSubscription } from '../common/decorators/require-subscription.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { DataService } from './data.service'
 
@@ -54,6 +55,7 @@ export class SiteDataController {
 
   @Post('import/products')
   @HttpCode(HttpStatus.OK)
+  @RequireSubscription()
   importProducts(@Param('siteId') siteId: string, @Body() dto: ImportProductsDto) {
     return this.data.importProducts(siteId, dto.csv, dto.dryRun ?? true)
   }

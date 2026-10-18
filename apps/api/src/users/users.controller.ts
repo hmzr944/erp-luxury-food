@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { RolesGuard } from '../common/guards/roles.guard'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { Roles } from '../common/decorators/roles.decorator'
+import { RequireSubscription } from '../common/decorators/require-subscription.decorator'
 import { UsersService, type Actor } from './users.service'
 import { Role } from '@erp/types'
 import { BadgeDto, CreateUserDto, UpdatePasswordDto, UpdateProfileDto, UpdateRoleDto } from './users.dto'
@@ -78,6 +79,7 @@ export class UsersController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(Role.OWNER, Role.MANAGER)
+  @RequireSubscription()
   create(@CurrentUser() user: Actor, @Body() dto: CreateUserDto) {
     return this.users.create(user, dto)
   }

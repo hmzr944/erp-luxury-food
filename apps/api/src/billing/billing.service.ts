@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { PLAN_OFFERS, type PlanCode } from '@erp/types'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { mapStripeStatus, stripeCall, StripeBillingError, verifyStripeSignature } from './stripe-billing'
+import { accessState, billingEnabled } from './access-state'
 
 interface StripeEvent {
   id: string
@@ -29,7 +30,7 @@ export class BillingService {
     return this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000'
   }
 
-  async status(organizationId: string, role?: string) {
+  async status(organizationId: string, role?: string, now = new Date()) {
     const org = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
       select: {
@@ -37,7 +38,9 @@ export class BillingService {
         _count: { select: { sites: true } },
       },
     })
-    const daysLeft = org.trialEndsAt ? Math.max(0, Math.ceil((org.trialEndsAt.getTime() - Date.now()) / 86_400_000)) : null
+    const daysLeft = org.trialEndsAt ? Math.max(0, Math.ceil((org.trialEndsAt.getTime() - now.getTime()) / 86_400_000)) : null
+    const onlinePayment = billingEnabled(this.config)
+    const access = accessState(org, now, { billingEnabled: onlinePayment })
     const offer = PLAN_OFFERS.find((p) => p.code === org.plan) ?? PLAN_OFFERS[0]
     return {
       plan: offer.code,
@@ -49,7 +52,11 @@ export class BillingService {
       sites: org._count.sites,
       monthlyEstimate: offer.monthlyPrice * Math.max(1, org._count.sites),
       // Sans clés Stripe (démo, auto-hébergement) : l'essai continue, rien n'est facturé
-      onlinePayment: !!this.secretKey && !!this.price('STARTER'),
+      onlinePayment,
+      // Accès à la caisse : essai, abonné, délai de grâce ou verrouillé (nouvelles
+      // ventes impossibles ; ventes en attente, clôtures et exports toujours permis)
+      access: access.state,
+      lockAt: access.lockAt,
       hasPaymentMethod: !!org.stripeCustomerId,
       // Souscrire et résilier : réservé au titulaire du compte
       canManage: role === 'OWNER',

@@ -8,6 +8,7 @@ import { ProductsService } from './products.service'
 import { StarterService } from './starter.service'
 import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
+import { RequireSubscription } from '../common/decorators/require-subscription.decorator'
 import { Role } from '@erp/types'
 import {
   CategoryDto,
@@ -95,11 +96,13 @@ export class ProductsController {
   }
 
   @Post('products')
+  @RequireSubscription()
   create(@Param('siteId') siteId: string, @Body() dto: CreateProductDto) {
     return this.products.create(siteId, dto)
   }
 
   @Patch('products/:id')
+  @RequireSubscription()
   update(
     @Param('siteId') siteId: string,
     @Param('id') id: string,
@@ -122,11 +125,13 @@ export class ProductsController {
   }
 
   @Post('modifier-groups')
+  @RequireSubscription()
   createModifierGroup(@Param('siteId') siteId: string, @Body() dto: ModifierGroupDto) {
     return this.products.createModifierGroup(siteId, dto)
   }
 
   @Patch('modifier-groups/:id')
+  @RequireSubscription()
   updateModifierGroup(@Param('siteId') siteId: string, @Param('id') id: string, @Body() dto: ModifierGroupDto) {
     return this.products.updateModifierGroup(id, siteId, dto)
   }
@@ -145,6 +150,7 @@ export class ProductsController {
   }
 
   @Post('categories')
+  @RequireSubscription()
   createCategory(
     @Param('siteId') siteId: string,
     @Body() dto: CategoryDto,
@@ -153,6 +159,7 @@ export class ProductsController {
   }
 
   @Patch('categories/:id')
+  @RequireSubscription()
   updateCategory(
     @Param('siteId') siteId: string,
     @Param('id') id: string,

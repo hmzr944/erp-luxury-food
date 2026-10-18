@@ -29,6 +29,9 @@ import { CustomItemSheet, QuickProductSheet } from './QuickSheets'
 import type { PayLine } from './CreditPayment'
 import { ReturnFinder } from './ReturnFinder'
 import { CashCloseSheet, CashOpenSheet, useCashState } from './CashSheets'
+import { SaleLock } from './SaleLock'
+import { AccessNotice } from '@/components/billing/AccessNotice'
+import { useAccess } from '@/lib/api/billing'
 import { DiscoveryChecklist, useDiscovery } from './Discovery'
 import { ClosingChecklist, LockScreen, RoutineBanner, YesterdayClosure, useIdle, useRoutine } from './Routine'
 import { PinPad } from '@/components/auth/PinPad'
@@ -62,6 +65,14 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
   const { pinLogin, badgeLogin, user } = useAuthStore()
   const sellerName = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : null
   const manager = user?.role === 'OWNER' || user?.role === 'MANAGER'
+  // Essai terminé et délai de grâce passé : plus de nouvelle vente (ni fictive).
+  // Statut inconnu hors ligne : rien n'est bloqué. Les ventes en attente partent
+  const access = useAccess()
+  const salesLocked = access.state === 'locked'
+  useEffect(() => {
+    useCartStore.getState().setSalesLocked(salesLocked)
+    return () => useCartStore.getState().setSalesLocked(false)
+  }, [salesLocked])
   const [printerOpen, setPrinterOpen] = useState(false)
   const [displayOpen, setDisplayOpen] = useState(false)
   // QR de paiement montré à l'écran client
@@ -158,6 +169,10 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
   }, [trainingKey])
   const toggleTraining = () => setTrainingMode(!training)
   const setTrainingMode = async (next: boolean) => {
+    if (next && salesLocked) {
+      toast('Mode formation indisponible : abonnez-vous pour reprendre les ventes.')
+      return false
+    }
     try {
       await fiscalApi.training(siteId, next, terminalId)
     } catch (e) {
@@ -474,12 +489,13 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
             setSwitching(true)
           }}
           training={training}
-          onTraining={manager ? () => void toggleTraining() : undefined}
+          onTraining={manager && (!salesLocked || training) ? () => void toggleTraining() : undefined}
           onPrinter={() => setPrinterOpen(true)}
           onDisplay={() => setDisplayOpen(true)}
           onLock={requestLock}
         />
         <RoutineBanner status={routine.data} onOpen={() => setChecklist('manual')} />
+        <AccessNotice canSubscribe={manager} />
         {training && (
           <div role="status" className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-2 text-sm font-semibold text-[var(--color-text-inverse)]">
             <span>Mode formation : ventes fictives, ni comptées, ni déstockées. Tickets marqués « fictif ».</span>
@@ -492,17 +508,28 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
         )}
 
         <div className="flex min-h-0 flex-1">
-          <Catalog
-            products={products.data ?? []}
-            categories={categories.data ?? []}
-            isLoading={products.isLoading}
-            isError={products.isError}
-            onPick={pick}
-            scaleRules={config?.scaleBarcodes}
-            onCustom={() => setCustomOpen(true)}
-            onGiftCard={() => setGiftOpen(true)}
-            onCreate={setCreateSeed}
-          />
+          {salesLocked && !lines.length && !receipt ? (
+            <SaleLock
+              status={access.snapshot?.status}
+              manager={manager}
+              pending={queue.pending}
+              online={queue.online}
+              cashOpen={cash.data ? !!cash.data.session : null}
+              onCloseCash={() => setCashSheet('close')}
+            />
+          ) : (
+            <Catalog
+              products={products.data ?? []}
+              categories={categories.data ?? []}
+              isLoading={products.isLoading}
+              isError={products.isError}
+              onPick={pick}
+              scaleRules={config?.scaleBarcodes}
+              onCustom={() => setCustomOpen(true)}
+              onGiftCard={() => setGiftOpen(true)}
+              onCreate={setCreateSeed}
+            />
+          )}
 
           {/* Tablette et ordinateur : le ticket reste visible à droite */}
           <aside
