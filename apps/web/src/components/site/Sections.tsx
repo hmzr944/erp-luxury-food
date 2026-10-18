@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Check } from '@phosphor-icons/react/dist/ssr'
 import { PLAN_OFFERS, TRIAL_DAYS } from '@erp/types'
 import { BRAND } from '@/lib/brand'
+import { LEGAL_PAGES } from '@/lib/legal'
 import { RayonGlyph } from '@/components/brand/RayonGlyph'
 import type { RayonShape } from '@/lib/brand'
 import { HeroMark } from './HeroMark'
@@ -423,6 +424,17 @@ export function SiteFooter() {
           Marquise de Photographie. Captures : la caisse {BRAND}.
         </p>
       </div>
+      <nav aria-label="Informations légales" className="mx-auto max-w-6xl px-4 pb-10 md:px-6">
+        <ul className="flex flex-wrap gap-x-6 gap-y-2 border-t border-[var(--color-border)] pt-6 text-[14px] text-[var(--color-text-secondary)]">
+          {LEGAL_PAGES.map((p) => (
+            <li key={p.slug}>
+              <Link href={p.href} className="underline-offset-4 hover:text-[var(--color-text-primary)] hover:underline">
+                {p.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </footer>
   )
 }
