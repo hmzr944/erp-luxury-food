@@ -73,11 +73,11 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
       </div>
 
       {/* Document facture */}
-      <div className="min-h-screen bg-[#F4F2ED] print:bg-white pt-16 print:pt-0 px-4 print:px-0">
+      <div className="min-h-screen bg-[#F4EFE6] print:bg-white pt-16 print:pt-0 px-4 print:px-0">
         <div
           id="invoice"
           className="bg-white mx-auto max-w-2xl shadow-lg print:shadow-none print:max-w-none p-10 print:p-8"
-          style={{ fontFamily: 'var(--font-body)', color: '#14141A' }}
+          style={{ fontFamily: 'var(--font-body)', color: '#1C1726' }}
         >
           {/* En-tête */}
           <div className="flex justify-between items-start mb-10">
@@ -94,7 +94,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
             </div>
 
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '22px', fontWeight: '600', color: '#14141A' }}>
+              <p style={{ fontSize: '22px', fontWeight: '600', color: '#1C1726' }}>
                 {order.invoiceNumber ? `FACTURE ${order.invoiceNumber}` : 'FACTURE (BROUILLON)'}
               </p>
               <p style={{ fontSize: '12px', color: '#727276', marginTop: '4px' }}>
@@ -115,7 +115,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
 
           {/* Client */}
           {order.b2bClient && (
-            <div style={{ marginBottom: '32px', padding: '16px', background: '#F4F2ED', borderRadius: '8px' }}>
+            <div style={{ marginBottom: '32px', padding: '16px', background: '#F4EFE6', borderRadius: '8px' }}>
               <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#727276', marginBottom: '8px' }}>
                 Facturé à
               </p>
@@ -132,7 +132,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
           {/* Lignes */}
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #14141A' }}>
+              <tr style={{ borderBottom: '2px solid #1C1726' }}>
                 <th style={{ textAlign: 'left', padding: '8px 0', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#4A4A4F' }}>
                   Désignation
                 </th>
@@ -198,7 +198,7 @@ export function InvoicePage({ orderId }: InvoicePageProps) {
                 <span style={{ fontFamily: 'var(--font-data)' }}>{formatPrice(total)}</span>
               </div>
               {order.paymentTerms !== undefined && (
-                <div style={{ padding: '8px', background: '#F4F2ED', borderRadius: '6px', fontSize: '11px', color: '#4A4A4F', marginTop: '8px' }}>
+                <div style={{ padding: '8px', background: '#F4EFE6', borderRadius: '6px', fontSize: '11px', color: '#4A4A4F', marginTop: '8px' }}>
                   Paiement: {order.paymentTerms === 0 ? 'Comptant' : `${order.paymentTerms} jours`}
                   {dueDate ? ` (${dueDate.toLocaleDateString('fr-FR')})` : ''}
                 </div>

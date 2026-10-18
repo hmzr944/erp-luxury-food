@@ -69,7 +69,7 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-[100dvh] bg-[var(--color-bg-base)] text-[var(--color-text-primary)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      {/* Grand écran : le signe se forme sur l'aplat encre, une fois ; seul le trait est Klein */}
+      {/* Grand écran : le signe se forme sur l'aplat encre, une fois ; moitié papier, moitié violette */}
       <aside aria-hidden className="relative hidden overflow-hidden bg-[var(--color-bg-inverse)] lg:flex lg:items-center lg:justify-center">
         <FlowMark size={300} inverse motion="form" />
       </aside>

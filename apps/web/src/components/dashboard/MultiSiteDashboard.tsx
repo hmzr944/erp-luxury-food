@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { EASE_OUT } from '@/lib/motion'
 
 // Une ligne de chiffres posés sur la typographie, séparés par des filets.
-// Seul le chiffre d'affaires prend le Klein.
+// Seul le chiffre d'affaires prend le violet.
 function ConsolidatedKPI({
   label, value, sub, accent, index,
 }: { label: string; value: string; sub?: string; accent?: boolean; index: number }) {

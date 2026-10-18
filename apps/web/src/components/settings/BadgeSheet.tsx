@@ -116,8 +116,8 @@ function QrCard({ member, svg, payload }: { member: Member; svg: string; payload
     <div><div style="font-weight:600;font-size:12pt">${escapeHtml(member.firstName)} ${escapeHtml(member.lastName)}</div><div style="font-size:8pt;color:#4A4A4F">Badge caisse, personnel</div></div></div>`
   return (
     <div className="space-y-4 pb-2">
-      <div className="mx-auto w-56 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-white p-4 text-[#14141A]">
-        <FlowWordmark cap={14} className="text-[#14141A]" />
+      <div className="mx-auto w-56 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-white p-4 text-[#1C1726]">
+        <FlowWordmark cap={14} className="text-[#1C1726]" />
         <div className="mx-auto my-3 w-44" dangerouslySetInnerHTML={{ __html: svg }} aria-label={`QR code du badge de ${member.firstName}`} role="img" />
         <p className="text-[15px] font-semibold">
           {member.firstName} {member.lastName}

@@ -2,73 +2,109 @@
 
 /* ============================================================
    IDENTITÉ FLŌW : trois couleurs, pas une de plus
-   Encre    #14141A  lire (textes, formes du signe)
-   Papier   #F4F2ED  le fond, le calme
-   Klein    #1F3FFF  agir (encaisser, valider, l'élément actif)
+   Encre    #1C1726  lire (textes, moitié gauche du signe)
+   Papier   #F4EFE6  le fond, le calme du papier kraft clair
+   Violet   #4B2BD6  agir (encaisser, valider, moitié droite du signe),
+                     le violet des tampons de commerce
    Tout le reste (surfaces, bordures, textes secondaires) est un mélange
    de ces trois. Pas de rouge ni de vert : un état se dit par un libellé et
-   une icône ; ce qui va bien prend le Klein, ce qui alerte prend l'encre.
+   une icône ; ce qui va bien prend le violet, ce qui alerte prend l'encre.
+   Contrastes mesurés : encre/papier 15,3:1, papier sur violet 7,0:1,
+   en sombre papier/encre 15,3:1 et encre sur violet clair #A9A6FF 8,0:1.
    ============================================================ */
 
-/* Typographie FLŌW : Funnel (NORD ID, Kristian Möller, 2024, licence OFL).
-   Ses terminaisons en entonnoir donnent une voix propre à la marque ;
-   chiffres à chasse fixe par défaut, les montants restent alignés. */
+/* Typographie FLŌW (licence OFL, auto-hébergée pour le hors ligne) :
+   Bricolage Grotesque (Mathieu Triay) pour la voix de la marque, ses
+   pièges à encre rappellent l'impression ; Hanken Grotesk pour lire et
+   saisir, chiffres alignés ; Courier Prime pour le ticket et les codes. */
 @font-face {
-  font-family: 'Funnel Display';
+  font-family: 'Bricolage Grotesque';
   font-style: normal;
   font-display: swap;
-  font-weight: 300 800;
-  src: url('/fonts/funnel-display-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  src: url('/fonts/bricolage-grotesque-latin-opsz.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: 'Funnel Display';
+  font-family: 'Bricolage Grotesque';
   font-style: normal;
   font-display: swap;
-  font-weight: 300 800;
-  src: url('/fonts/funnel-display-latin-ext-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  src: url('/fonts/bricolage-grotesque-latin-ext-opsz.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
-  font-family: 'Funnel Sans';
+  font-family: 'Hanken Grotesk';
   font-style: normal;
   font-display: swap;
-  font-weight: 300 800;
-  src: url('/fonts/funnel-sans-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  src: url('/fonts/hanken-grotesk-latin-wght-normal.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: 'Funnel Sans';
+  font-family: 'Hanken Grotesk';
   font-style: normal;
   font-display: swap;
-  font-weight: 300 800;
-  src: url('/fonts/funnel-sans-latin-ext-wght-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  src: url('/fonts/hanken-grotesk-latin-ext-wght-normal.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
-  font-family: 'Funnel Sans';
+  font-family: 'Hanken Grotesk';
   font-style: italic;
   font-display: swap;
-  font-weight: 300 800;
-  src: url('/fonts/funnel-sans-latin-wght-italic.woff2') format('woff2');
+  font-weight: 100 900;
+  src: url('/fonts/hanken-grotesk-latin-wght-italic.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: 'Funnel Sans';
+  font-family: 'Hanken Grotesk';
   font-style: italic;
   font-display: swap;
-  font-weight: 300 800;
-  src: url('/fonts/funnel-sans-latin-ext-wght-italic.woff2') format('woff2');
+  font-weight: 100 900;
+  src: url('/fonts/hanken-grotesk-latin-ext-wght-italic.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Courier Prime';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('/fonts/courier-prime-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Courier Prime';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('/fonts/courier-prime-latin-ext-400-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Courier Prime';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('/fonts/courier-prime-latin-700-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Courier Prime';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('/fonts/courier-prime-latin-ext-700-normal.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 :root {
-  --base-bg: #F4F2ED;      /* Papier */
-  --base-ink: #14141A;     /* Encre */
-  --base-accent: #1F3FFF;  /* Klein */
-  --base-on-accent: #F4F2ED;
-  --base-surface: color-mix(in srgb, #FFFFFF 70%, #F4F2ED);
-  --scrim: color-mix(in srgb, #14141A 45%, transparent);
+  --base-bg: #F4EFE6;      /* Papier */
+  --base-ink: #1C1726;     /* Encre */
+  --base-accent: #4B2BD6;  /* Violet tampon */
+  --base-on-accent: #F4EFE6;
+  --base-surface: color-mix(in srgb, #FFFFFF 70%, #F4EFE6);
+  --scrim: color-mix(in srgb, #1C1726 45%, transparent);
   /* Dosage des mélanges encre/papier, réglé par mode (contrastes mesurés) */
   --mix-secondary: 78%;
   --mix-muted: 62%;
@@ -78,14 +114,14 @@
 
 /* Sombre : réglage de l'appareil, ou imposé par un espace (atelier : lisible
    à distance) via data-theme sur <html>. Mêmes trois couleurs, inversées ;
-   le Klein s'éclaircit pour rester lisible sur l'encre. */
+   le violet s'éclaircit pour rester lisible sur l'encre. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --base-bg: #14141A;
-    --base-ink: #F4F2ED;
-    --base-accent: #A3AFFF;
-    --base-on-accent: #14141A;
-    --base-surface: color-mix(in srgb, #F4F2ED 6%, #14141A);
+    --base-bg: #1C1726;
+    --base-ink: #F4EFE6;
+    --base-accent: #A9A6FF;
+    --base-on-accent: #1C1726;
+    --base-surface: color-mix(in srgb, #F4EFE6 6%, #1C1726);
     --scrim: color-mix(in srgb, #08080B 65%, transparent);
     --mix-secondary: 85%;
     --mix-muted: 70%;
@@ -95,11 +131,11 @@
 }
 
 :root[data-theme="dark"] {
-  --base-bg: #14141A;
-  --base-ink: #F4F2ED;
-  --base-accent: #A3AFFF;
-  --base-on-accent: #14141A;
-  --base-surface: color-mix(in srgb, #F4F2ED 6%, #14141A);
+  --base-bg: #1C1726;
+  --base-ink: #F4EFE6;
+  --base-accent: #A9A6FF;
+  --base-on-accent: #1C1726;
+  --base-surface: color-mix(in srgb, #F4EFE6 6%, #1C1726);
   --scrim: color-mix(in srgb, #08080B 65%, transparent);
   --mix-secondary: 85%;
   --mix-muted: 70%;
@@ -129,7 +165,7 @@
   --color-on-accent:    var(--base-on-accent);
 
   /* États : pas de couleur à part, toujours un libellé et une icône.
-     Ce qui va bien : Klein. Ce qui alerte : encre. */
+     Ce qui va bien : violet. Ce qui alerte : encre. */
   --color-success: var(--base-accent);
   --color-warning: var(--base-ink);
   --color-danger:  var(--base-ink);
@@ -140,12 +176,11 @@
   /* border-strong : contour des champs, 3:1 minimum mesuré sur fond et surface */
   --color-border-strong: color-mix(in srgb, var(--base-ink) var(--mix-strong), var(--base-bg));
 
-  /* Typographie auto-hébergée (disponible hors ligne) : Funnel Display pour
-     la voix de la marque (titres, chiffres clés), Funnel Sans pour lire et
-     saisir, Geist Mono pour les tickets et les données */
-  --font-display: 'Funnel Display', 'Funnel Sans', system-ui, sans-serif;
-  --font-body:    'Funnel Sans', system-ui, sans-serif;
-  --font-data:    var(--font-geist-mono), ui-monospace, monospace;
+  /* Bricolage pour les titres et chiffres clés, Hanken pour l'interface,
+     Courier Prime pour les tickets, codes et signatures */
+  --font-display: 'Bricolage Grotesque', 'Hanken Grotesk', system-ui, sans-serif;
+  --font-body:    'Hanken Grotesk', system-ui, sans-serif;
+  --font-data:    'Courier Prime', ui-monospace, monospace;
 
   /* Rayons : une seule échelle */
   --radius-sm:  6px;
@@ -334,7 +369,7 @@
 /* Chargement : invisible les 200 premières millisecondes */
 .loading-in { animation: flow-glow-in 200ms ease 200ms both; }
 
-/* Tuile de caisse : le trait Klein (le macron du Ō) se tire quand le produit
+/* Tuile de caisse : le trait violet (le macron du Ō) se tire quand le produit
    entre dans la vente. Transition, pas keyframes : on tape vite. */
 .tile-bar { transform: scaleX(0); transform-origin: left; transition: transform 240ms var(--ease-out); }
 .tile-bar.is-on { transform: none; }

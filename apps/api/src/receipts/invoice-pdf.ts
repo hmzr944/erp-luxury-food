@@ -1,4 +1,5 @@
 import { join } from 'path'
+import { BRAND_COLORS } from '@erp/utils'
 import PDFDocument from 'pdfkit'
 
 const FONTS = join(__dirname, '..', '..', 'assets', 'fonts')
@@ -29,16 +30,16 @@ const pct = (r: number) => `${String(r).replace('.', ',')} %`
 export function renderInvoicePdf(inv: InvoiceDoc): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `Facture ${inv.number}`, Author: inv.seller.name, Producer: inv.software, Creator: inv.software } })
-    doc.registerFont('r', join(FONTS, 'FunnelSans-Regular.ttf'))
-    doc.registerFont('m', join(FONTS, 'FunnelSans-Medium.ttf'))
-    doc.registerFont('b', join(FONTS, 'FunnelSans-SemiBold.ttf'))
-    doc.registerFont('d', join(FONTS, 'FunnelDisplay-SemiBold.ttf'))
+    doc.registerFont('r', join(FONTS, 'HankenGrotesk-Regular.ttf'))
+    doc.registerFont('m', join(FONTS, 'HankenGrotesk-Medium.ttf'))
+    doc.registerFont('b', join(FONTS, 'HankenGrotesk-SemiBold.ttf'))
+    doc.registerFont('d', join(FONTS, 'BricolageGrotesque-Bold.ttf'))
     const chunks: Buffer[] = []
     doc.on('data', (c: Buffer) => chunks.push(c))
     doc.on('end', () => resolve(Buffer.concat(chunks)))
     doc.on('error', reject)
 
-    const ink = '#14141A'
+    const ink = BRAND_COLORS.ink
     const muted = '#5A5A66'
     const left = 48
     const right = doc.page.width - 48

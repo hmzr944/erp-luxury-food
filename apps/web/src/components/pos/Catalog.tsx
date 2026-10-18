@@ -158,7 +158,7 @@ export function Catalog({ products, categories, isLoading, isError, onPick, scal
                   active ? 'font-semibold text-[var(--color-on-accent)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]',
                 ].join(' ')}
               >
-                {/* La pastille Klein glisse d'un rayon à l'autre */}
+                {/* La pastille violette glisse d'un rayon à l'autre */}
                 {active && (
                   <motion.span
                     layoutId="rayon-actif"
@@ -236,7 +236,7 @@ export function Catalog({ products, categories, isLoading, isError, onPick, scal
 }
 
 // La forme du rayon marque la tuile : on repère « Mailles » ou « Pâtisseries »
-// d'un coup d'œil. Un produit déjà dans la vente porte le trait Klein du Ō.
+// d'un coup d'œil. Un produit déjà dans la vente porte le trait violet.
 function ProductTile({ product, shape, onPick }: { product: ApiProduct; shape?: RayonShape; onPick: () => void }) {
   const prices = product.variants.length ? product.variants.map((v) => Number(v.price)) : [Number(product.price)]
   const min = Math.min(...prices)

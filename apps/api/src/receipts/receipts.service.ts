@@ -185,7 +185,7 @@ export function renderTicketPdf(t: TicketModel): Promise<Buffer> {
   const margin = 12
   return new Promise((resolve, reject) => {
     const probe = new PDFDocument({ autoFirstPage: false })
-    probe.registerFont('mono', join(FONTS, 'GeistMono-Regular.ttf'))
+    probe.registerFont('mono', join(FONTS, 'CourierPrime-Regular.ttf'))
     // Taille telle que `cols` caractères tiennent pile dans la largeur utile
     const charAt1 = probe.font('mono').fontSize(1).widthOfString('0')
     const size = Math.floor(((width - margin * 2) / (cols * charAt1)) * 10) / 10
@@ -194,8 +194,8 @@ export function renderTicketPdf(t: TicketModel): Promise<Buffer> {
     const height = margin * 2 + rows.reduce((a, r) => a + (r.big && fits(r.text) ? lh * 1.4 : lh), 0)
 
     const doc = new PDFDocument({ size: [width, height], margin, info: { Title: `${t.title} ${t.shop.name}`, Producer: t.software, Creator: t.software } })
-    doc.registerFont('mono', join(FONTS, 'GeistMono-Regular.ttf'))
-    doc.registerFont('mono-bold', join(FONTS, 'GeistMono-SemiBold.ttf'))
+    doc.registerFont('mono', join(FONTS, 'CourierPrime-Regular.ttf'))
+    doc.registerFont('mono-bold', join(FONTS, 'CourierPrime-Bold.ttf'))
     const chunks: Buffer[] = []
     doc.on('data', (c: Buffer) => chunks.push(c))
     doc.on('end', () => resolve(Buffer.concat(chunks)))

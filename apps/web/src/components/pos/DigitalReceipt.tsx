@@ -14,7 +14,7 @@ export function DigitalReceipt({ siteId, clientId, initialEmail }: { siteId: str
   const [state, setState] = useState<{ kind: 'idle' | 'busy' | 'sent' | 'error'; message?: string }>(initialEmail ? { kind: 'sent', message: initialEmail } : { kind: 'idle' })
 
   useEffect(() => {
-    QRCode.toString(url, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#14141A', light: '#00000000' } })
+    QRCode.toString(url, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#1C1726', light: '#00000000' } })
       .then(setSvg)
       .catch(() => setSvg(''))
   }, [url])

@@ -39,7 +39,7 @@ export function MobileNav() {
           const active = isActive(href)
           return (
             <Link key={href} href={href} aria-current={active ? 'page' : undefined} className={`${tab} ${active ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
-              {/* Le trait Klein du Ō marque l'onglet actif */}
+              {/* Le trait violet marque l'onglet actif */}
               {active && <span aria-hidden className="absolute top-0 h-1 w-8 rounded-b-full bg-[var(--color-accent)]" />}
               <Icon size={22} aria-hidden weight={active ? 'fill' : 'regular'} />
               <span className="max-w-full truncate px-1">{label === 'Tableau de bord' ? 'Accueil' : label === 'Approvisionnement' ? 'Appro' : label === 'Commandes' ? 'Ventes' : label}</span>

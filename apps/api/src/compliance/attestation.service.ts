@@ -3,6 +3,8 @@ import { join } from 'path'
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import PDFDocument from 'pdfkit'
 import { FISCAL_SOFTWARE } from '@erp/types'
+import { BRAND_COLORS } from '@erp/utils'
+import { drawBrandLogo } from '../common/pdf/brand'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { SigningKeyService } from './signing-key.service'
 import { FiscalEventsService } from './fiscal-events.service'
@@ -30,8 +32,8 @@ export function editorFromEnv(env: NodeJS.ProcessEnv = process.env): EditorIdent
 }
 
 const FONTS = join(__dirname, '..', '..', 'assets', 'fonts')
-const INK = '#14141A'
-const KLEIN = '#1F3FFF'
+const INK = BRAND_COLORS.ink
+const ACCENT = BRAND_COLORS.accent
 const MUTED = '#4A4A4F'
 
 // Périmètre attesté : les fonctions de caisse qui enregistrent les
@@ -145,9 +147,9 @@ export class AttestationService {
       doc.on('end', () => resolve(Buffer.concat(chunks)))
       doc.on('error', reject)
 
-      doc.registerFont('regular', join(FONTS, 'FunnelSans-Regular.ttf'))
-      doc.registerFont('medium', join(FONTS, 'FunnelSans-Medium.ttf'))
-      doc.registerFont('semibold', join(FONTS, 'FunnelSans-SemiBold.ttf'))
+      doc.registerFont('regular', join(FONTS, 'HankenGrotesk-Regular.ttf'))
+      doc.registerFont('medium', join(FONTS, 'HankenGrotesk-Medium.ttf'))
+      doc.registerFont('semibold', join(FONTS, 'HankenGrotesk-SemiBold.ttf'))
       const width = doc.page.width - 128
 
       // Le nom FLŌW dessiné, comme dans l'application
@@ -161,7 +163,7 @@ export class AttestationService {
       const section = (title: string) => {
         doc.moveDown(0.8)
         const y = doc.y
-        doc.save().roundedRect(64, y + 3, 22, 4, 2).fill(KLEIN).restore()
+        doc.save().roundedRect(64, y + 3, 22, 4, 2).fill(ACCENT).restore()
         doc.font('semibold').fontSize(12).fillColor(INK).text(title, 94, y - 3, { width: width - 30 })
         doc.moveDown(0.5)
         doc.x = 64
@@ -216,19 +218,8 @@ export class AttestationService {
     })
   }
 
-  // Tracés du nom FLŌW (mêmes formes que dans l'application), en points PDF
+  // Logo FLŌW (signe et nom, mêmes tracés que l'application), en points PDF
   private wordmark(doc: PDFKit.PDFDocument, x: number, y: number, cap: number) {
-    const k = cap / 41
-    doc.save()
-    doc.translate(x, y + 10 * k).scale(k)
-    doc.lineWidth(7).lineCap('round').lineJoin('round').strokeColor(INK)
-    doc.path('M3.5 4.5 V37.5 M3.5 4.5 H22 M3.5 20.5 H17').stroke()
-    doc.path('M35 4.5 V37.5 H52.5').stroke()
-    doc.path('M113 4.5 L120 37.5 L128 15 L136 37.5 L143 4.5').stroke()
-    doc.lineCap('butt')
-    doc.path('M81.5 3 A16.5 16.5 0 0 0 81.5 36').stroke()
-    doc.path('M84.5 6 A16.5 16.5 0 0 1 84.5 39').stroke()
-    doc.lineCap('round').strokeColor(KLEIN).path('M73 -6 H93').stroke()
-    doc.restore()
+    drawBrandLogo(doc, x, y, cap)
   }
 }

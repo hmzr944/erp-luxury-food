@@ -2,7 +2,7 @@ import type { RayonShape } from '@/lib/brand'
 
 // Formes des rayons, sur une grille de 16 : la famille du signe FLŌW (cercle
 // et pilule) déclinée en dix formes. Toujours en encre, 16 px minimum : le
-// Klein reste réservé à l'action, le trait seul reste au logo.
+// le violet reste réservé à l'action.
 const SHAPES: Record<RayonShape, React.ReactNode> = {
   disque: <circle cx="8" cy="8" r="6" />,
   moitie: <path d="M8 2 A6 6 0 0 0 8 14 Z" />,

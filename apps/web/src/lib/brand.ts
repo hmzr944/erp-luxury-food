@@ -1,4 +1,4 @@
-// Identité FLŌW : trois couleurs (encre, papier, Klein). Les rayons ne se
+// Identité FLŌW : trois couleurs (encre, papier, violet). Les rayons ne se
 // distinguent pas par la couleur mais par une forme, tirée du signe : disque,
 // moitiés, trait. On reconnaît « Maille » ou « Pâtisseries » à sa forme.
 export const BRAND = 'FLŌW'

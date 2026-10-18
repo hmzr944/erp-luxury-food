@@ -401,7 +401,7 @@ export function FinalCall() {
             Créer mon compte
           </Link>
         </div>
-        {/* Le signe entier, sur l'encre : moitiés papier, trait Klein */}
+        {/* Le signe entier, sur l'encre : moitié papier, moitié violette */}
         <FlowMark size={168} inverse className="reveal hidden md:block" />
       </div>
     </section>

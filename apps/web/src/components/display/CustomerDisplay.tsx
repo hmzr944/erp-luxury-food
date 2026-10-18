@@ -154,7 +154,7 @@ function useQr(url: string | null, dark: string) {
 }
 
 function PayByQr({ state }: { state: Extract<DisplayState, { kind: 'pay' }> }) {
-  const svg = useQr(state.url, '#14141A')
+  const svg = useQr(state.url, '#1C1726')
   return (
     <div className="flex flex-col items-center gap-5 text-center">
       <p className="text-[clamp(1.2rem,2vw,1.6rem)] font-semibold">Scannez pour payer</p>
@@ -168,7 +168,7 @@ function PayByQr({ state }: { state: Extract<DisplayState, { kind: 'pay' }> }) {
 }
 
 function Done({ state }: { state: Extract<DisplayState, { kind: 'done' }> }) {
-  const svg = useQr(state.receiptUrl, '#14141A')
+  const svg = useQr(state.receiptUrl, '#1C1726')
   return (
     <motion.section
       initial={{ opacity: 0 }}

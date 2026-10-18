@@ -75,7 +75,7 @@ export function QrPayWait({
   const payment = view.kind === 'waiting' ? view.payment : null
   useEffect(() => {
     if (!payment?.checkoutUrl) return setSvg('')
-    QRCode.toString(payment.checkoutUrl, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#14141A', light: '#00000000' } })
+    QRCode.toString(payment.checkoutUrl, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#1C1726', light: '#00000000' } })
       .then(setSvg)
       .catch(() => setSvg(''))
   }, [payment?.checkoutUrl])
