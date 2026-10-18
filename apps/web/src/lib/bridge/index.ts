@@ -1,4 +1,5 @@
-export { BridgeClient, BridgeCallError, DEFAULT_BRIDGE_URL, bytesToBase64, getBridge } from './client'
+export { BridgeClient, BridgeCallError, DEFAULT_BRIDGE_URL, bytesToBase64, currentBridgeUrls, getBridge, probeBridge, setBridgeAddress, type BridgeProbe } from './client'
+export { bridgePageUrl, bridgeUrls, DEFAULT_BRIDGE_PORT, formatBridgeAddress, parseBridgeAddress, readBridgeAddress, type BridgeAddress } from './address'
 export { useBridge } from './useBridge'
 export * from './types'
 export { getBridgeTpe, setBridgeTpe, useBridgeTpe, type BridgeTpeConfig } from './tpe'

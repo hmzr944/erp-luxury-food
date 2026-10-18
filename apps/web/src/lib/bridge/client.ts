@@ -2,7 +2,9 @@
 // du magasin qui pilote imprimantes, tiroir et terminal de paiement.
 // Aucune API Node ici, et rien ne s'exécute à l'import (rendu serveur sûr).
 
+import { bridgeUrls, parseBridgeAddress, readBridgeAddress, writeBridgeAddress } from './address'
 import {
+  CLOSE_INSECURE_LAN,
   CLOSE_ORIGIN_REFUSED,
   type BridgeErrorBody,
   type BridgeEvents,
@@ -66,7 +68,50 @@ export class BridgeClient {
   // Dernière erreur lisible (origine refusée, jeton révoqué...) pour l'écran de réglages
   lastError: BridgeErrorBody | null = null
 
-  constructor(readonly url: string = DEFAULT_BRIDGE_URL) {}
+  // Adresses essayées dans l'ordre (wss puis ws) ; on garde celle qui a répondu
+  private urls: string[]
+  private urlIndex = 0
+  // Essais ratés d'affilée sur la liste, pour savoir quand faire une pause
+  private misses = 0
+  private _secure = false
+
+  constructor(urls: string | string[] = DEFAULT_BRIDGE_URL) {
+    this.urls = Array.isArray(urls) ? urls : [urls]
+  }
+
+  get url(): string {
+    return this.urls[this.urlIndex] ?? this.urls[0]
+  }
+
+  // Connecté en wss:// (certificat du pont approuvé par cet appareil)
+  get secure(): boolean {
+    return this._secure
+  }
+
+  // Nouvel essai sans attendre la fin de la pause (certificat tout juste approuvé)
+  reconnect() {
+    if (typeof window === 'undefined' || this.ws) return
+    if (this.retryTimer) clearTimeout(this.retryTimer)
+    this.retryTimer = null
+    this.wanted = true
+    this.attempts = 0
+    this.urlIndex = 0
+    this.misses = 0
+    this.open()
+  }
+
+  // Nouvelle adresse du pont (réglage de l'appareil) : reconnexion immédiate
+  setUrls(urls: string[]) {
+    if (urls.join() === this.urls.join()) return
+    const wanted = this.wanted
+    this.disconnect()
+    this.urls = urls
+    this.urlIndex = 0
+    this.misses = 0
+    this.attempts = 0
+    this.lastError = null
+    if (wanted) this.connect()
+  }
 
   get status(): BridgeStatus {
     return this._status
@@ -122,15 +167,21 @@ export class BridgeClient {
     // clignoter entre « connexion » et « éteint » à chaque nouvel essai
     if (this.attempts === 0) this.setStatus('connecting')
     let ws: WebSocket
+    const url = this.url
     try {
-      ws = new WebSocket(this.url)
+      ws = new WebSocket(url)
     } catch {
-      this.scheduleRetry()
+      // Safari refuse ws:// depuis une page https : on passe à l'adresse suivante
+      this.nextUrl()
       return
     }
     this.ws = ws
+    let opened = false
     ws.onopen = () => {
+      opened = true
       this.attempts = 0
+      this.misses = 0
+      this._secure = url.startsWith('wss:')
       void this.authenticate()
     }
     ws.onmessage = (ev) => this.onMessage(ev.data)
@@ -142,13 +193,28 @@ export class BridgeClient {
           code: 'origin_refused',
           message: "Ce site n'est pas autorisé par le pont (FLOW_BRIDGE_ORIGINS).",
         }
+      } else if (ev.code === CLOSE_INSECURE_LAN) {
+        this.lastError = { code: 'insecure_lan', message: 'Le pont exige une connexion sécurisée depuis le réseau.' }
       }
       this.failPending('disconnected', 'Connexion au pont perdue.')
       this.setStatus('off')
-      this.scheduleRetry()
+      if (opened) this.scheduleRetry()
+      else this.nextUrl()
     }
     // onerror est toujours suivi de onclose : rien à faire de plus
     ws.onerror = () => {}
+  }
+
+  // Adresse suivante tout de suite ; pause seulement après un tour complet
+  private nextUrl() {
+    this.urlIndex = (this.urlIndex + 1) % this.urls.length
+    this.misses += 1
+    if (this.misses < this.urls.length && this.wanted) {
+      this.open()
+      return
+    }
+    this.misses = 0
+    this.scheduleRetry()
   }
 
   private scheduleRetry() {
@@ -272,14 +338,75 @@ export class BridgeClient {
 
 let singleton: BridgeClient | null = null
 
+// Adresses à essayer : réglage de l'appareil, sinon NEXT_PUBLIC_BRIDGE_URL,
+// sinon cet ordinateur (wss puis ws)
+export function currentBridgeUrls(): string[] {
+  const saved = readBridgeAddress()
+  if (!saved && process.env.NEXT_PUBLIC_BRIDGE_URL) return [process.env.NEXT_PUBLIC_BRIDGE_URL]
+  return bridgeUrls(parseBridgeAddress(saved) ?? parseBridgeAddress('')!)
+}
+
+// Enregistre l'adresse du pont pour cet appareil et s'y reconnecte
+export function setBridgeAddress(value: string) {
+  writeBridgeAddress(value)
+  singleton?.setUrls(currentBridgeUrls())
+}
+
 // Un seul socket partagé par tous les composants de la caisse
 export function getBridge(): BridgeClient {
-  if (!singleton) {
-    const url = process.env.NEXT_PUBLIC_BRIDGE_URL || DEFAULT_BRIDGE_URL
-    singleton = new BridgeClient(url)
-  }
+  if (!singleton) singleton = new BridgeClient(currentBridgeUrls())
   if (typeof window !== 'undefined') singleton.connect()
   return singleton
+}
+
+export type BridgeProbe =
+  // Certificat approuvé (ou ws local), pont joignable, cette caisse est appairée
+  | 'paired'
+  // Connexion établie : il reste à saisir le code d'appairage
+  | 'pairing'
+  // Connexion établie mais site non autorisé par le pont
+  | 'origin_refused'
+  // Échec avant toute réponse : certificat non approuvé ou pont injoignable
+  | 'failed'
+
+// Essai isolé d'une adresse, sans toucher à la connexion de la caisse.
+// Le navigateur ne dit jamais pourquoi une connexion wss échoue : un échec
+// veut dire certificat non approuvé OU pont injoignable.
+export function probeBridge(url: string, timeoutMs = 8000): Promise<BridgeProbe> {
+  return new Promise((resolve) => {
+    let ws: WebSocket
+    try {
+      ws = new WebSocket(url)
+    } catch {
+      resolve('failed')
+      return
+    }
+    let done = false
+    const finish = (r: BridgeProbe) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      try {
+        ws.close(1000)
+      } catch {
+        // déjà fermé
+      }
+      resolve(r)
+    }
+    const timer = setTimeout(() => finish('failed'), timeoutMs)
+    ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: 'bridge.hello', params: { token: readToken() || '-' } }))
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(String(ev.data)) as { id?: number; result?: unknown; error?: { code: string } }
+        if (msg.id !== 1) return
+        finish(msg.result ? 'paired' : 'pairing')
+      } catch {
+        finish('pairing')
+      }
+    }
+    ws.onclose = (ev) => finish(ev.code === CLOSE_ORIGIN_REFUSED ? 'origin_refused' : 'failed')
+    ws.onerror = () => {}
+  })
 }
 
 // Encodage base64 des octets ESC/POS pour printer.print

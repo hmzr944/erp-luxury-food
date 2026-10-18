@@ -1,6 +1,7 @@
 // Réglages lus dans l'environnement, avec des valeurs sûres par défaut.
 
 import { readFileSync } from 'node:fs'
+import type { TlsMaterial } from './cert.js'
 import { levelFromEnv, type LogLevel } from './log.js'
 import { defaultHome } from './store.js'
 
@@ -8,11 +9,15 @@ export const DEFAULT_PORT = 51717
 
 export interface BridgeConfig {
   port: number
-  // Toujours la boucle locale : le pont n'écoute jamais sur le réseau
+  // Boucle locale ; « lan » ouvre aussi le pont aux iPad du magasin (0.0.0.0)
   host: '127.0.0.1'
+  lan?: boolean
   origins: string[]
   home: string
-  tls?: { cert: Buffer; key: Buffer }
+  // Certificat servi en wss:// ; sans lui, le pont ne parle qu'en ws:// local
+  tls?: TlsMaterial
+  // Certificats fabriqués par le pont (cert.ts) quand aucun n'est fourni
+  autoTls?: boolean
   logLevel: LogLevel | 'silent'
   maxMessageBytes: number
 }
@@ -35,6 +40,15 @@ export function parseOrigins(value: string | undefined): string[] {
   return list.filter((o) => o !== '*' && o !== 'null')
 }
 
+// « 1 », « oui », « true » / « 0 », « non », « false » ; absent : undefined
+export function parseSwitch(value: string | undefined, name: string): boolean | undefined {
+  if (value === undefined || value.trim() === '') return undefined
+  const v = value.trim().toLowerCase()
+  if (['1', 'oui', 'true', 'on'].includes(v)) return true
+  if (['0', 'non', 'false', 'off'].includes(v)) return false
+  throw new Error(`${name} invalide : ${value} (1 ou 0 attendu)`)
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
   const port = Number(env.FLOW_BRIDGE_PORT ?? DEFAULT_PORT)
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -50,6 +64,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
   return {
     port,
     host: '127.0.0.1',
+    lan: parseSwitch(env.FLOW_BRIDGE_LAN, 'FLOW_BRIDGE_LAN'),
+    // FLOW_BRIDGE_TLS=0 : ancien fonctionnement, ws:// sur 127.0.0.1 seulement
+    autoTls: !tls && parseSwitch(env.FLOW_BRIDGE_TLS, 'FLOW_BRIDGE_TLS') !== false,
     origins: parseOrigins(env.FLOW_BRIDGE_ORIGINS),
     home: env.FLOW_BRIDGE_HOME || defaultHome(),
     tls,

@@ -1,21 +1,34 @@
-// Serveur du pont : HTTP (/health) et WebSocket sur la boucle locale.
+// Serveur du pont : HTTP(S) et WebSocket sur un seul port (51717).
+//
+// Un même port parle wss:// (certificat du pont, cert.ts) et ws:// : le
+// premier octet de chaque connexion dit s'il s'agit de TLS. Chrome, Edge et
+// Firefox gardent ainsi ws://127.0.0.1 sans rien installer ; Safari, qui
+// exige wss://, passe par le certificat approuvé une fois sur l'appareil.
 //
 // N'importe quel site ouvert dans le navigateur du magasin peut tenter de
-// joindre 127.0.0.1 : trois barrières successives.
-// 1. En-tête Host : seulement 127.0.0.1 ou localhost (contre le « DNS rebinding »).
+// joindre le pont : trois barrières successives.
+// 1. En-tête Host : seulement les noms de cet ordinateur (contre le « DNS rebinding »).
 // 2. Origin : seulement les origines déclarées dans FLOW_BRIDGE_ORIGINS.
 // 3. Jeton d'appairage : obtenu une fois avec le code affiché sur l'ordinateur.
+//
+// Accès réseau (iPad, « flow-bridge reseau oui ») : le pont écoute aussi sur
+// le réseau local. Depuis une autre machine, seul wss:// est accepté, sauf le
+// téléchargement du certificat de l'autorité (public par nature) ; les essais
+// d'appairage sont limités par appareil.
 
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { createServer as createHttpsServer } from 'node:https'
-import type { AddressInfo } from 'node:net'
+import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https'
+import { createServer as createNetServer, isIPv4, type AddressInfo, type Server as NetServer, type Socket } from 'node:net'
 import type { Duplex } from 'node:stream'
+import type { TLSSocket } from 'node:tls'
 import { WebSocketServer, type WebSocket } from 'ws'
+import { currentLocalNames, lanIPv4, mobileconfig, type TlsMaterial } from './cert.js'
 import { normalizeOrigin, type BridgeConfig } from './config.js'
 import { defaultDiscoveryDeps, DEFAULT_DISCOVER_TIMEOUT_MS, discoverPrinters, MAX_DISCOVER_TIMEOUT_MS, type DiscoveryDeps } from './discovery.js'
 import { DEFAULT_IPP_PORT, MAX_DOCUMENT_BYTES, printDocument } from './ipp.js'
 import { resolveLanHost } from './lan.js'
 import { createLogger, type Logger } from './log.js'
+import { renderHomePage } from './pages.js'
 import { PairingManager, type PairingOptions } from './pairing.js'
 import { PaymentManager, PAYMENT_ADAPTERS, type PaymentManagerOptions } from './payment/manager.js'
 import { DEFAULT_PRINTER_PORT, PrinterService, probe } from './printer.js'
@@ -29,16 +42,35 @@ export const CAPABILITIES = [
   'printer.discover',
   'printer.ipp',
   'drawer',
+  'bridge.tls',
+  'bridge.lan',
   ...PAYMENT_ADAPTERS.map((a) => `payment.${a}`),
 ]
 
 // Codes de fermeture WebSocket propres au pont
 export const CLOSE_ORIGIN_REFUSED = 4003
+export const CLOSE_INSECURE_LAN = 4004
+
+// Chemins publics : le certificat de l'autorité, à installer sur les appareils
+export const CERT_PATH = '/certificat'
+export const CERT_CER_PATH = '/certificat/flow-bridge.cer'
+export const CERT_PEM_PATH = '/certificat/flow-bridge.pem'
+
+// Limites côté réseau local
+const MAX_CONNECTIONS = 64
+const LAN_PAIR_ATTEMPTS = 10
+const LAN_PAIR_WINDOW_MS = 15 * 60 * 1000
+// Premier octet attendu dans ce délai, sinon la connexion est fermée
+const FIRST_BYTE_TIMEOUT_MS = 10_000
+const TLS_REFRESH_MS = 5 * 60 * 1000
 
 interface Conn {
   ws: WebSocket
   client: PairedClient | null
   origin: string
+  remote: string
+  local: boolean
+  secure: boolean
 }
 
 type Handler = (params: Record<string, unknown>, conn: Conn) => Promise<unknown> | unknown
@@ -51,9 +83,17 @@ export interface BridgeServerOptions {
   forcePairingCode?: boolean
   // Accès réseau de printer.discover (remplacé en test)
   discovery?: DiscoveryDeps
+  // Relit ou renouvelle les certificats (nouvelle adresse IP, échéance proche)
+  refreshTls?: () => TlsMaterial
+  // Mémorise le choix d'accès réseau (bridge.setLan)
+  persistLan?: (enabled: boolean) => void
 }
 
-const ALLOWED_HOSTNAMES = new Set(['127.0.0.1', 'localhost'])
+export function isLoopback(address: string | undefined): boolean {
+  if (!address) return false
+  const a = address.replace(/^::ffff:/, '')
+  return a === '::1' || (isIPv4(a) && a.startsWith('127.'))
+}
 
 function hostnameOf(hostHeader: string | undefined): string | null {
   if (!hostHeader) return null
@@ -95,10 +135,18 @@ export class BridgeServer {
   readonly payments: PaymentManager
   private readonly origins: Set<string>
   private readonly http: Server
+  private readonly https: HttpsServer | null
+  private net: NetServer | null = null
+  private readonly sockets = new Set<Socket>()
   private readonly wss: WebSocketServer
   private readonly conns = new Set<Conn>()
   private readonly methods: Record<string, Handler>
   private readonly publicMethods = new Set(['bridge.pair', 'bridge.hello'])
+  private tls: TlsMaterial | undefined
+  private lan: boolean
+  private refreshTimer: NodeJS.Timeout | undefined
+  private readonly pairAttempts = new Map<string, number[]>()
+  private hostCache: { at: number; names: Set<string> } | null = null
 
   constructor(
     private readonly config: BridgeConfig,
@@ -109,54 +157,202 @@ export class BridgeServer {
     this.pairing = new PairingManager(this.store, this.log, opts.pairing)
     this.payments = new PaymentManager(opts.payments)
     this.origins = new Set(config.origins.map(normalizeOrigin))
+    this.tls = config.tls
+    this.lan = config.lan === true
 
     const onRequest = (req: IncomingMessage, res: ServerResponse) => this.onHttp(req, res)
-    this.http = config.tls ? createHttpsServer({ cert: config.tls.cert, key: config.tls.key }, onRequest) : createHttpServer(onRequest)
+    const onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => this.onUpgrade(req, socket, head)
+    this.http = createHttpServer(onRequest)
+    this.http.on('upgrade', onUpgrade)
+    this.https = config.tls ? createHttpsServer({ cert: config.tls.cert, key: config.tls.key }, onRequest) : null
+    this.https?.on('upgrade', onUpgrade)
+    this.https?.on('tlsClientError', (err) => this.log.debug('Poignée de main TLS refusée', { erreur: err.message }))
+    // Ces serveurs ne font pas listen() eux-mêmes (le port est partagé) :
+    // « listening » met en place leur suivi des connexions et délais d'en-têtes
+    this.http.emit('listening')
+    this.https?.emit('listening')
     this.wss = new WebSocketServer({ noServer: true, maxPayload: config.maxMessageBytes })
-    this.http.on('upgrade', (req, socket, head) => this.onUpgrade(req, socket, head))
     this.methods = this.buildMethods()
   }
 
   get port(): number {
-    return (this.http.address() as AddressInfo | null)?.port ?? this.config.port
+    return (this.net?.address() as AddressInfo | null)?.port ?? this.config.port
+  }
+
+  get secure(): boolean {
+    return !!this.https
   }
 
   get url(): string {
-    return `${this.config.tls ? 'wss' : 'ws'}://127.0.0.1:${this.port}`
+    return `${this.https ? 'wss' : 'ws'}://127.0.0.1:${this.port}`
+  }
+
+  get lanEnabled(): boolean {
+    return this.lan
+  }
+
+  get certificate(): TlsMaterial | undefined {
+    return this.tls
   }
 
   isOriginAllowed(origin: string | undefined): boolean {
     return !!origin && this.origins.has(normalizeOrigin(origin))
   }
 
-  async listen(): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      this.http.once('error', reject)
-      // Jamais 0.0.0.0 : le pont n'est joignable que depuis cet ordinateur
-      this.http.listen(this.config.port, this.config.host, () => {
-        this.http.off('error', reject)
-        resolve()
+  // Adresses à donner aux iPad : https://192.168.1.20:51717
+  lanAddresses(): string[] {
+    return lanIPv4()
+  }
+
+  networkInfo() {
+    const addresses = this.lan ? this.lanAddresses() : []
+    return {
+      lan: this.lan,
+      tls: this.secure,
+      port: this.port,
+      addresses,
+      certificate: this.tls?.ca
+        ? {
+            fingerprint: this.tls.ca.fingerprint,
+            label: this.tls.ca.label,
+            paths: { profile: CERT_PATH, cer: CERT_CER_PATH, pem: CERT_PEM_PATH },
+          }
+        : null,
+    }
+  }
+
+  private listenOn(host: string, port = this.config.port): Promise<NetServer> {
+    const server = createNetServer((socket) => this.onSocket(socket))
+    server.maxConnections = MAX_CONNECTIONS * 2
+    return new Promise((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(port, host, () => {
+        server.off('error', reject)
+        server.on('error', (err) => this.log.error('Erreur du serveur', { erreur: err.message }))
+        resolve(server)
       })
     })
+  }
+
+  async listen(): Promise<void> {
+    this.net = await this.listenOn(this.lan ? '0.0.0.0' : this.config.host)
     this.log.info(`${NAME} ${VERSION} à l'écoute`, { url: this.url, origines: [...this.origins].join(',') })
+    if (this.opts.refreshTls && this.https) {
+      this.refreshTimer = setInterval(() => this.refreshCertificate(), TLS_REFRESH_MS)
+      this.refreshTimer.unref()
+    }
     if (this.opts.forcePairingCode || !this.store.hasClients()) this.pairing.renew()
     else this.log.info('Caisses appairées', { nombre: this.store.listClients().length })
   }
 
+  // Nouvelle adresse IP, échéance proche ou « flow-bridge cert --renouveler » :
+  // le nouveau certificat sert aux connexions suivantes, sans redémarrer
+  refreshCertificate(): boolean {
+    if (!this.opts.refreshTls || !this.https) return false
+    try {
+      const next = this.opts.refreshTls()
+      if (this.tls && next.cert.equals(this.tls.cert) && next.key.equals(this.tls.key)) return false
+      this.https.setSecureContext({ cert: next.cert, key: next.key })
+      const caChanged = next.ca?.fingerprint !== this.tls?.ca?.fingerprint
+      this.tls = next
+      this.hostCache = null
+      this.log.info('Certificat du pont renouvelé', { noms: [...(next.names?.dns ?? []), ...(next.names?.ips ?? [])].join(',') })
+      if (caChanged) this.log.warn("Nouvelle autorité : approuvez à nouveau le certificat sur les Mac et iPad", { empreinte: next.ca?.fingerprint })
+      return true
+    } catch (err) {
+      this.log.error('Renouvellement du certificat impossible', { erreur: err instanceof Error ? err.message : String(err) })
+      return false
+    }
+  }
+
+  // Ouvre ou ferme le pont aux autres appareils du réseau local
+  async setLan(enabled: boolean): Promise<void> {
+    if (enabled === this.lan) return
+    if (enabled && !this.https) {
+      throw new BridgeError('tls_required', "L'accès réseau demande une connexion sécurisée : le certificat du pont est désactivé (FLOW_BRIDGE_TLS=0).")
+    }
+    const old = this.net
+    const port = this.port
+    // Le port doit être libéré avant d'écouter ailleurs : les connexions en cours restent
+    await new Promise<void>((resolve) => {
+      if (!old) return resolve()
+      old.close()
+      setImmediate(resolve)
+    })
+    try {
+      this.net = await this.listenOn(enabled ? '0.0.0.0' : this.config.host, port)
+    } catch (err) {
+      this.net = await this.listenOn(this.lan ? '0.0.0.0' : this.config.host, port)
+      throw new BridgeError('lan_failed', `Impossible de changer l'accès réseau : ${(err as Error).message}`)
+    }
+    this.lan = enabled
+    if (!enabled) {
+      // Les iPad déjà connectés sont coupés
+      for (const s of this.sockets) if (!isLoopback(s.remoteAddress)) s.destroy()
+    }
+    this.log.info(enabled ? 'Accès réseau ouvert' : 'Accès réseau fermé', { adresses: enabled ? this.lanAddresses().join(',') : undefined })
+  }
+
   async close(): Promise<void> {
     this.pairing.stop()
+    clearInterval(this.refreshTimer)
     for (const c of this.conns) c.ws.close(1001, 'Arrêt du pont')
     // Laisser finir les tickets en cours d'envoi, sans bloquer l'arrêt
     await Promise.race([this.printers.queues.drain(), new Promise((r) => setTimeout(r, 5000).unref())])
     await new Promise<void>((resolve) => this.wss.close(() => resolve()))
     for (const c of this.conns) c.ws.terminate()
+    const net = this.net
+    this.net = null
     await new Promise<void>((resolve) => {
-      this.http.close(() => resolve())
-      this.http.closeAllConnections?.()
+      if (!net) return resolve()
+      net.close(() => resolve())
+      for (const s of this.sockets) s.destroy()
+    })
+    this.http.close()
+    this.https?.close()
+  }
+
+  // --- Aiguillage TLS / clair -------------------------------------------
+
+  private onSocket(socket: Socket) {
+    if (this.sockets.size >= MAX_CONNECTIONS * 2) {
+      socket.destroy()
+      return
+    }
+    this.sockets.add(socket)
+    socket.once('close', () => this.sockets.delete(socket))
+    socket.on('error', () => socket.destroy())
+    if (!this.https) {
+      this.http.emit('connection', socket)
+      return
+    }
+    socket.setTimeout(FIRST_BYTE_TIMEOUT_MS, () => socket.destroy())
+    socket.once('data', (chunk: Buffer) => {
+      socket.setTimeout(0)
+      socket.pause()
+      socket.unshift(chunk)
+      // 0x16 : enregistrement TLS « handshake » (ClientHello)
+      const target = chunk[0] === 0x16 ? this.https! : this.http
+      target.emit('connection', socket)
+      process.nextTick(() => socket.resume())
     })
   }
 
   // --- HTTP -------------------------------------------------------------
+
+  private allowedHostnames(): Set<string> {
+    const now = Date.now()
+    if (this.hostCache && now - this.hostCache.at < 30_000) return this.hostCache.names
+    const local = currentLocalNames()
+    const names = new Set(['127.0.0.1', 'localhost', '[::1]', ...local.dns, ...local.ips.filter((ip) => isIPv4(ip))])
+    this.hostCache = { at: now, names }
+    return names
+  }
+
+  private hostAllowed(req: IncomingMessage): boolean {
+    const host = hostnameOf(req.headers.host)
+    return !!host && this.allowedHostnames().has(host)
+  }
 
   private cors(req: IncomingMessage, res: ServerResponse): boolean {
     const origin = req.headers.origin
@@ -173,13 +369,20 @@ export class BridgeServer {
   }
 
   private onHttp(req: IncomingMessage, res: ServerResponse) {
-    const host = hostnameOf(req.headers.host)
-    if (!host || !ALLOWED_HOSTNAMES.has(host)) {
+    if (!this.hostAllowed(req)) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Hôte refusé')
       return
     }
     const path = (req.url ?? '/').split('?')[0]
-    if (path !== '/health') {
+    const local = isLoopback(req.socket.remoteAddress)
+    const secure = (req.socket as TLSSocket).encrypted === true
+
+    if (path === '/' || path === CERT_PATH || path.startsWith(`${CERT_PATH}/`)) {
+      this.onCertificateRequest(req, res, path, secure)
+      return
+    }
+    // Depuis le réseau local : rien d'autre sans authentification
+    if (path !== '/health' || !local) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Introuvable')
       return
     }
@@ -194,15 +397,70 @@ export class BridgeServer {
     }
     this.cors(req, res)
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
-    res.end(JSON.stringify({ name: NAME, version: VERSION, capabilities: CAPABILITIES }))
+    res.end(JSON.stringify({ name: NAME, version: VERSION, capabilities: CAPABILITIES, tls: this.secure }))
+  }
+
+  // Page d'accueil et certificat de l'autorité : publics, en clair comme en
+  // TLS, pour qu'un iPad puisse l'installer avant de l'avoir approuvé
+  private onCertificateRequest(req: IncomingMessage, res: ServerResponse, path: string, secure: boolean) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { Allow: 'GET, HEAD' }).end()
+      return
+    }
+    const common = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }
+    const ca = this.tls?.ca
+    if (path === '/') {
+      const html = renderHomePage({ secure, ca, port: this.port, lan: this.lan, addresses: this.lan ? this.lanAddresses() : [] })
+      res.writeHead(200, {
+        ...common,
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+        'Referrer-Policy': 'no-referrer',
+      })
+      res.end(req.method === 'HEAD' ? undefined : html)
+      return
+    }
+    if (!ca) {
+      res
+        .writeHead(404, { ...common, 'Content-Type': 'text/plain; charset=utf-8' })
+        .end("Ce pont utilise un certificat fourni par l'administrateur (FLOW_BRIDGE_CERT) : rien à installer ici.")
+      return
+    }
+    let body: string | Buffer
+    let type: string
+    let file: string
+    if (path === CERT_PATH) {
+      body = mobileconfig(ca)
+      type = 'application/x-apple-aspen-config'
+      file = 'FLOW-Bridge.mobileconfig'
+    } else if (path === CERT_CER_PATH) {
+      body = ca.der
+      type = 'application/x-x509-ca-cert'
+      file = 'flow-bridge.cer'
+    } else if (path === CERT_PEM_PATH) {
+      body = ca.pem
+      type = 'application/x-pem-file'
+      file = 'flow-bridge.pem'
+    } else {
+      res.writeHead(404, { ...common, 'Content-Type': 'text/plain; charset=utf-8' }).end('Introuvable')
+      return
+    }
+    res.writeHead(200, { ...common, 'Content-Type': type, 'Content-Disposition': `attachment; filename="${file}"` })
+    res.end(req.method === 'HEAD' ? undefined : body)
   }
 
   // --- WebSocket --------------------------------------------------------
 
   private onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
-    const host = hostnameOf(req.headers.host)
-    if (!host || !ALLOWED_HOSTNAMES.has(host)) {
+    if (!this.hostAllowed(req)) {
       socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+      return
+    }
+    const remote = req.socket.remoteAddress ?? ''
+    const local = isLoopback(remote)
+    const secure = (req.socket as TLSSocket).encrypted === true
+    if (this.conns.size >= MAX_CONNECTIONS) {
+      socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n')
       return
     }
     this.wss.handleUpgrade(req, socket, head, (ws) => {
@@ -214,14 +472,19 @@ export class BridgeServer {
         ws.close(CLOSE_ORIGIN_REFUSED, 'Origine non autorisée')
         return
       }
-      this.onConnection(ws, origin!)
+      if (!local && !secure) {
+        // Jeton et code d'appairage ne circulent jamais en clair sur le réseau
+        ws.close(CLOSE_INSECURE_LAN, 'Connexion sécurisée (wss) exigée')
+        return
+      }
+      this.onConnection(ws, origin!, remote, local, secure)
     })
   }
 
-  private onConnection(ws: WebSocket, origin: string) {
-    const conn: Conn = { ws, client: null, origin }
+  private onConnection(ws: WebSocket, origin: string, remote: string, local: boolean, secure: boolean) {
+    const conn: Conn = { ws, client: null, origin, remote, local, secure }
     this.conns.add(conn)
-    this.log.info('Caisse connectée', { origine: origin })
+    this.log.info('Caisse connectée', { origine: origin, adresse: local ? undefined : remote, tls: secure })
     ws.on('message', (data, isBinary) => {
       if (isBinary) {
         this.send(conn, { id: null, error: { code: 'invalid_request', message: 'Message texte JSON attendu.' } })
@@ -242,6 +505,21 @@ export class BridgeServer {
 
   emit(conn: Conn, event: RpcEvent) {
     this.send(conn, event)
+  }
+
+  // Limite par appareil des essais d'appairage venus du réseau local
+  private checkLanPairRate(conn: Conn) {
+    if (conn.local) return
+    const now = Date.now()
+    const recent = (this.pairAttempts.get(conn.remote) ?? []).filter((t) => now - t < LAN_PAIR_WINDOW_MS)
+    if (recent.length >= LAN_PAIR_ATTEMPTS) {
+      const wait = Math.ceil((recent[0] + LAN_PAIR_WINDOW_MS - now) / 60_000)
+      this.log.warn("Trop d'essais d'appairage depuis le réseau", { adresse: conn.remote })
+      throw new BridgeError('rate_limited', `Trop d'essais d'appairage depuis cet appareil. Réessayez dans ${wait} minute${wait > 1 ? 's' : ''}.`)
+    }
+    recent.push(now)
+    this.pairAttempts.set(conn.remote, recent)
+    if (this.pairAttempts.size > 1000) this.pairAttempts.delete(this.pairAttempts.keys().next().value!)
   }
 
   private async onMessage(conn: Conn, text: string) {
@@ -286,10 +564,11 @@ export class BridgeServer {
       'bridge.pair': (p, conn) => {
         const code = str(p, 'code', { required: true, max: 16 })!
         const name = (str(p, 'name', { max: 64 }) ?? 'Caisse').trim() || 'Caisse'
+        this.checkLanPairRate(conn)
         this.pairing.attempt(code)
         const { client, token } = this.store.addClient(name)
         conn.client = client
-        this.log.info('Caisse appairée', { caisse: name, origine: conn.origin })
+        this.log.info('Caisse appairée', { caisse: name, origine: conn.origin, adresse: conn.local ? undefined : conn.remote })
         return { token, clientId: client.id, name: client.name }
       },
 
@@ -321,7 +600,19 @@ export class BridgeServer {
         platform: process.platform,
         arch: process.arch,
         node: process.version,
+        network: this.networkInfo(),
       }),
+
+      // Accès des iPad : seulement depuis cet ordinateur, pas depuis le réseau
+      'bridge.setLan': async (p, conn) => {
+        if (!conn.local) {
+          throw new BridgeError('forbidden', "L'accès réseau se règle depuis l'ordinateur où tourne le pont.")
+        }
+        const enabled = bool(p, 'enabled', false)
+        await this.setLan(enabled)
+        this.opts.persistLan?.(enabled)
+        return this.networkInfo()
+      },
 
       'printer.print': async (p) => {
         const host = str(p, 'host', { required: true, max: 253 })!

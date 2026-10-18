@@ -9,6 +9,7 @@ import { sha256, type ConfigStore } from './store.js'
 
 export const PAIRING_TTL_MS = 10 * 60 * 1000
 export const MAX_ATTEMPTS = 5
+export const MAX_LOCK_MS = 60 * 60 * 1000
 
 export function newPairingCode(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, '0')
@@ -50,6 +51,9 @@ export class PairingManager {
   private expiresAt = 0
   private failures = 0
   private lockedUntil = 0
+  // Blocages successifs : la pause double à chaque fois (jusqu'à une heure),
+  // ce qui rend la force brute vaine même depuis le réseau local
+  private locks = 0
   private expiryTimer: NodeJS.Timeout | undefined
   private readonly ttlMs: number
   private readonly lockMs: number
@@ -107,7 +111,8 @@ export class PairingManager {
     const now = Date.now()
     if (now < this.lockedUntil) {
       const s = Math.ceil((this.lockedUntil - now) / 1000)
-      throw new BridgeError('pairing_locked', `Trop d'essais. Réessayez dans ${s} secondes avec le nouveau code.`)
+      const wait = s > 120 ? `${Math.ceil(s / 60)} minutes` : `${s} secondes`
+      throw new BridgeError('pairing_locked', `Trop d'essais. Réessayez dans ${wait} avec le nouveau code.`)
     }
     const hashes: string[] = []
     if (this.codeHash && now < this.expiresAt) hashes.push(this.codeHash)
@@ -125,6 +130,7 @@ export class PairingManager {
       // Code à usage unique
       this.invalidateAll()
       this.failures = 0
+      this.locks = 0
       return
     }
 
@@ -132,7 +138,8 @@ export class PairingManager {
     this.log.warn("Code d'appairage incorrect", { essai: this.failures, max: MAX_ATTEMPTS })
     if (this.failures >= MAX_ATTEMPTS) {
       this.invalidateAll()
-      this.lockedUntil = now + this.lockMs
+      this.locks += 1
+      this.lockedUntil = now + Math.min(MAX_LOCK_MS, this.lockMs * 2 ** (this.locks - 1))
       this.log.warn("Trop d'essais : code d'appairage annulé")
       this.renew()
       throw new BridgeError(

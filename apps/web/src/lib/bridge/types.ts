@@ -16,6 +16,18 @@ export interface BridgeInfo {
   platform: string
   arch: string
   node: string
+  // Pont 0.2 et suivants
+  network?: BridgeNetwork
+}
+
+// Connexion sécurisée et accès des iPad (bridge.info, bridge.setLan)
+export interface BridgeNetwork {
+  lan: boolean
+  tls: boolean
+  port: number
+  // Adresses IPv4 du pont sur le réseau du magasin, quand l'accès est ouvert
+  addresses: string[]
+  certificate: { fingerprint: string; label: string; paths: { profile: string; cer: string; pem: string } } | null
 }
 
 export interface PairParams {
@@ -173,6 +185,7 @@ export interface BridgeMethods {
   'bridge.hello': [{ token: string }, HelloResult]
   'bridge.unpair': [undefined, { ok: true }]
   'bridge.info': [undefined, BridgeInfo]
+  'bridge.setLan': [{ enabled: boolean }, BridgeNetwork]
   'printer.print': [PrinterPrintParams, PrinterPrintResult]
   'printer.probe': [PrinterProbeParams, PrinterProbeResult]
   'printer.discover': [PrinterDiscoverParams | undefined, PrinterDiscoverResult]
@@ -189,3 +202,5 @@ export interface BridgeEvents {
 
 // Code de fermeture envoyé par le pont quand l'origine du site n'est pas autorisée
 export const CLOSE_ORIGIN_REFUSED = 4003
+// Connexion en clair refusée depuis le réseau local (wss exigé)
+export const CLOSE_INSECURE_LAN = 4004

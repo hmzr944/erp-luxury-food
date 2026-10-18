@@ -28,7 +28,7 @@ Comportement de l'exécutable lancé d'un double-clic (`FLOW_BRIDGE_BUILD_STANDA
 - il rappelle de laisser la fenêtre ouverte ;
 - sous Windows, en cas d'erreur fatale (port déjà utilisé, réglage invalide), la console attend la touche Entrée avant de se fermer.
 
-Les commandes `pair`, `clients`, `--version` et les variables `FLOW_BRIDGE_*` restent valables (voir `apps/bridge/README.md`).
+Les commandes `pair`, `clients`, `cert`, `reseau`, `--version` et les variables `FLOW_BRIDGE_*` restent valables (voir `apps/bridge/README.md`). Le certificat TLS est fabriqué par le pont lui-même avec `node:crypto` : aucune dépendance native, l'exécutable n'embarque rien de plus. Connexion sécurisée et iPad : [flow-bridge-securite.md](flow-bridge-securite.md).
 
 ## Construire
 
@@ -45,7 +45,7 @@ node scripts/smoke-test.mjs dist/bin/flow-bridge-linux-x64
 - Derrière un proxy : `NODE_USE_ENV_PROXY=1` avec `HTTPS_PROXY`.
 - Taille : environ 85 Mo pour Windows, 120 Mo pour Linux, 107 Mo par architecture macOS (35 Mo compressé).
 
-L'essai de fumée lance l'exécutable dans un dossier temporaire sur un port libre, attend le code d'appairage, interroge `/health`, appaire une caisse par WebSocket (`bridge.pair`), vérifie `bridge.hello`, puis arrête le pont.
+L'essai de fumée lance l'exécutable dans un dossier temporaire sur un port libre, attend le code d'appairage, interroge `/health`, appaire une caisse par WebSocket (`bridge.pair`), vérifie `bridge.hello`, ouvre une connexion `wss://localhost` vérifiée avec l'autorité fabriquée par le pont, télécharge le certificat `.cer`, puis arrête le pont.
 
 ## Variables
 

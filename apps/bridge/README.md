@@ -2,11 +2,14 @@
 
 Petit agent local qui relie la caisse FLŌW (application web dans le navigateur) au matériel du magasin.
 
-Un navigateur ne sait pas ouvrir de connexion TCP brute : il ne peut donc ni envoyer un ticket à une imprimante réseau sur le port 9100, ni parler à un terminal de paiement. FLŌW-Bridge tourne sur l'ordinateur de la caisse (Windows, macOS, Linux ; Android plus tard), ouvre un WebSocket **sur la boucle locale uniquement** (`127.0.0.1`) et pilote le matériel à la place du navigateur.
+Un navigateur ne sait pas ouvrir de connexion TCP brute : il ne peut donc ni envoyer un ticket à une imprimante réseau sur le port 9100, ni parler à un terminal de paiement. FLŌW-Bridge tourne sur l'ordinateur de la caisse (Windows, macOS, Linux ; Android plus tard), ouvre un WebSocket sur la boucle locale (`127.0.0.1`, et le réseau local pour les iPad si on l'ouvre) et pilote le matériel à la place du navigateur.
 
 ```
-Navigateur (caisse FLŌW)  --ws://127.0.0.1:51717-->  FLŌW-Bridge  --TCP-->  imprimante, tiroir, TPE
+Navigateur (caisse FLŌW)  --wss:// ou ws://127.0.0.1:51717-->  FLŌW-Bridge  --TCP-->  imprimante, tiroir, TPE
+iPad (Safari)             --wss://192.168.x.x:51717------->
 ```
+
+Connexion sécurisée (Safari, iPad), certificat fabriqué par le pont et accès réseau : voir [docs/flow-bridge-securite.md](../../docs/flow-bridge-securite.md).
 
 ## Installation et lancement
 
@@ -47,8 +50,12 @@ Commandes :
 | `FLOW_BRIDGE_PORT` | `51717` | port local d'écoute |
 | `FLOW_BRIDGE_ORIGINS` | `http://localhost:3000` | origines de la caisse autorisées, séparées par des virgules (ex. `https://caisse.maison.fr,http://localhost:3000`). `*` est refusé. |
 | `FLOW_BRIDGE_HOME` | `~/.flow-bridge` | dossier de configuration (caisses appairées) |
-| `FLOW_BRIDGE_CERT` / `FLOW_BRIDGE_KEY` | aucun | certificat et clé PEM : le pont passe en `wss://` |
+| `FLOW_BRIDGE_CERT` / `FLOW_BRIDGE_KEY` | aucun | certificat et clé PEM fournis, à la place de ceux que fabrique le pont |
+| `FLOW_BRIDGE_TLS` | `1` | `0` : pas de `wss://`, `ws://` local seulement (ancien fonctionnement) |
+| `FLOW_BRIDGE_LAN` | réglage enregistré | `1` : ouvert aux iPad du réseau local ; `0` : cet ordinateur seulement |
 | `FLOW_BRIDGE_LOG` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
+
+Commandes : `flow-bridge cert` (empreinte et fichiers du certificat ; `--renouveler` recrée l'autorité, `--approuver` l'approuve sur Mac), `flow-bridge reseau` (`oui` / `non`), `flow-bridge --reseau` (ouvert au réseau pour ce lancement).
 
 ## Appairer une caisse
 
@@ -69,10 +76,11 @@ const off = getBridge().on('payment.progress', (p) => afficher(p.message))
 
 Réglages de chaque appareil, gardés dans son `localStorage` :
 
+- `flow-bridge-address` : adresse du pont (vide = cet ordinateur ; sur iPad, l'adresse de l'ordinateur de la boutique) ;
 - `flow-printer` : imprimante (mode « Imprimante réseau » = ESC/POS par le pont, port 9100), tiroir sur l'imprimante ;
 - `flow-bridge-tpe` : TPE bancaire Caisse-AP (adresse, port 8888, n° de caisse) ou TPE simulé. Une fois activé, la touche « Carte » de la caisse envoie le montant au TPE ; le n° d'autorisation est gardé sur le paiement.
 
-Le site doit pouvoir joindre le pont : `connect-src` de la politique de contenu inclut `NEXT_PUBLIC_BRIDGE_URL` (par défaut `ws://127.0.0.1:51717`), et le pont doit autoriser l'adresse du site dans `FLOW_BRIDGE_ORIGINS`.
+Le site doit pouvoir joindre le pont : `connect-src` de la politique de contenu inclut `ws://` et `wss://127.0.0.1:51717`, `wss://*:51717` (iPad) et `NEXT_PUBLIC_BRIDGE_URL` si défini, et le pont doit autoriser l'adresse du site dans `FLOW_BRIDGE_ORIGINS`.
 
 Pour retirer un poste : `bridge.unpair` depuis la caisse, ou supprimer l'entrée dans `~/.flow-bridge/config.json`.
 
@@ -160,10 +168,10 @@ Sans NSSM, le Planificateur de tâches convient aussi : tâche « Au démarrage 
 
 N'importe quel site ouvert dans le navigateur du magasin peut essayer de joindre `127.0.0.1`. Le pont oppose plusieurs barrières :
 
-- **Écoute sur `127.0.0.1` seulement**, jamais `0.0.0.0` : invisible depuis le réseau.
-- **En-tête `Host`** limité à `127.0.0.1` / `localhost` : bloque le « DNS rebinding ».
+- **Écoute sur `127.0.0.1` par défaut** : invisible depuis le réseau tant que l'accès des iPad n'est pas ouvert. Ouvert, le pont n'accepte du réseau que `wss://` (le clair est fermé avec le code `4004`), ne sert sans authentification que le certificat de son autorité et limite les essais d'appairage par appareil.
+- **En-tête `Host`** limité aux noms de cet ordinateur (`127.0.0.1`, `localhost`, `<nom>.local`, ses adresses privées) : bloque le « DNS rebinding ».
 - **Liste d'origines** (`FLOW_BRIDGE_ORIGINS`) : un WebSocket venant d'une autre origine, ou sans origine, est fermé avec le code `4003`. `/health` n'envoie les en-têtes CORS qu'aux origines autorisées (y compris l'accord « Private Network Access » de Chrome).
-- **Appairage** : code à 6 chiffres, valable 10 minutes, à usage unique, affiché seulement sur l'ordinateur du pont. 5 codes faux : le code est annulé, un nouveau est affiché et l'appairage est bloqué 30 secondes. Le jeton remis (32 octets aléatoires) n'est stocké que **haché en SHA-256**, dans un fichier lisible par le seul utilisateur (`0600`).
+- **Appairage** : code à 6 chiffres, valable 10 minutes, à usage unique, affiché seulement sur l'ordinateur du pont. 5 codes faux : le code est annulé, un nouveau est affiché et l'appairage est bloqué 30 secondes, puis deux fois plus à chaque nouveau blocage (une heure au plus). Le jeton remis (32 octets aléatoires) n'est stocké que **haché en SHA-256**, dans un fichier lisible par le seul utilisateur (`0600`).
 - **Authentification obligatoire** : en dehors de `bridge.pair` et `bridge.hello`, toute méthode exige une connexion authentifiée.
 - **Pas de relais vers Internet** : imprimantes et TPE doivent être sur le réseau local (10.x, 172.16-31.x, 192.168.x, 169.254.x, 127.x) ou nommés `localhost` / `*.local`. Le nom est résolu puis l'adresse obtenue revérifiée. IPv6 n'est pas accepté pour l'instant.
 - **Pas de balayage hors du magasin** : `printer.discover` ne sonde que le /24 privé (RFC 1918) de chaque carte réseau de l'ordinateur du pont, jamais une plage publique ni le lien local.
@@ -228,7 +236,8 @@ WebSocket, messages texte JSON.
 | `bridge.pair` | `code`, `name` | `{ token, clientId, name }` |
 | `bridge.hello` | `token` | `{ clientId, name, version, capabilities }` |
 | `bridge.unpair` | | `{ ok }` |
-| `bridge.info` | | `{ name, version, capabilities, platform, arch, node }` |
+| `bridge.info` | | `{ name, version, capabilities, platform, arch, node, network: { lan, tls, port, addresses, certificate } }` |
+| `bridge.setLan` | `enabled` (depuis l'ordinateur du pont seulement) | `network` (comme `bridge.info`) |
 | `printer.print` | `host`, `port=9100`, `data` (base64), `timeoutMs=8000` | `{ ok, bytes }` |
 | `printer.probe` | `host`, `port=9100`, `timeoutMs=2000` | `{ reachable, latencyMs }` |
 | `printer.discover` | `timeoutMs=2500` (10000 max), `scan=true` | `{ printers: [{ name, host, port, protocols: (escpos\|ipp\|ipps)[], ippPort?, model?, airprint?, rp?, source: mdns\|scan }] }` |
@@ -242,9 +251,11 @@ WebSocket, messages texte JSON.
 
 `payment.start` ne répond qu'à la fin du paiement ; un seul paiement à la fois par terminal (`payment_busy` sinon). Fournir son propre `paymentId` permet d'annuler sans attendre.
 
-Codes d'erreur courants : `parse_error`, `invalid_request`, `invalid_params`, `unknown_method`, `unauthorized`, `invalid_token`, `pairing_closed`, `pairing_code_invalid`, `pairing_code_invalidated`, `pairing_locked`, `host_not_allowed`, `host_unresolved`, `printer_unreachable`, `printer_timeout`, `printer_reset`, `printer_error`, `printer_busy`, `format_unsupported`, `ipp_error`, `document_too_large`, `payment_busy`, `unknown_adapter`, `payment_currency`, `internal_error`.
+Codes d'erreur courants : `parse_error`, `invalid_request`, `invalid_params`, `unknown_method`, `unauthorized`, `invalid_token`, `pairing_closed`, `pairing_code_invalid`, `pairing_code_invalidated`, pairing_locked`, `rate_limited`, `forbidden`, `tls_required`, `lan_failed`, `host_not_allowed`, `host_unresolved`, `printer_unreachable`, `printer_timeout`, `printer_reset`, `printer_error`, `printer_busy`, `format_unsupported`, `ipp_error`, `document_too_large`, `payment_busy`, `unknown_adapter`, `payment_currency`, `internal_error`.
 
-`GET /health` (sans authentification) : `{ name: "FLŌW-Bridge", version, capabilities }`.
+`GET /health` (sans authentification, depuis cet ordinateur seulement) : `{ name: "FLŌW-Bridge", version, capabilities, tls }`.
+
+Pages publiques, en `http://` comme en `https://` : `/` (état de la connexion, empreinte), `/certificat` (profil iOS), `/certificat/flow-bridge.cer` (DER), `/certificat/flow-bridge.pem`.
 
 ## Développement
 

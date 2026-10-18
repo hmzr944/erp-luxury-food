@@ -4,7 +4,18 @@ const isProd = process.env.NODE_ENV === 'production'
 const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const ws = (process.env.NEXT_PUBLIC_WS_URL ?? api).replace(/^http/, 'ws')
 // FLŌW-Bridge, l'agent local de la boutique (imprimante, tiroir, TPE)
-const bridge = process.env.NEXT_PUBLIC_BRIDGE_URL || 'ws://127.0.0.1:51717'
+// wss:// sur cet ordinateur (Safari) ou sur l'ordinateur de la boutique (iPad,
+// adresse réglée sur l'appareil, d'où le joker d'hôte), ws:// local pour Chrome, Edge, Firefox
+const bridge = [
+  process.env.NEXT_PUBLIC_BRIDGE_URL,
+  'ws://127.0.0.1:51717',
+  'wss://127.0.0.1:51717',
+  'ws://localhost:51717',
+  'wss://localhost:51717',
+  'wss://*:51717',
+]
+  .filter(Boolean)
+  .join(' ')
 
 // Politique de contenu : scripts et styles du site seulement (Next a besoin
 // d'« inline »), images des fiches produit en https, connexions vers l'API et vers le pont local.

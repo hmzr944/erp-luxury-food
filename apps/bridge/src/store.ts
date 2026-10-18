@@ -18,6 +18,8 @@ export interface PairedClient {
 interface ConfigFile {
   version: 1
   clients: PairedClient[]
+  // Pont ouvert aux iPad du réseau local (« flow-bridge reseau oui »)
+  lan?: boolean
 }
 
 // Code d'appairage demandé par « flow-bridge pair » alors que le service
@@ -59,7 +61,7 @@ export class ConfigStore {
   private read(): ConfigFile {
     try {
       const raw = JSON.parse(readFileSync(this.configPath, 'utf8')) as Partial<ConfigFile>
-      return { version: 1, clients: Array.isArray(raw.clients) ? raw.clients : [] }
+      return { version: 1, clients: Array.isArray(raw.clients) ? raw.clients : [], ...(raw.lan === true ? { lan: true } : {}) }
     } catch {
       return { version: 1, clients: [] }
     }
@@ -117,6 +119,17 @@ export class ConfigStore {
     if (cfg.clients.length === before) return false
     this.write(cfg)
     return true
+  }
+
+  getLan(): boolean {
+    return this.read().lan === true
+  }
+
+  setLan(enabled: boolean) {
+    const cfg = this.read()
+    if (enabled) cfg.lan = true
+    else delete cfg.lan
+    this.write(cfg)
   }
 
   readPendingPairing(): PendingPairing | null {

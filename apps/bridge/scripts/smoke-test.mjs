@@ -3,7 +3,7 @@
 // l'appairage par WebSocket puis « bridge.hello » avec le jeton obtenu.
 // Usage : node scripts/smoke-test.mjs dist/bin/flow-bridge-linux-x64
 import { spawn, execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -82,6 +82,15 @@ try {
   const hello = await call('bridge.hello', { token: paired.token })
   console.log(`bridge.hello : version ${hello.version}, ${hello.capabilities.length} capacités`)
   ws.close()
+
+  // Connexion sécurisée : certificat fabriqué par le pont, vérifié avec son autorité
+  const ca = readFileSync(join(home, 'tls', 'autorite.pem'))
+  const wss = new WebSocket(`wss://localhost:${port}`, { origin: ORIGIN, ca, rejectUnauthorized: true })
+  await new Promise((ok, ko) => wss.once('open', ok).once('error', ko))
+  wss.close()
+  const cer = await fetch(`http://127.0.0.1:${port}/certificat/flow-bridge.cer`)
+  if (cer.headers.get('content-type') !== 'application/x-x509-ca-cert') fail('certificat de l’autorité non servi')
+  console.log('wss:// vérifié avec l’autorité du pont, certificat téléchargeable')
   console.log('Essai réussi.')
 } catch (e) {
   if (!process.exitCode) fail(e.message)

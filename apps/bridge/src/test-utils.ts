@@ -72,9 +72,9 @@ export class TestClient {
     })
   }
 
-  static open(url: string, origin: string | undefined = ORIGIN): Promise<TestClient> {
+  static open(url: string, origin: string | undefined = ORIGIN, extra: WebSocket.ClientOptions = {}): Promise<TestClient> {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(url, origin ? { origin } : {})
+      const ws = new WebSocket(url, origin ? { ...extra, origin } : extra)
       const client = new TestClient(ws)
       ws.once('open', () => resolve(client))
       ws.once('error', reject)

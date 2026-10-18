@@ -1,6 +1,6 @@
 {
   "name": "@erp/bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "FLŌW-Bridge : pont local entre la caisse FLŌW (navigateur) et le matériel du magasin",
   "type": "module",
