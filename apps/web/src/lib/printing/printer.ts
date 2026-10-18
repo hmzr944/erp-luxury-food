@@ -90,25 +90,39 @@ async function bridgeReady() {
   return bridge
 }
 
-export async function printTicket(t: TicketModel, opts: { openDrawer?: boolean; config?: PrinterConfig } = {}) {
+// Issue d'une impression. confirmed : l'imprimante a dit qu'elle était prête
+// (false : ticket envoyé sans retour d'état). warning : à montrer sans bloquer.
+// Sans papier, capot ouvert, hors ligne : printTicket échoue avec un message
+// français prêt à afficher.
+export interface PrintOutcome {
+  confirmed: boolean
+  warning?: string
+}
+
+export async function printTicket(t: TicketModel, opts: { openDrawer?: boolean; config?: PrinterConfig } = {}): Promise<PrintOutcome | undefined> {
   const c = opts.config ?? getPrinterConfig()
   const openDrawer = !!opts.openDrawer && canOpenDrawer(c)
   switch (c.mode) {
     case 'none':
       return
     case 'system':
-      return printWithSystem(t, c.width)
+      await printWithSystem(t, c.width)
+      return
     case 'epos':
       if (!c.host) throw new Error('Adresse de l’imprimante Epson à renseigner')
-      return sendEpos(c.host, eposDocument(t, { width: c.width, openDrawer, drawerPin: c.drawerPin }))
+      await sendEpos(c.host, eposDocument(t, { width: c.width, openDrawer, drawerPin: c.drawerPin }))
+      return { confirmed: true }
     case 'bridge': {
       if (!c.host) throw new Error('Adresse de l’imprimante à renseigner')
       const bridge = await bridgeReady()
-      await bridge.call('printer.print', { host: c.host, port: c.port ?? 9100, data: bytesToBase64(encodeTicket(t, { width: c.width, openDrawer, drawerPin: c.drawerPin })) })
-      return
+      const r = await bridge.call('printer.print', { host: c.host, port: c.port ?? 9100, data: bytesToBase64(encodeTicket(t, { width: c.width, openDrawer, drawerPin: c.drawerPin })) })
+      return { confirmed: r.status?.known ?? false, ...(r.warning ? { warning: r.warning } : {}) }
     }
   }
 }
+
+// Libellé du bouton après une impression réussie
+export const printedLabel = (o: PrintOutcome | undefined) => (o && !o.confirmed ? 'Ticket envoyé' : 'Ticket imprimé')
 
 export async function openDrawer(config?: PrinterConfig) {
   const c = config ?? getPrinterConfig()

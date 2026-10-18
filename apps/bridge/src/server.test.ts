@@ -201,8 +201,76 @@ describe('serveur du pont', () => {
       const { client } = await pairClient(b.server.url, b.server)
       const ticket = Buffer.from([0x1b, 0x40, ...Buffer.from('Bonjour FLŌW\n', 'latin1'), 0x1d, 0x56, 0x00, 0xff, 0x00])
       const r = await client.call('printer.print', { host: '127.0.0.1', port: p.port, data: ticket.toString('base64') })
-      expect(r.result).toEqual({ ok: true, bytes: ticket.length })
+      expect(r.result).toMatchObject({ ok: true, bytes: ticket.length, status: { known: true, online: true, paperEnd: false, coverOpen: false } })
       expect(p.jobs[0].equals(ticket)).toBe(true)
+      // État lu avant (4 demandes) et relu après le ticket (2 demandes)
+      expect(p.queries[0]).toBe(6)
+      client.close()
+    })
+
+    it('n’envoie pas le ticket sans papier, capot ouvert, hors ligne ou en erreur', async () => {
+      const cases = [
+        [{ paperEnd: true }, 'printer_no_paper', "Plus de papier dans l'imprimante"],
+        [{ coverOpen: true, paperEnd: true }, 'printer_cover_open', "Capot de l'imprimante ouvert"],
+        [{ offline: true }, 'printer_offline', 'Imprimante hors ligne'],
+        [{ cutterError: true }, 'printer_error', 'Imprimante en erreur (coupe-papier)'],
+      ] as const
+      const { client } = await pairClient(b.server.url, b.server)
+      for (const [state, code, message] of cases) {
+        const p = await fakePrinter({ state: { ...state } })
+        printers.push(p)
+        const r = await client.call('printer.print', { host: '127.0.0.1', port: p.port, data: 'G0A=' })
+        expect(r.error?.code).toBe(code)
+        expect(r.error?.message).toContain(message)
+        expect(p.jobs[0]?.length ?? 0).toBe(0)
+      }
+      client.close()
+    })
+
+    it('papier presque fini : imprime et avertit', async () => {
+      const p = await fakePrinter({ state: { paperNearEnd: true } })
+      printers.push(p)
+      const { client } = await pairClient(b.server.url, b.server)
+      const r = await client.call('printer.print', { host: '127.0.0.1', port: p.port, data: 'G0A=' })
+      expect(r.result).toMatchObject({ ok: true, warning: 'Papier presque fini : prévoyez un rouleau.', status: { paperNearEnd: true } })
+      expect([...p.jobs[0]]).toEqual([0x1b, 0x40])
+      client.close()
+    })
+
+    it('imprimante muette : imprime quand même, état inconnu', async () => {
+      const p = await fakePrinter({ state: { silent: true } })
+      printers.push(p)
+      const { client } = await pairClient(b.server.url, b.server)
+      const started = Date.now()
+      const r = await client.call('printer.print', { host: '127.0.0.1', port: p.port, data: 'G0A=' })
+      expect(r.result).toMatchObject({ ok: true, status: { known: false } })
+      expect([...p.jobs[0]]).toEqual([0x1b, 0x40])
+      // Une seule attente de réponse, pas de relecture après le ticket
+      expect(p.queries[0]).toBe(4)
+      expect(Date.now() - started).toBeLessThan(2000)
+      client.close()
+    })
+
+    it('papier épuisé pendant le ticket : erreur après l’envoi', async () => {
+      // Le rouleau finit pendant le ticket : l'état relu après l'envoi le dit
+      const p = await fakePrinter({ onPayload: (state) => (state.paperEnd = true) })
+      printers.push(p)
+      const { client } = await pairClient(b.server.url, b.server)
+      const r = await client.call('printer.print', { host: '127.0.0.1', port: p.port, data: 'G0A=' })
+      expect(r.error?.code).toBe('printer_no_paper')
+      expect(r.error?.message).toContain('ticket peut-être incomplet')
+      client.close()
+    })
+
+    it('donne l’état de l’imprimante (printer.status)', async () => {
+      const p = await fakePrinter({ state: { coverOpen: true } })
+      printers.push(p)
+      const { client } = await pairClient(b.server.url, b.server)
+      const r = await client.call('printer.status', { host: '127.0.0.1', port: p.port })
+      expect(r.result).toMatchObject({ known: true, coverOpen: true, online: false })
+      p.state.coverOpen = false
+      p.state.silent = true
+      expect((await client.call('printer.status', { host: '127.0.0.1', port: p.port })).result).toMatchObject({ known: false })
       client.close()
     })
 

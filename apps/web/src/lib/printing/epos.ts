@@ -25,6 +25,24 @@ export function eposDocument(t: TicketModel | null, o: { width?: number; cut?: b
   return `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="${NS}">${parts.join('')}</epos-print></s:Body></s:Envelope>`
 }
 
+// Codes d'erreur de la réponse ePOS-Print (attribut code), d'après la
+// référence Epson « ePOS-Print XML, response » :
+// https://download4.epson.biz/sec_pubs/pos/reference_en/epos_print/ref_epos_print_xml_en_xmlforcontrollingprinter_response.html
+// Mêmes messages que FLŌW-Bridge pour la même situation.
+const EPOS_ERRORS: Record<string, string> = {
+  EPTR_REC_EMPTY: "Plus de papier dans l'imprimante. Changez le rouleau puis réessayez.",
+  EPTR_COVER_OPEN: "Capot de l'imprimante ouvert. Refermez-le puis réessayez.",
+  EPTR_CUTTER: "Imprimante en erreur (coupe-papier). Retirez le papier coincé, éteignez et rallumez l'imprimante, puis réessayez.",
+  EPTR_MECHANICAL: "Imprimante en erreur. Éteignez et rallumez l'imprimante, puis réessayez.",
+  EPTR_UNRECOVERABLE: "Imprimante en erreur. Éteignez et rallumez l'imprimante, puis réessayez.",
+  EPTR_AUTOMATICAL: "Imprimante en erreur passagère. Attendez qu'elle reparte puis réessayez.",
+}
+
+export function eposErrorMessage(code: string | undefined, status: number): string {
+  if (code && EPOS_ERRORS[code]) return EPOS_ERRORS[code]
+  return code ? `Imprimante Epson : ${code}` : `Imprimante Epson injoignable (${status})`
+}
+
 export async function sendEpos(host: string, body: string, timeoutMs = 10_000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -38,7 +56,7 @@ export async function sendEpos(host: string, body: string, timeoutMs = 10_000) {
     const text = await res.text()
     if (!res.ok || !/success="true"/.test(text)) {
       const code = /code="([^"]*)"/.exec(text)?.[1]
-      throw new Error(code ? `Imprimante Epson : ${code}` : `Imprimante Epson injoignable (${res.status})`)
+      throw new Error(eposErrorMessage(code, res.status))
     }
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw new Error('Imprimante Epson : pas de réponse')

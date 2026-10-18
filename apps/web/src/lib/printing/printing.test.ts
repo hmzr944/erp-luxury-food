@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildSaleTicket, layoutTicket, taxCodes } from './ticket'
 import { DRAWER_KICK, encodePc858, encodeTicket } from './escpos'
-import { eposDocument } from './epos'
+import { eposDocument, eposErrorMessage } from './epos'
+import { printedLabel, printTicket, type PrinterConfig } from './printer'
+
+const bridgeCall = vi.fn()
+vi.mock('@/lib/bridge', () => ({
+  getBridge: () => ({ connect: () => {}, status: 'ready', call: bridgeCall }),
+  bytesToBase64: () => 'AA==',
+}))
 
 const receipt = { legalName: 'Maison Test', siret: '12345678900012', vatNumber: 'FR12123456789', legalForm: 'SAS', rcs: null, address: '1 rue du Four, 75006 Paris', policy: 'ASK' as const, serviceNote: true, footer: 'Échange sous 30 jours' }
 
@@ -99,5 +106,40 @@ describe('Epson ePOS', () => {
     expect(doc).toContain('A &amp; B &lt;test&gt;')
     expect(doc).toContain('<pulse drawer="drawer_1" time="pulse_100"/>')
     expect(doc).toContain('<cut type="feed"/>')
+  })
+})
+
+describe('Impression par FLŌW-Bridge : état de l’imprimante', () => {
+  const config: PrinterConfig = { mode: 'bridge', host: '192.168.1.50', width: 48, drawerPin: 0, drawerOnCash: true }
+  const t = sale()
+
+  it('« Ticket imprimé » seulement si l’imprimante a donné son état', async () => {
+    bridgeCall.mockResolvedValueOnce({ ok: true, bytes: 10, status: { known: true, online: true, raw: [18, 18, 18, 18] } })
+    const ok = await printTicket(t, { config })
+    expect(ok).toEqual({ confirmed: true })
+    expect(printedLabel(ok)).toBe('Ticket imprimé')
+    bridgeCall.mockResolvedValueOnce({ ok: true, bytes: 10, status: { known: false, raw: [] } })
+    expect(printedLabel(await printTicket(t, { config }))).toBe('Ticket envoyé')
+    // Pont plus ancien, sans état
+    bridgeCall.mockResolvedValueOnce({ ok: true, bytes: 10 })
+    expect(printedLabel(await printTicket(t, { config }))).toBe('Ticket envoyé')
+    expect(printedLabel(undefined)).toBe('Ticket imprimé')
+  })
+
+  it('papier presque fini : avertissement transmis', async () => {
+    bridgeCall.mockResolvedValueOnce({ ok: true, bytes: 10, status: { known: true, paperNearEnd: true, raw: [] }, warning: 'Papier presque fini : prévoyez un rouleau.' })
+    expect(await printTicket(t, { config })).toEqual({ confirmed: true, warning: 'Papier presque fini : prévoyez un rouleau.' })
+  })
+
+  it('sans papier : le message du pont remonte tel quel', async () => {
+    bridgeCall.mockRejectedValueOnce(new Error("Plus de papier dans l'imprimante. Changez le rouleau puis réessayez."))
+    await expect(printTicket(t, { config })).rejects.toThrow("Plus de papier dans l'imprimante")
+  })
+
+  it('Epson ePOS : codes papier et capot traduits', () => {
+    expect(eposErrorMessage('EPTR_REC_EMPTY', 200)).toMatch(/^Plus de papier dans l'imprimante/)
+    expect(eposErrorMessage('EPTR_COVER_OPEN', 200)).toMatch(/^Capot de l'imprimante ouvert/)
+    expect(eposErrorMessage('SchemaError', 200)).toBe('Imprimante Epson : SchemaError')
+    expect(eposErrorMessage(undefined, 503)).toBe('Imprimante Epson injoignable (503)')
   })
 })

@@ -238,7 +238,8 @@ WebSocket, messages texte JSON.
 | `bridge.unpair` | | `{ ok }` |
 | `bridge.info` | | `{ name, version, capabilities, platform, arch, node, network: { lan, tls, port, addresses, certificate } }` |
 | `bridge.setLan` | `enabled` (depuis l'ordinateur du pont seulement) | `network` (comme `bridge.info`) |
-| `printer.print` | `host`, `port=9100`, `data` (base64), `timeoutMs=8000` | `{ ok, bytes }` |
+| `printer.print` | `host`, `port=9100`, `data` (base64), `timeoutMs=8000` | `{ ok, bytes, status, warning? }` |
+| `printer.status` | `host`, `port=9100`, `timeoutMs=3000` | `{ known, online?, coverOpen?, paperEnd?, paperNearEnd?, error?, cutterError?, unrecoverable?, raw }` |
 | `printer.probe` | `host`, `port=9100`, `timeoutMs=2000` | `{ reachable, latencyMs }` |
 | `printer.discover` | `timeoutMs=2500` (10000 max), `scan=true` | `{ printers: [{ name, host, port, protocols: (escpos\|ipp\|ipps)[], ippPort?, model?, airprint?, rp?, source: mdns\|scan }] }` |
 | `printer.printDocument` | `host`, `port=631`, `path=/ipp/print` (ou `rp` de la découverte), `tls=false`, `data` (PDF base64, 14 Mo max), `jobName=FLOW`, `copies=1` (1 à 20), `timeoutMs=30000` | `{ ok, jobId?, printer? }` |
@@ -249,9 +250,11 @@ WebSocket, messages texte JSON.
 
 `printer.discover` répond après `timeoutMs` : fusion par adresse IP, mDNS prioritaire (nom, modèle `ty`/`product`, `airprint` si la clé TXT `URF` est présente, chemin IPP `rp`). Un appareil seulement trouvé par le balayage a `source: "scan"` et son adresse pour nom. Pour imprimer un A4 sur une imprimante trouvée : `printer.printDocument` avec `host`, `port: ippPort`, `path: rp` et `tls` si seul `ipps` est annoncé. Côté caisse, prévoir un délai d'appel plus long que les 15 s par défaut pour `printer.printDocument`.
 
+`printer.print` lit l'état de l'imprimante avant le ticket (commande ESC/POS temps réel `DLE EOT 1` à `4`, réponse attendue 500 ms) et le relit une fois le ticket envoyé. Sans papier, capot ouvert, hors ligne ou en erreur, le ticket n'est pas envoyé et l'appel échoue avec `printer_no_paper`, `printer_cover_open`, `printer_offline` ou `printer_error` (message français prêt à afficher). Papier presque fini : le ticket part, avec `warning`. Une imprimante qui ne répond pas à `DLE EOT` (certains modèles, ou retour d'état désactivé) imprime comme avant, avec `status.known: false` : la caisse affiche alors « Ticket envoyé » et non « Ticket imprimé ». `drawer.open` ne lit pas l'état. Signification des bits : référence ESC/POS d'Epson (DLE EOT) et spécification ESC/POS de Star, citées dans `src/printer.ts`.
+
 `payment.start` ne répond qu'à la fin du paiement ; un seul paiement à la fois par terminal (`payment_busy` sinon). Fournir son propre `paymentId` permet d'annuler sans attendre.
 
-Codes d'erreur courants : `parse_error`, `invalid_request`, `invalid_params`, `unknown_method`, `unauthorized`, `invalid_token`, `pairing_closed`, `pairing_code_invalid`, `pairing_code_invalidated`, pairing_locked`, `rate_limited`, `forbidden`, `tls_required`, `lan_failed`, `host_not_allowed`, `host_unresolved`, `printer_unreachable`, `printer_timeout`, `printer_reset`, `printer_error`, `printer_busy`, `format_unsupported`, `ipp_error`, `document_too_large`, `payment_busy`, `unknown_adapter`, `payment_currency`, `internal_error`.
+Codes d'erreur courants : `parse_error`, `invalid_request`, `invalid_params`, `unknown_method`, `unauthorized`, `invalid_token`, `pairing_closed`, `pairing_code_invalid`, `pairing_code_invalidated`, `pairing_locked`, `rate_limited`, `forbidden`, `tls_required`, `lan_failed`, `host_not_allowed`, `host_unresolved`, `printer_unreachable`, `printer_timeout`, `printer_reset`, `printer_error`, `printer_no_paper`, `printer_cover_open`, `printer_offline`, `printer_busy`, `format_unsupported`, `ipp_error`, `document_too_large`, `payment_busy`, `unknown_adapter`, `payment_currency`, `internal_error`.
 
 `GET /health` (sans authentification, depuis cet ordinateur seulement) : `{ name: "FLŌW-Bridge", version, capabilities, tls }`.
 
@@ -273,6 +276,9 @@ Pour répéter la recette avant d'avoir le matériel, ou pour isoler une panne :
 pnpm --filter @erp/bridge build
 pnpm --filter @erp/bridge banc            # faux TPE Caisse-AP (8888) et fausse imprimante ESC/POS (9100)
 pnpm --filter @erp/bridge banc -- --manuel   # accepter, refuser ou abandonner chaque paiement au clavier
+pnpm --filter @erp/bridge banc -- imprimante --sans-papier   # imprimante sans papier dès le départ
 ```
+
+La fausse imprimante répond aux demandes d'état `DLE EOT` comme une Epson. État de départ : `--sans-papier`, `--capot-ouvert`, `--presque-fini`, `--hors-ligne`, `--erreur-coupe`, `--muette` (ne donne pas son état). Pendant le banc (sans `--manuel`), changer l'état en tapant une lettre puis Entrée : `p` papier vide ou remis, `c` capot ouvert ou fermé, `f` fin de rouleau proche, `h` hors ligne, `x` erreur du coupe-papier, `m` muette, `r` tout remettre en état, `e` afficher l'état. Avec `--manuel`, seuls les drapeaux de départ s'appliquent (le clavier sert au TPE).
 
 Le faux TPE parle le même protocole que les TPE Caisse-AP (montants en ,13 refusés par défaut). La fausse imprimante affiche chaque ticket reçu en texte, avec l'impulsion du tiroir, la coupe, le QR code et les caractères hors PC858. Ce banc ne remplace pas l'essai sur le vrai matériel : il vérifie ce que la caisse envoie, pas ce que le matériel en fait.

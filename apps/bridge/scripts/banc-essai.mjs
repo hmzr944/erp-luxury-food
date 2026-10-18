@@ -9,6 +9,12 @@
 // Options : --manuel (accepter ou refuser chaque paiement au clavier),
 //           --delai 3000 (durée d'une transaction en ms),
 //           --port-tpe 8888, --port-imprimante 9100, --dossier ./tickets
+// État de départ de la fausse imprimante (réponses à DLE EOT) :
+//           --sans-papier, --capot-ouvert, --presque-fini, --hors-ligne,
+//           --erreur-coupe, --muette (ne donne pas son état)
+// Sans --manuel, une lettre puis Entrée change l'état en cours de banc :
+//           p papier, c capot, f fin proche, h hors ligne, x coupe-papier,
+//           m muette, r tout remettre en état, e afficher l'état
 
 import { networkInterfaces } from 'node:os'
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -31,13 +37,24 @@ const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`)
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback
 }
-const mode = args.find((a) => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--')) ?? 'tout'
+const valued = new Set(['--delai', '--port-tpe', '--port-imprimante', '--dossier'])
+const mode = args.find((a, i) => !a.startsWith('--') && !valued.has(args[i - 1])) ?? 'tout'
 const manual = args.includes('--manuel')
 const euros = (c) => (c / 100).toFixed(2).replace('.', ',') + ' €'
 const ips = Object.values(networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address)
 const where = ips.length ? ips.join(', ') : '127.0.0.1'
 
 const rl = manual ? createInterface({ input: process.stdin, output: process.stdout }) : null
+
+// État de la fausse imprimante, relu à chaque demande DLE EOT du pont
+const printerState = {
+  paperEnd: args.includes('--sans-papier'),
+  coverOpen: args.includes('--capot-ouvert'),
+  paperNearEnd: args.includes('--presque-fini'),
+  offline: args.includes('--hors-ligne'),
+  cutterError: args.includes('--erreur-coupe'),
+  silent: args.includes('--muette'),
+}
 
 if (mode === 'tout' || mode === 'tpe') {
   const port = Number(opt('port-tpe', 8888))
@@ -64,15 +81,32 @@ if (mode === 'tout' || mode === 'imprimante') {
   let n = 0
   await printerMod.startFakePrinter({
     port,
-    onJob: (reading, raw) => {
+    state: () => printerState,
+    onJob: (reading, raw, info) => {
       n++
       const file = join(folder, `ticket-${String(n).padStart(3, '0')}.bin`)
       writeFileSync(file, raw)
       console.log(`\n[Imprimante] Travail n° ${n} (${raw.length} octets, copie brute : ${file})`)
+      console.log(`État demandé ${info.queries} fois, état actuel : ${printerMod.describeState(info.state)}`)
+      if (info.state.paperEnd || info.state.coverOpen || info.state.cutterError || info.state.offline) {
+        console.log('Attention : dans cet état, une vraie imprimante ne sortirait pas ce ticket tout de suite.')
+      }
       console.log(printerMod.describeJob(reading))
     },
   })
-  console.log(`Fausse imprimante ESC/POS prête : ${where}, port ${port}.`)
+  console.log(`Fausse imprimante ESC/POS prête : ${where}, port ${port}. État : ${printerMod.describeState(printerState)}.`)
   console.log('  Dans FLŌW : Paramètres, Impression, « Imprimante réseau », adresse ci-dessus et ce port.')
+  if (!manual) {
+    console.log('  Clavier (lettre puis Entrée) : p papier, c capot, f fin proche, h hors ligne, x coupe-papier, m muette, r tout remettre, e état.')
+    const keys = createInterface({ input: process.stdin })
+    const toggles = { p: 'paperEnd', c: 'coverOpen', f: 'paperNearEnd', h: 'offline', x: 'cutterError', m: 'silent' }
+    keys.on('line', (line) => {
+      const k = line.trim().toLowerCase()
+      if (toggles[k]) printerState[toggles[k]] = !printerState[toggles[k]]
+      else if (k === 'r') for (const key of Object.keys(printerState)) printerState[key] = false
+      else if (k !== 'e') return
+      console.log(`[Imprimante] État : ${printerMod.describeState(printerState)}`)
+    })
+  }
 }
 console.log('\nCtrl+C pour arrêter.')

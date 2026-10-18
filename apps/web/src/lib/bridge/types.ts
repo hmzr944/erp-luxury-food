@@ -54,9 +54,28 @@ export interface PrinterPrintParams {
   data: string
   timeoutMs?: number
 }
+// État lu par le pont avant le ticket (ESC/POS DLE EOT). known: false :
+// l'imprimante ne donne pas son état, le ticket est parti sans confirmation.
+export interface PrinterStatus {
+  known: boolean
+  online?: boolean
+  coverOpen?: boolean
+  paperEnd?: boolean
+  paperNearEnd?: boolean
+  error?: boolean
+  cutterError?: boolean
+  unrecoverable?: boolean
+  raw: number[]
+}
+// Sans papier, capot ouvert, hors ligne ou en erreur, l'appel échoue avec
+// printer_no_paper, printer_cover_open, printer_offline ou printer_error.
+// status et warning manquent avec un pont antérieur à la lecture d'état.
 export interface PrinterPrintResult {
   ok: true
   bytes: number
+  status?: PrinterStatus
+  // « Papier presque fini » : le ticket est parti
+  warning?: string
 }
 
 export interface PrinterProbeParams {
@@ -188,6 +207,7 @@ export interface BridgeMethods {
   'bridge.setLan': [{ enabled: boolean }, BridgeNetwork]
   'printer.print': [PrinterPrintParams, PrinterPrintResult]
   'printer.probe': [PrinterProbeParams, PrinterProbeResult]
+  'printer.status': [PrinterProbeParams, PrinterStatus]
   'printer.discover': [PrinterDiscoverParams | undefined, PrinterDiscoverResult]
   'printer.printDocument': [PrinterPrintDocumentParams, PrinterPrintDocumentResult]
   'drawer.open': [DrawerOpenParams, { ok: true }]

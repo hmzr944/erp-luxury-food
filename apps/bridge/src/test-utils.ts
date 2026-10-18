@@ -22,6 +22,7 @@ import {
   VT_TEXT,
   type IppMessage,
 } from './ipp.js'
+import { statusResponder, type FakePrinterState } from './bench/fake-printer.js'
 import { createLogger } from './log.js'
 import { BridgeServer, type BridgeServerOptions } from './server.js'
 
@@ -31,7 +32,7 @@ export async function startBridge(opts: BridgeServerOptions = {}, cfg: Partial<B
   const home = mkdtempSync(join(tmpdir(), 'flow-bridge-test-'))
   const server = new BridgeServer(
     { port: 0, host: '127.0.0.1', origins: [ORIGIN], home, logLevel: 'silent', maxMessageBytes: 1024 * 1024, ...cfg },
-    { logger: createLogger('silent'), payments: { simulatorDurationMs: 120 }, pairing: { lockMs: 0 }, ...opts },
+    { logger: createLogger('silent'), payments: { simulatorDurationMs: 120 }, pairing: { lockMs: 0 }, printer: { settleMs: 20, statusTimeoutMs: 150 }, ...opts },
   )
   await server.listen()
   return {
@@ -107,14 +108,23 @@ export class TestClient {
 }
 
 // Fausse imprimante réseau : enregistre les octets reçus par connexion
+// (sans les demandes d'état DLE EOT, auxquelles elle répond selon `state`)
 export interface FakePrinter {
   port: number
   jobs: Buffer[]
+  // Demandes d'état reçues par connexion
+  queries: number[]
   log: string[]
+  // Modifiable en cours de test
+  state: FakePrinterState
   close(): Promise<void>
 }
 
-export async function fakePrinter(opts: { holdMs?: number } = {}): Promise<FakePrinter> {
+export async function fakePrinter(
+  opts: { holdMs?: number; state?: FakePrinterState; onPayload?: (state: FakePrinterState) => void } = {},
+): Promise<FakePrinter> {
+  const state: FakePrinterState = opts.state ?? {}
+  const queries: number[] = []
   const jobs: Buffer[] = []
   const log: string[] = []
   const sockets = new Set<Socket>()
@@ -124,8 +134,16 @@ export async function fakePrinter(opts: { holdMs?: number } = {}): Promise<FakeP
     sockets.add(socket)
     const i = n++
     const chunks: Buffer[] = []
+    const respond = statusResponder(() => state)
+    queries[i] = 0
     log.push(`open${i}`)
-    socket.on('data', (c) => chunks.push(c))
+    socket.on('data', (c: Buffer) => {
+      const r = respond(c)
+      queries[i] += r.queries
+      if (r.reply.length) socket.write(r.reply)
+      chunks.push(r.payload)
+      if (r.payload.length) opts.onPayload?.(state)
+    })
     socket.on('end', () => {
       jobs[i] = Buffer.concat(chunks)
       // Simule une imprimante lente qui met du temps à finir le ticket
@@ -142,7 +160,9 @@ export async function fakePrinter(opts: { holdMs?: number } = {}): Promise<FakeP
   return {
     port,
     jobs,
+    queries,
     log,
+    state,
     close: () =>
       new Promise<void>((r) => {
         for (const s of sockets) s.destroy()

@@ -39,6 +39,7 @@ import { NAME, VERSION } from './version.js'
 export const CAPABILITIES = [
   'printer.escpos',
   'printer.probe',
+  'printer.status',
   'printer.discover',
   'printer.ipp',
   'drawer',
@@ -87,6 +88,8 @@ export interface BridgeServerOptions {
   refreshTls?: () => TlsMaterial
   // Mémorise le choix d'accès réseau (bridge.setLan)
   persistLan?: (enabled: boolean) => void
+  // Délais de lecture de l'état de l'imprimante (raccourcis en test)
+  printer?: { statusTimeoutMs?: number; settleMs?: number }
 }
 
 export function isLoopback(address: string | undefined): boolean {
@@ -131,7 +134,7 @@ export class BridgeServer {
   readonly log: Logger
   readonly store: ConfigStore
   readonly pairing: PairingManager
-  readonly printers = new PrinterService()
+  readonly printers: PrinterService
   readonly payments: PaymentManager
   private readonly origins: Set<string>
   private readonly http: Server
@@ -156,6 +159,7 @@ export class BridgeServer {
     this.store = new ConfigStore(config.home)
     this.pairing = new PairingManager(this.store, this.log, opts.pairing)
     this.payments = new PaymentManager(opts.payments)
+    this.printers = new PrinterService(opts.printer)
     this.origins = new Set(config.origins.map(normalizeOrigin))
     this.tls = config.tls
     this.lan = config.lan === true
@@ -619,9 +623,25 @@ export class BridgeServer {
         const port = int(p, 'port', { min: 1, max: 65535, def: DEFAULT_PRINTER_PORT })
         const timeoutMs = int(p, 'timeoutMs', { min: 500, max: 60_000, def: 8000 })
         const data = decodeBase64(str(p, 'data', { required: true })!)
-        const r = await this.printers.print(host, port, data, timeoutMs)
-        this.log.info('Ticket imprimé', { imprimante: `${host}:${port}`, octets: r.bytes })
-        return { ok: true, bytes: r.bytes }
+        try {
+          const r = await this.printers.print(host, port, data, timeoutMs)
+          this.log.info(r.status.known ? 'Ticket imprimé' : 'Ticket envoyé (état de l’imprimante inconnu)', {
+            imprimante: `${host}:${port}`,
+            octets: r.bytes,
+            ...(r.warning ? { avertissement: r.warning } : {}),
+          })
+          return { ok: true, ...r }
+        } catch (e) {
+          if (e instanceof BridgeError) this.log.warn('Ticket non imprimé', { imprimante: `${host}:${port}`, cause: e.code })
+          throw e
+        }
+      },
+
+      'printer.status': (p) => {
+        const host = str(p, 'host', { required: true, max: 253 })!
+        const port = int(p, 'port', { min: 1, max: 65535, def: DEFAULT_PRINTER_PORT })
+        const timeoutMs = int(p, 'timeoutMs', { min: 500, max: 10_000, def: 3000 })
+        return this.printers.status(host, port, timeoutMs)
       },
 
       'printer.probe': (p) => {

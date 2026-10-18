@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { connect, type Server } from 'node:net'
 import { readEscPos } from './escpos-reader.js'
-import { startFakePrinter, describeJob } from './fake-printer.js'
+import { startFakePrinter, describeJob, describeState, type FakePrinterState } from './fake-printer.js'
+import { sendRaw } from '../printer.js'
 import { startFakeTpe } from './fake-tpe.js'
 import { CaisseApAdapter } from '../payment/caisse-ap.js'
 
@@ -56,5 +57,35 @@ describe('banc d’essai réseau', () => {
     expect(ok.status).toBe('approved')
     const ko = await tpe.start(1213, 'EUR', 'v2', () => {})
     expect(ko).toMatchObject({ status: 'declined' })
+  })
+
+  it('la fausse imprimante répond à DLE EOT selon son état, de bout en bout avec le pont', async () => {
+    const state: FakePrinterState = {}
+    const jobs: Array<{ lines: string[]; queries: number }> = []
+    const s = await startFakePrinter({ port: 0, host: '127.0.0.1', state: () => state, onJob: (r, _raw, info) => jobs.push({ lines: r.lines, queries: info.queries }) })
+    servers.push(s)
+    const port = (s.address() as { port: number }).port
+    const send = () => sendRaw('127.0.0.1', port, Buffer.from(ticket), 5000, undefined, { checkStatus: true, settleMs: 10 })
+
+    const ok = await send()
+    expect(ok.status).toMatchObject({ known: true, online: true, paperEnd: false })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(jobs[0]).toMatchObject({ queries: 6 })
+    expect(jobs[0].lines[0]).toBe('Café')
+
+    state.paperEnd = true
+    expect(describeState(state)).toBe('sans papier')
+    await expect(send()).rejects.toMatchObject({ code: 'printer_no_paper' })
+    state.paperEnd = false
+    state.coverOpen = true
+    await expect(send()).rejects.toMatchObject({ code: 'printer_cover_open' })
+    state.coverOpen = false
+    state.paperNearEnd = true
+    expect((await send()).status.paperNearEnd).toBe(true)
+    state.silent = true
+    expect((await send()).status.known).toBe(false)
+    await new Promise((r) => setTimeout(r, 20))
+    // Seuls les tickets acceptés sont « imprimés » : prête, presque fini, muette
+    expect(jobs).toHaveLength(3)
   })
 })

@@ -27,11 +27,12 @@ export function PrinterDevice() {
   const dirty = JSON.stringify(draft) !== JSON.stringify(config)
   const needsHost = draft.mode === 'bridge' || draft.mode === 'epos'
 
-  const run = async (label: string, fn: () => Promise<void>) => {
+  // fn peut préciser le message (ex. papier presque fini)
+  const run = async (label: string, fn: () => Promise<string | void>) => {
     setState({ kind: 'busy' })
     try {
-      await fn()
-      setState({ kind: 'ok', message: label })
+      const detail = await fn()
+      setState({ kind: 'ok', message: detail ? `${label}. ${detail}` : label })
     } catch (e) {
       setState({ kind: 'error', message: (e as Error).message })
     }
@@ -181,7 +182,7 @@ export function PrinterDevice() {
           Enregistrer
         </button>
         {config.mode !== 'none' && (
-          <button type="button" className={btn} disabled={dirty || state.kind === 'busy'} onClick={() => run('Ticket d’essai envoyé', () => printTicket(testTicket()))}>
+          <button type="button" className={btn} disabled={dirty || state.kind === 'busy'} onClick={() => run('Ticket d’essai envoyé', async () => (await printTicket(testTicket()))?.warning)}>
             <Printer size={18} aria-hidden /> Ticket d’essai
           </button>
         )}

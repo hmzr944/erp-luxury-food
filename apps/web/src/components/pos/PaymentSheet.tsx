@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowUUpLeft, CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle, Printer, QrCode } from '@phosphor-icons/react'
+import { ArrowUUpLeft, CreditCard, Money, Ticket as TicketIcon, Bank, Wallet, CloudCheck, CloudSlash, CheckCircle, Printer, QrCode, Warning } from '@phosphor-icons/react'
 import { CASH_LIMIT_NON_RESIDENT, CASH_LIMIT_RESIDENT, checkPayments, formatPrice, mealVoucherAllowance, type RuleLine } from '@erp/utils'
 import { PaymentKind } from '@erp/types'
 import type { PlatformConfig } from '@/lib/api/platform'
 import type { PaymentDevice } from '@/lib/api/payments'
 import type { ReceiptSettings } from '@/lib/api/platform'
-import { canOpenDrawer, openDrawer, printTicket, usePrinterConfig } from '@/lib/printing/printer'
+import { canOpenDrawer, openDrawer, printedLabel, printTicket, usePrinterConfig, type PrintOutcome } from '@/lib/printing/printer'
 import { printPlan, ticketForSale } from './receipt-ticket'
 import { productsAdminApi } from '@/lib/api/products-admin'
 import { db } from '@/lib/offline/db'
@@ -616,16 +616,28 @@ function Receipt({
   const { sale } = receipt
   const signedAt = new Date(sale.receipt.signedAt)
   const printer = usePrinterConfig()
-  const [print, setPrint] = useState<{ state: 'idle' | 'printing' | 'printed' | 'error'; message?: string }>({ state: 'idle' })
+  const [print, setPrint] = useState<{ state: 'idle' | 'printing' | 'printed' | 'error'; message?: string; warning?: string; label?: string }>({ state: 'idle' })
   const started = useRef(false)
+  // Paiement en espèces : le tiroir reste à ouvrir tant que l'impression
+  // (qui porte l'impulsion) ou l'ouverture seule n'a pas réussi
+  const drawerOwed = useRef(!!receipt.cashPaid && printer.drawerOnCash && canOpenDrawer(printer))
 
   const doPrint = async (copies: Array<'CLIENT' | 'DOUBLE' | undefined>, drawer: boolean) => {
     setPrint({ state: 'printing' })
     try {
+      let outcome: PrintOutcome | undefined
+      let warning: string | undefined
       for (const [i, copy] of copies.entries()) {
-        await printTicket(ticketForSale(receipt, { receipt: settings, siteName, siteAddress, sellerName }, { copy }), { openDrawer: drawer && i === 0 })
+        outcome = await printTicket(ticketForSale(receipt, { receipt: settings, siteName, siteAddress, sellerName }, { copy }), { openDrawer: drawer && i === 0 })
+        if (drawer && i === 0) drawerOwed.current = false
+        warning ??= outcome?.warning
       }
-      setPrint({ state: 'printed' })
+      // Aucune copie à imprimer (politique « Jamais ») : seulement le tiroir
+      if (drawer && drawerOwed.current) {
+        await openDrawer(printer)
+        drawerOwed.current = false
+      }
+      setPrint({ state: 'printed', label: printedLabel(outcome), warning })
     } catch (e) {
       setPrint({ state: 'error', message: (e as Error).message })
     }
@@ -636,10 +648,13 @@ function Receipt({
   useEffect(() => {
     if (started.current) return
     started.current = true
-    const drawer = !!receipt.cashPaid && printer.drawerOnCash && canOpenDrawer(printer)
+    const drawer = drawerOwed.current
     const plan = printPlan(receipt, settings)
     if (plan.auto && printer.mode !== 'none') void doPrint(plan.copies, drawer)
-    else if (drawer) openDrawer(printer).catch((e: Error) => setPrint({ state: 'error', message: e.message }))
+    else if (drawer)
+      openDrawer(printer)
+        .then(() => (drawerOwed.current = false))
+        .catch((e: Error) => setPrint({ state: 'error', message: e.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -716,15 +731,22 @@ function Receipt({
           {print.message}
         </p>
       )}
+      {print.state === 'printed' && print.warning && (
+        <p role="status" className="flex items-center gap-2 text-sm font-semibold text-[var(--color-warning)]">
+          <Warning size={18} aria-hidden />
+          {print.warning}
+        </p>
+      )}
       {printer.mode !== 'none' && (
         <button
           type="button"
           disabled={print.state === 'printing' || print.state === 'printed'}
-          onClick={() => void doPrint(printPlan(receipt, settings).copies, false)}
+          // Réessayer rouvre aussi le tiroir d'un paiement en espèces resté fermé
+          onClick={() => void doPrint(printPlan(receipt, settings).copies, drawerOwed.current)}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-semibold disabled:text-[var(--color-text-secondary)] press"
         >
           <Printer size={20} aria-hidden />
-          {print.state === 'printing' ? 'Impression' : print.state === 'printed' ? 'Ticket imprimé' : print.state === 'error' ? 'Réessayer l’impression' : 'Imprimer le ticket'}
+          {print.state === 'printing' ? 'Impression' : print.state === 'printed' ? print.label ?? 'Ticket imprimé' : print.state === 'error' ? 'Réessayer l’impression' : 'Imprimer le ticket'}
         </button>
       )}
 
