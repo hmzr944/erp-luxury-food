@@ -127,6 +127,24 @@ export class BridgeClient {
     }
   }
 
+  // Attend la connexion au pont (ouverte à la première utilisation) avant un
+  // envoi : sans cela, le premier paiement de la journée partait en erreur
+  whenReady(timeoutMs = 6000): Promise<void> {
+    this.connect()
+    if (this._status === 'ready') return Promise.resolve()
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer)
+        off()
+        resolve()
+      }
+      const timer = setTimeout(done, timeoutMs)
+      const off = this.subscribe(() => {
+        if (this._status === 'ready' || this._status === 'unpaired') done()
+      })
+    })
+  }
+
   private setStatus(s: BridgeStatus) {
     if (s === this._status) return
     this._status = s

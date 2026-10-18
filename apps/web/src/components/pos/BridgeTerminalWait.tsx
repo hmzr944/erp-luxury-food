@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CreditCard, WarningCircle } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import { FlowPulse } from '@/components/brand/FlowLogo'
-import { getBridge, type BridgeTpeConfig, type PaymentResult } from '@/lib/bridge'
+import { BridgeCallError, getBridge, type BridgeTpeConfig, type PaymentResult } from '@/lib/bridge'
 
 interface BridgeTerminalWaitProps {
   config: BridgeTpeConfig
@@ -15,7 +15,32 @@ interface BridgeTerminalWaitProps {
   onBack: () => void
 }
 
-type View = { kind: 'waiting'; step?: string } | { kind: 'failed'; message: string }
+type View =
+  | { kind: 'waiting'; step?: string; cancelling?: boolean }
+  | { kind: 'failed'; message: string; uncertain?: boolean }
+
+// Paiement envoyé au TPE et pas encore conclu : gardé sur l'appareil pour
+// retrouver son issue après un rechargement ou une coupure, au lieu de
+// renvoyer le montant au TPE (double débit)
+const PENDING_KEY = 'flow-tpe-en-cours'
+const PENDING_TTL_MS = 10 * 60_000
+type Pending = { paymentId: string; amountCents: number; at: number }
+const readPending = (amountCents: number): Pending | null => {
+  try {
+    const p = JSON.parse(localStorage.getItem(PENDING_KEY) ?? 'null') as Pending | null
+    return p && p.amountCents === amountCents && Date.now() - p.at < PENDING_TTL_MS ? p : null
+  } catch {
+    return null
+  }
+}
+const writePending = (p: Pending | null) => {
+  try {
+    if (p) localStorage.setItem(PENDING_KEY, JSON.stringify(p))
+    else localStorage.removeItem(PENDING_KEY)
+  } catch {
+    // stockage indisponible : la reprise après rechargement ne sera pas possible
+  }
+}
 
 // TPE bancaire branché sur le réseau de la boutique : FLŌW-Bridge lui envoie
 // le montant (Caisse-AP) et rend la réponse de la banque. Fonctionne sans
@@ -39,35 +64,95 @@ export function BridgeTerminalWait({ config, amount, onApproved, onPaidElsewhere
     }
   }, [])
 
+  const amountCents = Math.round(amount * 100)
+
+  // Issue finale d'un paiement : la vente se ferme ou l'écran d'échec s'affiche
+  const settle = (id: string, r: PaymentResult) => {
+    if (!mounted.current || paymentId.current !== id) return
+    writePending(null)
+    if (r.status === 'approved') return onApproved(r.authorizationCode ?? r.transactionId)
+    setView({ kind: 'failed', message: r.message ?? (r.status === 'declined' ? 'Paiement refusé.' : r.status === 'cancelled' ? 'Paiement annulé.' : 'Le TPE n’a pas répondu.') })
+  }
+
+  // Liaison perdue avec le pont pendant le paiement : on lui demande l'issue
+  // (le TPE a pu accepter la carte entre-temps)
+  const recover = async (id: string) => {
+    for (let i = 0; i < 90 && mounted.current && paymentId.current === id; i++) {
+      try {
+        const st = await getBridge().call('payment.status', { paymentId: id })
+        if (st.state === 'done' && st.result) return settle(id, st.result)
+        if (st.state === 'unknown') break
+        setView({ kind: 'waiting', step: 'Paiement toujours en cours sur le TPE.' })
+      } catch {
+        setView({ kind: 'waiting', step: 'Liaison avec FLŌW-Bridge perdue, nouvelle tentative...' })
+      }
+      await new Promise((r) => setTimeout(r, 2000))
+    }
+    if (!mounted.current || paymentId.current !== id) return
+    setView({
+      kind: 'failed',
+      uncertain: true,
+      message: 'Issue du paiement inconnue. Regardez l’écran ou le ticket du TPE avant de renvoyer le montant.',
+    })
+  }
+
   useEffect(() => {
     if (startedFor.current === attempt) return
     startedFor.current = attempt
+    // Premier affichage : un paiement de ce montant était peut-être déjà en cours
+    const previous = attempt === 0 ? readPending(amountCents) : null
+    if (previous) {
+      paymentId.current = previous.paymentId
+      setView({ kind: 'waiting', step: 'Reprise du paiement en cours...' })
+      void recover(previous.paymentId)
+      return
+    }
     const id = crypto.randomUUID()
     paymentId.current = id
-    setView({ kind: 'waiting' })
-    const current = () => mounted.current && paymentId.current === id
-    getBridge()
-      .call('payment.start', {
-        adapter: config.adapter,
-        amountCents: Math.round(amount * 100),
-        currency: 'EUR',
-        paymentId: id,
-        ...(config.adapter === 'caisse-ap' ? { host: config.host, port: config.port, posNumber: config.posNumber } : {}),
+    writePending({ paymentId: id, amountCents, at: Date.now() })
+    setView({ kind: 'waiting', step: 'Connexion au TPE...' })
+    const bridge = getBridge()
+    bridge
+      .whenReady()
+      .then(() => {
+        if (mounted.current && paymentId.current === id) setView({ kind: 'waiting' })
+        return bridge.call('payment.start', {
+          adapter: config.adapter,
+          amountCents,
+          currency: 'EUR',
+          paymentId: id,
+          ...(config.adapter === 'caisse-ap' ? { host: config.host, port: config.port, posNumber: config.posNumber } : {}),
+        })
       })
-      .then((r: PaymentResult) => {
-        if (!current()) return
-        if (r.status === 'approved') return onApproved(r.authorizationCode ?? r.transactionId)
-        setView({ kind: 'failed', message: r.message ?? (r.status === 'declined' ? 'Paiement refusé.' : r.status === 'cancelled' ? 'Paiement annulé.' : 'Le TPE n’a pas répondu.') })
+      .then((r: PaymentResult) => settle(id, r))
+      .catch((e: Error) => {
+        // Liaison coupée ou pont muet pendant le paiement : issue à retrouver.
+        // Sinon la demande n'est jamais partie au TPE (pont absent, refus du pont).
+        if (e instanceof BridgeCallError && (e.code === 'disconnected' || e.code === 'timeout')) return void recover(id)
+        if (!mounted.current || paymentId.current !== id) return
+        writePending(null)
+        setView({ kind: 'failed', message: e.message })
       })
-      .catch((e: Error) => current() && setView({ kind: 'failed', message: e.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt])
 
+  // Le TPE Caisse-AP ne s'annule pas à distance : on le dit, et on attend
+  // sa réponse (le client a pu payer quand même)
   const cancel = async () => {
-    await getBridge()
-      .call('payment.cancel', { paymentId: paymentId.current })
-      .catch(() => {})
-    onBack()
+    const id = paymentId.current
+    const r = await getBridge()
+      .call('payment.cancel', { paymentId: id })
+      .catch(() => ({ accepted: false, message: '' }))
+    if (r.accepted) {
+      writePending(null)
+      return onBack()
+    }
+    if (paymentId.current === id) setView({ kind: 'waiting', cancelling: true, step: 'Annulez sur le TPE (touche rouge). La caisse attend sa réponse.' })
+  }
+
+  const paidOnTerminal = () => {
+    writePending(null)
+    onPaidElsewhere()
   }
 
   if (view.kind === 'failed') {
@@ -77,15 +162,33 @@ export function BridgeTerminalWait({ config, amount, onApproved, onPaidElsewhere
           <WarningCircle size={22} weight="fill" aria-hidden className="mt-px shrink-0" />
           {view.message}
         </p>
+        {view.uncertain && (
+          <button
+            type="button"
+            onClick={paidOnTerminal}
+            className="h-14 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-semibold press"
+          >
+            Le TPE a accepté : enregistrer la vente
+          </button>
+        )}
         <button
           type="button"
           data-autofocus
-          onClick={() => setAttempt((n) => n + 1)}
+          onClick={() => {
+            writePending(null)
+            setAttempt((n) => n + 1)
+          }}
           className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] press"
         >
           Renvoyer au TPE
         </button>
-        <button type="button" onClick={onBack} className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium press">
+        <button
+          type="button"
+          onClick={() => {
+            writePending(null)
+            onBack()
+          }}
+          className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium press">
           Autre moyen de paiement
         </button>
       </div>
@@ -102,16 +205,18 @@ export function BridgeTerminalWait({ config, amount, onApproved, onPaidElsewhere
         <p className="tabular text-4xl font-semibold tracking-tight">{formatPrice(amount)}</p>
         <p className="text-[15px] text-[var(--color-text-secondary)]">{view.step ?? 'Le client paie sur le TPE.'}</p>
       </div>
-      <button type="button" onClick={cancel} className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium press">
-        Annuler
-      </button>
+      {!view.cancelling && (
+        <button type="button" onClick={cancel} className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium press">
+          Annuler
+        </button>
+      )}
       <button
         type="button"
         onClick={async () => {
           await getBridge()
             .call('payment.cancel', { paymentId: paymentId.current })
             .catch(() => {})
-          onPaidElsewhere()
+          paidOnTerminal()
         }}
         className="h-11 w-full text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline"
       >

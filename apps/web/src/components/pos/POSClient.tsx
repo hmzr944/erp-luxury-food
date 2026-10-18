@@ -719,6 +719,7 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
           open={paying}
           siteId={siteId}
           device={device}
+          training={training}
           total={totals.total}
           ruleLines={ruleLines}
           methods={methods}

@@ -61,6 +61,8 @@ interface PaymentSheetProps {
   siteId: string
   // TPE connecté de cette caisse : la carte y est encaissée automatiquement
   device: PaymentDevice | null
+  // Mode formation : vente fictive, aucun montant n'est envoyé à un TPE réel
+  training?: boolean
   total: number
   // Lignes de la vente (TTC, éligibilité titre-restaurant) pour les règles d'encaissement
   ruleLines: RuleLine[]
@@ -81,7 +83,9 @@ interface PaymentSheetProps {
   onQrShow?: (qr: { url: string; expiresAt: string | null } | null) => void
 }
 
-export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, siteName, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose, qrAvailable, onQrShow }: PaymentSheetProps) {
+export function PaymentSheet({ open, siteId, device: realDevice, training = false, total, ruleLines, methods, siteName, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose, qrAvailable, onQrShow }: PaymentSheetProps) {
+  const device = training ? null : realDevice
+  const bridgeTpe = !training && getBridgeTpe().enabled
   const [split, setSplit] = useState(false)
   // Paiement par QR : enregistré sur le moyen « carte » de l'organisation
   const [qr, setQr] = useState(false)
@@ -142,7 +146,7 @@ export function PaymentSheet({ open, siteId, device, total, ruleLines, methods, 
     setNotice(null)
     if (m.code === 'CREDIT' || m.code === 'GIFT_CARD') return setCredit(m.code)
     if (m.kind === PaymentKind.CARD && device && navigator.onLine) return setTerminal(m)
-    if (m.kind === PaymentKind.CARD && getBridgeTpe().enabled) return setBridgeCard(m)
+    if (m.kind === PaymentKind.CARD && bridgeTpe) return setBridgeCard(m)
     // Titre-restaurant : articles éligibles seulement, plafonné par ticket.
     // Au-delà, le reste se paie avec un autre moyen.
     if (m.mealVoucher) {
