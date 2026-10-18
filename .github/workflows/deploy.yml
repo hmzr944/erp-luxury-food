@@ -1,40 +1,100 @@
-name: Deploy to OVHcloud
+name: Deploy
 
+# Déploiement après un CI réussi sur main, ou à la demande.
+# Cible choisie par la variable de dépôt DEPLOY_TARGET (Settings, Secrets and
+# variables, Actions, Variables) :
+#   serveur     un seul serveur, deploy/docker-compose.prod.yml (docs/installation-production.md)
+#   kubernetes  OVHcloud Managed Kubernetes, dossier k8s/ (option « plus tard »)
+# Sans DEPLOY_TARGET, rien n'est déployé.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  # Commit testé par le CI (ou celui de la branche lancée à la main)
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
-  build-and-deploy:
-    name: Build images + Deploy k8s
+  serveur:
+    name: Serveur unique (docker compose)
+    if: vars.DEPLOY_TARGET == 'serveur' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      API_DOMAIN: ${{ vars.API_DOMAIN }}
+      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+    steps:
+      - name: Contrôle des variables
+        run: |
+          missing=""
+          for v in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH API_DOMAIN APP_DOMAIN; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          [ -z "$missing" ] || { echo "::error::Variables de dépôt manquantes :$missing"; exit 1; }
+
+      - name: Clé SSH du serveur
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          [ -n "$SSH_KEY" ] && [ -n "$KNOWN_HOSTS" ] || { echo "::error::Secrets DEPLOY_SSH_KEY et DEPLOY_SSH_KNOWN_HOSTS requis"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # Sauvegarde, récupération de ce commit, construction, migrations
+      # (l'API ne démarre pas si elles échouent), redémarrage
+      - name: Mise à jour du serveur
+        run: |
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' && ./deploy/flow mettre-a-jour '$DEPLOY_SHA'"
+
+      - name: Vérification en ligne
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS "https://$API_DOMAIN/api/health" | grep -q '"status":"ok"' \
+              && curl -fsS -o /dev/null "https://$APP_DOMAIN/manifest.json"; then
+              echo "API et caisse en ligne"; exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::https://$API_DOMAIN/api/health ou https://$APP_DOMAIN ne répond pas"
+          exit 1
+
+  kubernetes:
+    name: Kubernetes OVHcloud (k8s/)
+    if: vars.DEPLOY_TARGET == 'kubernetes' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      API_DOMAIN: ${{ vars.API_DOMAIN }}
+      REGISTRY: registry.gra.cloud.ovh.net/erp
 
     steps:
+      - name: Contrôle des variables
+        run: |
+          [ -n "$API_DOMAIN" ] || { echo "::error::Variable de dépôt API_DOMAIN manquante"; exit 1; }
+
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          ref: ${{ env.DEPLOY_SHA }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run tests
-        run: pnpm test
-        env:
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
-
-      # Docker login — OVHcloud Managed Private Registry (GRA)
+      # Registre privé OVHcloud (GRA)
       - name: Login to OVHcloud registry
         uses: docker/login-action@v3
         with:
@@ -52,10 +112,10 @@ jobs:
           file: apps/api/Dockerfile
           push: true
           tags: |
-            registry.gra.cloud.ovh.net/erp/api:latest
-            registry.gra.cloud.ovh.net/erp/api:${{ github.sha }}
-          cache-from: type=registry,ref=registry.gra.cloud.ovh.net/erp/api:buildcache
-          cache-to: type=registry,ref=registry.gra.cloud.ovh.net/erp/api:buildcache,mode=max
+            ${{ env.REGISTRY }}/api:latest
+            ${{ env.REGISTRY }}/api:${{ env.DEPLOY_SHA }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/api:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/api:buildcache,mode=max
 
       - name: Build and push Web image
         uses: docker/build-push-action@v5
@@ -64,40 +124,58 @@ jobs:
           file: apps/web/Dockerfile
           push: true
           build-args: |
-            NEXT_PUBLIC_API_URL=https://api.yourdomain.fr
-            NEXT_PUBLIC_WS_URL=wss://api.yourdomain.fr
+            NEXT_PUBLIC_API_URL=https://${{ env.API_DOMAIN }}
+            NEXT_PUBLIC_WS_URL=wss://${{ env.API_DOMAIN }}
           tags: |
-            registry.gra.cloud.ovh.net/erp/web:latest
-            registry.gra.cloud.ovh.net/erp/web:${{ github.sha }}
+            ${{ env.REGISTRY }}/web:latest
+            ${{ env.REGISTRY }}/web:${{ env.DEPLOY_SHA }}
 
       # Deploy to OVHcloud Managed Kubernetes (région GRA)
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
 
       - name: Configure kubeconfig
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.OVH_KUBECONFIG }}
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.OVH_KUBECONFIG }}" > ~/.kube/config
+          install -m 700 -d ~/.kube
+          printf '%s\n' "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
 
+      # Migrations avec la NOUVELLE image, avant le déploiement : un échec
+      # arrête le workflow, l'ancienne version reste en service
       - name: Run Prisma migrations
         run: |
-          kubectl exec -n erp-production deploy/erp-api -- npx prisma migrate deploy
-        continue-on-error: true
+          name="erp-migrate-${DEPLOY_SHA::7}"
+          image="$REGISTRY/api:$DEPLOY_SHA"
+          kubectl run "$name" -n erp-production --image="$image" --restart=Never --rm -i --attach \
+            --pod-running-timeout=5m \
+            --overrides="{\"spec\":{\"containers\":[{\"name\":\"$name\",\"image\":\"$image\",\"command\":[\"npx\",\"prisma\",\"migrate\",\"deploy\"],\"envFrom\":[{\"secretRef\":{\"name\":\"erp-api-secrets\"}}]}]}}"
 
       - name: Deploy API
         run: |
-          kubectl set image deployment/erp-api api=registry.gra.cloud.ovh.net/erp/api:${{ github.sha }} \
-            -n erp-production
+          kubectl set image deployment/erp-api api=$REGISTRY/api:$DEPLOY_SHA -n erp-production
           kubectl rollout status deployment/erp-api -n erp-production --timeout=120s
 
       - name: Deploy Web
         run: |
-          kubectl set image deployment/erp-web web=registry.gra.cloud.ovh.net/erp/web:${{ github.sha }} \
-            -n erp-production
+          kubectl set image deployment/erp-web web=$REGISTRY/web:$DEPLOY_SHA -n erp-production
           kubectl rollout status deployment/erp-web -n erp-production --timeout=120s
 
-      - name: Notify on failure
-        if: failure()
+  # Échec : un ticket GitHub (notification par e-mail aux personnes qui suivent le dépôt)
+  notifier-echec:
+    name: Signaler l'échec
+    needs: [serveur, kubernetes]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Ouvrir un ticket
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          echo "Deploy failed for commit ${{ github.sha }}"
-          # TODO: ajouter notification Slack/email
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Déploiement en échec (${DEPLOY_SHA::7})" \
+            --body "Le déploiement du commit $DEPLOY_SHA a échoué. Journal : $RUN_URL"

@@ -1,0 +1,2 @@
+# Variables du serveur (mots de passe, clés du stockage) : jamais dans le dépôt
+.env.prod

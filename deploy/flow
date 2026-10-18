@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Raccourcis d'exploitation de FLŌW sur le serveur (depuis la racine du dépôt).
+#
+#   ./deploy/flow configurer             écrit apps/api/.env.production et apps/web/.env.production
+#   ./deploy/flow verifier-config        contrôle ces fichiers et deploy/.env.prod
+#   ./deploy/flow up -d --build          construit et démarre tout (toute commande docker compose passe)
+#   ./deploy/flow etat                   état des services
+#   ./deploy/flow sauvegarder            sauvegarde immédiate
+#   ./deploy/flow controler-sauvegarde   la dernière sauvegarde a-t-elle moins de 26 h ?
+#   ./deploy/flow tester-restauration CLE [--from …]   restaure dans une base d'essai, puis la supprime
+#   ./deploy/flow restaurer CLE [--from …]             remplace la base de production (arrêt de la caisse)
+#   ./deploy/flow mettre-a-jour [COMMIT] sauvegarde, git pull (ou ce commit), reconstruction, migrations, redémarrage
+#
+# CLE : fichier de clé privée age, à apporter le temps de la restauration puis à effacer.
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$DIR/.." && pwd)"
+ENV_FILE="$DIR/.env.prod"
+
+compose() {
+  [[ -f "$ENV_FILE" ]] || { echo "deploy/.env.prod introuvable : cp deploy/.env.prod.example deploy/.env.prod" >&2; exit 1; }
+  docker compose --env-file "$ENV_FILE" -f "$DIR/docker-compose.prod.yml" "$@"
+}
+
+# Le script d'installation tourne dans un conteneur Node : rien à installer sur le serveur
+setup() {
+  docker run --rm -it --user "$(id -u):$(id -g)" -v "$ROOT:/app" -w /app node:22-alpine \
+    node scripts/setup-production.mjs --docker "$@"
+}
+
+restore() {
+  local key="${1:-}"
+  [[ -n "$key" && -f "$key" ]] || { echo "Indiquez le fichier de clé privée age : ./deploy/flow $CMD /chemin/cle-age.txt" >&2; exit 1; }
+  shift
+  compose run --rm -v "$(realpath "$key"):/run/cle-age.txt:ro" backup restore.sh --identity /run/cle-age.txt "$@"
+}
+
+CMD="${1:-}"
+[[ $# -gt 0 ]] && shift
+case "$CMD" in
+  configurer) setup "$@" ;;
+  verifier-config) setup --check ;;
+  etat) compose ps ;;
+  sauvegarder) compose exec backup backup.sh ;;
+  controler-sauvegarde) compose exec backup check-backup.sh ;;
+  tester-restauration) restore "$@" ;;
+  restaurer)
+    key="${1:-}"
+    [[ $# -gt 0 ]] && shift
+    echo "Arrêt de la caisse et de l'API pendant la restauration."
+    compose stop web api
+    if restore "$key" --production "$@"; then
+      compose up -d
+    else
+      echo "Restauration interrompue : la base n'a pas été remplacée. Redémarrage de la caisse." >&2
+      compose up -d
+      exit 1
+    fi
+    ;;
+  mettre-a-jour)
+    echo "1/4 Sauvegarde avant mise à jour"
+    compose exec backup backup.sh
+    echo "2/4 Récupération du code"
+    if [[ -n "${1:-}" ]]; then
+      git -C "$ROOT" fetch --quiet origin
+      git -C "$ROOT" merge --ff-only "$1"
+    else
+      git -C "$ROOT" pull --ff-only
+    fi
+    echo "3/4 Construction des images"
+    compose build
+    echo "4/4 Migrations puis redémarrage (l'API ne repart que si les migrations passent)"
+    compose up -d
+    compose ps
+    ;;
+  "" | -h | --help | aide) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) compose "$CMD" "$@" ;;
+esac

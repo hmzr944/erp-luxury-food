@@ -1,0 +1,34 @@
+# Frontal HTTPS de FLŌW. Certificats Let's Encrypt obtenus et renouvelés
+# automatiquement par Caddy pour les deux adresses de deploy/.env.prod.
+# Prérequis : les deux noms pointent (DNS) vers ce serveur, ports 80 et 443 ouverts.
+{
+	email {$ACME_EMAIL}
+}
+
+# En-têtes de sécurité. Le « ? » ne pose l'en-tête que s'il manque : ceux que
+# posent déjà l'API (helmet, apps/api/src/main.ts) et la caisse (next.config.ts),
+# plus stricts, sont conservés tels quels.
+(securite) {
+	# Une ligne par en-tête : regroupés dans un même bloc, les « ? » ne
+	# s'appliqueraient que si TOUS manquaient.
+	header ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	header ?X-Content-Type-Options "nosniff"
+	header ?Referrer-Policy "strict-origin-when-cross-origin"
+	header ?X-Frame-Options "DENY"
+	header -Server
+	header -X-Powered-By
+}
+
+{$APP_DOMAIN} {
+	import securite
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+# API : HTTP et WebSocket (temps réel). Les webhooks Stripe passent tels quels,
+# corps intact (signature vérifiée par l'API).
+{$API_DOMAIN} {
+	import securite
+	encode zstd gzip
+	reverse_proxy api:3001
+}

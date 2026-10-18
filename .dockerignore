@@ -1,0 +1,24 @@
+# Contexte de construction des images (apps/api/Dockerfile, apps/web/Dockerfile).
+# Les dépendances sont réinstallées dans l'image : rien de la machine locale.
+.git
+.github
+.claude
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/*.log
+docs
+k8s
+deploy
+reports
+research_notes
+
+# Secrets : jamais dans une image. apps/web/.env.production reste (adresses
+# publiques NEXT_PUBLIC_*, lues par next build).
+**/.env
+**/.env.local
+**/.env.*.local
+apps/api/.env.production
+apps/api/.env.production.*
