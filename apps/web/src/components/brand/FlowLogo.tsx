@@ -1,5 +1,5 @@
 import { BRAND } from '@/lib/brand'
-import { MARK_LEFT, MARK_RIGHT, NAME_BAR, NAME_BAR_WIDTH, NAME_CAP, NAME_H, NAME_PATH, NAME_VIEWBOX, NAME_W } from '@erp/utils'
+import { MARK_LEFT, MARK_RIGHT } from '@erp/utils'
 
 // Le signe FLŌW : deux demi-disques décalés, l'encre et le violet. L'argent
 // qui entre et celui qui sort, la vente et le stock : un flux, pas une lettre.
@@ -39,31 +39,13 @@ export function FlowMark({ size = 32, className = '', tile = false, inverse = fa
   )
 }
 
-// Le nom en tracés vectoriels (Bricolage Grotesque ExtraBold), macron violet.
-// cap : hauteur des capitales en px (18 en en-tête, 26 sur la connexion).
-export function FlowWordmark({ cap = 18, className = '', motion }: { cap?: number; className?: string; motion?: Motion }) {
-  const h = (cap * NAME_H) / NAME_CAP
+// Le logo : la forme abstraite seule, sans le nom en lettres. Le nom n'est
+// dit qu'aux lecteurs d'écran. size : hauteur de référence (18 en en-tête,
+// 26 sur la connexion), le signe en fait 1,55 fois.
+export function FlowLogo({ size = 18, className = '', motion }: { size?: number; className?: string; motion?: Motion }) {
   return (
-    <svg height={h} width={(h * NAME_W) / NAME_H} viewBox={NAME_VIEWBOX} aria-hidden className={`${motionClass(motion)}shrink-0 ${className}`}>
-      <path d={NAME_PATH} fill="currentColor" />
-      <path className="fm-bar" d={NAME_BAR} stroke="var(--color-accent)" strokeWidth={NAME_BAR_WIDTH} strokeLinecap="round" />
-    </svg>
-  )
-}
-
-// Logo complet : le signe et le nom côte à côte (label), ou le signe seul sur
-// son carré. Deux tailles seulement : 18 px (en-têtes) et 26 px (connexion, site).
-export function FlowLogo({ size = 18, className = '', label = true, motion }: { size?: number; className?: string; label?: boolean; motion?: Motion }) {
-  return (
-    <span className={`inline-flex items-center gap-[0.45em] text-[var(--color-text-primary)] ${className}`} style={{ fontSize: size }}>
-      {label ? (
-        <>
-          <FlowMark size={Math.round(size * 1.55)} motion={motion} />
-          <FlowWordmark cap={size} motion={motion} />
-        </>
-      ) : (
-        <FlowMark size={size} tile motion={motion} />
-      )}
+    <span className={`inline-flex items-center text-[var(--color-text-primary)] ${className}`}>
+      <FlowMark size={Math.round(size * 1.55)} motion={motion} />
       <span className="sr-only">{BRAND}</span>
     </span>
   )

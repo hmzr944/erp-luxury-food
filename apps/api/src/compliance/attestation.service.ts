@@ -152,8 +152,8 @@ export class AttestationService {
       doc.registerFont('semibold', join(FONTS, 'HankenGrotesk-SemiBold.ttf'))
       const width = doc.page.width - 128
 
-      // Le nom FLŌW dessiné, comme dans l'application
-      this.wordmark(doc, 64, 50, 15)
+      // Le logo FLŌW : la forme abstraite, comme dans l'application
+      drawBrandLogo(doc, 64, 46, 30)
       doc.font('regular').fontSize(8.5).fillColor(MUTED).text('Modèle BOI-LETTRE-000242 (version du 25/03/2026)', 64, 54, { width, align: 'right' })
 
       doc.font('semibold').fontSize(16).fillColor(INK).text('Attestation individuelle relative à l’utilisation d’un logiciel ou d’un système de caisse sécurisé', 64, 84, { width })
@@ -198,7 +198,7 @@ export class AttestationService {
       para('Remarque : il est rappelé que l’établissement d’une fausse attestation est un délit pénal passible de trois ans d’emprisonnement et de 45 000 € d’amende (code pénal, art. 441-1). L’usage d’une fausse attestation est passible des mêmes peines.', { size: 8.5, color: MUTED })
 
       doc.addPage()
-      this.wordmark(doc, 64, 50, 15)
+      drawBrandLogo(doc, 64, 46, 30)
       doc.y = 92
       section('Volet 2 : partie à remplir par l’entreprise qui utilise le logiciel de caisse')
       const blank = '..............................'
@@ -216,10 +216,5 @@ export class AttestationService {
 
       doc.end()
     })
-  }
-
-  // Logo FLŌW (signe et nom, mêmes tracés que l'application), en points PDF
-  private wordmark(doc: PDFKit.PDFDocument, x: number, y: number, cap: number) {
-    drawBrandLogo(doc, x, y, cap)
   }
 }

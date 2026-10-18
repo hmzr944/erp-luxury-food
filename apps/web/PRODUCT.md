@@ -34,7 +34,7 @@ Ventes hors ligne signées par chaque caisse (ECDSA) et vérifiées par le serve
 
 ## Brand Commitments
 
-Nom FLŌW (Ō avec trait), signe vectoriel de deux demi-disques décalés (encre et violet), trois couleurs : papier #F4EFE6, encre #1C1726, violet #4B2BD6. Polices Bricolage Grotesque (marque), Hanken Grotesk (interface), Courier Prime (tickets). Glyphes de rayon par catégorie. Référence : docs/identite.md. Ces éléments existent dans le code (`src/components/brand`, `src/app/globals.css`).
+Nom FLŌW (Ō avec trait), logo abstrait sans lettre : deux demi-disques décalés (encre et violet), jamais accompagné du nom dessiné, trois couleurs : papier #F4EFE6, encre #1C1726, violet #4B2BD6. Polices Bricolage Grotesque (marque), Hanken Grotesk (interface), Courier Prime (tickets). Glyphes de rayon par catégorie. Référence : docs/identite.md. Ces éléments existent dans le code (`src/components/brand`, `src/app/globals.css`).
 
 ## Evidence on Hand
 

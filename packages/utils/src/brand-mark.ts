@@ -1,16 +1,6 @@
-// Logo FLŌW, partagé par l'application et les PDF.
-// Signe : deux demi-disques décalés (encre à gauche, violet à droite), grille 48.
+// Logo FLŌW, partagé par l'application et les PDF. Une forme abstraite, sans
+// lettre : deux demi-disques décalés (encre à gauche, violet à droite), grille 48.
 export const MARK_LEFT = 'M22.5 5 A17 17 0 0 0 22.5 39 Z'
 export const MARK_RIGHT = 'M25.5 9 A17 17 0 0 1 25.5 43 Z'
 export const BRAND_COLORS = { paper: '#F4EFE6', ink: '#1C1726', accent: '#4B2BD6', accentOnDark: '#A9A6FF' } as const
 
-// Contours de « FLŌW » en Bricolage Grotesque ExtraBold (licence OFL), en
-// tracés : le nom ne dépend d'aucune police chargée. Le macron est un trait
-// violet à bouts ronds au-dessus du O.
-export const NAME_PATH = 'M69 0L69 -660L571 -660L571 -523L230 -523L230 -366L535 -366L535 -235L230 -235L230 0ZM670 0L670 -660L831 -660L831 -135L1100 -135L1100 0ZM1460 14Q1388 14 1330 -8Q1272 -30 1231 -73Q1189 -116 1167 -179Q1145 -243 1145 -327Q1145 -445 1187 -521Q1228 -598 1301 -636Q1374 -674 1466 -674Q1537 -674 1595 -652Q1653 -630 1695 -587Q1736 -544 1759 -479Q1781 -415 1781 -331Q1781 -244 1758 -179Q1734 -115 1692 -72Q1649 -29 1590 -7Q1531 14 1460 14ZM1465 -112Q1514 -112 1548 -136Q1581 -161 1599 -207Q1616 -254 1616 -321Q1616 -392 1598 -441Q1580 -491 1546 -516Q1511 -542 1461 -542Q1413 -542 1380 -517Q1346 -493 1328 -445Q1310 -398 1310 -329Q1310 -277 1321 -236Q1331 -196 1350 -168Q1369 -141 1399 -126Q1428 -112 1465 -112ZM1979 0L1835 -660L2011 -660L2098 -136L2109 -136L2218 -660L2421 -660L2532 -136L2543 -136L2630 -660L2796 -660L2651 0L2427 0L2322 -523L2312 -523L2208 0Z'
-export const NAME_BAR = 'M1318 -805 H1608'
-export const NAME_BAR_WIDTH = 110
-export const NAME_VIEWBOX = '40 -900 2800 920'
-export const NAME_W = 2800
-export const NAME_H = 920
-export const NAME_CAP = 660

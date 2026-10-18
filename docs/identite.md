@@ -1,26 +1,26 @@
 # Identité FLŌW
 
-## Le signe
+## Le logo
 
-Deux demi-disques décalés : l'encre à gauche, le violet à droite. L'argent qui entre et celui qui sort, la vente et le stock. Un flux, pas une lettre.
+Une forme abstraite, sans aucune lettre : deux demi-disques décalés, l'encre à gauche, le violet à droite. L'argent qui entre et celui qui sort, la vente et le stock. Un flux, pas un nom.
 
+- Le logo est ce signe seul, partout : en-têtes, connexion, PDF, badge, icônes. Le nom FLŌW n'est jamais dessiné à côté ; il reste dit aux lecteurs d'écran et écrit en texte courant quand il faut le nommer.
 - Grille de 48 : rayon 17, écart de 3 entre les moitiés, décalage vertical de 4 (la gauche monte, la droite descend).
 - Tracés de référence : `packages/utils/src/brand-mark.ts` (`MARK_LEFT`, `MARK_RIGHT`), partagés par l'application et les PDF.
-- Lisible dès 16 px, sans détail qui disparaît.
-- Le nom FLŌW est dessiné en tracés (Bricolage Grotesque ExtraBold), avec un macron violet. Il ne dépend d'aucune police chargée.
+- Lisible dès 16 px, sans détail qui disparaît. Fonctionne en une couleur.
 
-Fichiers prêts à l'emploi dans `apps/web/public/brand/` :
+Fichiers vectoriels prêts à l'emploi dans `apps/web/public/brand/` :
 
 | Fichier | Usage |
 | --- | --- |
-| `flow-logo.svg` | Logo complet sur fond clair |
-| `flow-logo-sombre.svg` | Logo complet sur l'encre |
+| `flow-logo.svg` | Logo sur fond clair |
+| `flow-logo-sombre.svg` | Logo sur l'encre |
 | `flow-logo-une-couleur.svg` | Gravure, fax, tampon, impression une couleur |
-| `flow-symbole.svg` | Signe seul |
-| `flow-symbole-sombre.svg` | Signe seul sur l'encre |
 | `flow-icone.svg` | Icône d'application (carré violet) |
 
-Interdits : déformer, faire pivoter, ajouter une ombre ou un dégradé, recolorer hors des trois couleurs, rapprocher les moitiés.
+Interdits : déformer, faire pivoter, ajouter une ombre ou un dégradé, recolorer hors des trois couleurs, rapprocher les moitiés, accoler le nom en lettres.
+
+Pistes écartées : un ruban en S et une boucle (se lisent comme la lettre S), un disque coupé par une onde (rappelle le yin et le yang), une cascade de demi-disques (se lit DDD), un quartier de disque détaché (graphique de gestion).
 
 ## Trois couleurs, pas une de plus
 
@@ -47,5 +47,5 @@ Toutes en licence OFL, auto-hébergées (`apps/web/public/fonts`, `apps/api/asse
 ## Méthode
 
 - Polices choisies avec la skill `web-typography` (skills.sh, wondelai), hors de la liste des polices trop vues de `impeccable`.
-- Signe dessiné avec la méthode de `svg-logo-designer` (skills.sh, rknall) : plusieurs pistes (pièce, cachet, flux, ticket), test de 16 à 120 px, version une couleur.
+- Logo dessiné avec la méthode de `svg-logo-designer` (skills.sh, rknall), catégorie « marque abstraite » : deux tours de pistes (pièce, cachet, flux, ticket, puis ruban, boucle, onde, cascade, quartier), test de 16 à 120 px, sur fond sombre, en une couleur et sur tuile.
 - Couleurs mesurées avec `better-colors`. Brief structuré selon `brand-identity` (skills.sh).

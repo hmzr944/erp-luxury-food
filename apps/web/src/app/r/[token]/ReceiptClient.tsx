@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { DownloadSimple, HourglassMedium, Receipt as ReceiptIcon } from '@phosphor-icons/react'
 import type { TicketModel } from '@erp/utils'
-import { FlowLogo, FlowPulse } from '@/components/brand/FlowLogo'
+import { FlowMark, FlowPulse } from '@/components/brand/FlowLogo'
 
 const API = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/api`
 
@@ -66,7 +66,8 @@ export function ReceiptClient({ token }: { token: string }) {
         )}
         {view.status === 'ready' && <Ticket token={token} view={view} />}
         <p className="flex items-center justify-center gap-2 text-sm text-[var(--color-text-muted)]">
-          Ticket émis avec <FlowLogo size={12} />
+          <FlowMark size={18} className="text-[var(--color-text-primary)]" />
+          Ticket émis avec FLŌW
         </p>
       </div>
     </main>

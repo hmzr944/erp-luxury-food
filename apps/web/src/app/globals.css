@@ -302,35 +302,30 @@
   .press:not(:disabled):active { scale: 0.97; }
 }
 
-/* Le signe FLŌW est fait de trois formes : le trait (macron du Ō) et les
-   deux moitiés du disque, décalées comme deux flux qui se croisent.
-   Elles portent tout le mouvement de la marque. */
-.fm-bar, .fm-l, .fm-r { transform-box: fill-box; }
-.fm-bar { transform-origin: left center; }
+/* Le signe FLŌW est une forme abstraite : les deux moitiés du disque,
+   décalées comme deux flux qui se croisent. Elles portent tout le
+   mouvement de la marque. */
+.fm-l, .fm-r { transform-box: fill-box; }
 
-/* Formation : les moitiés se rejoignent, le trait se tire au-dessus.
+/* Formation : les moitiés se rejoignent.
    Moments rares seulement (arrivée, vente enregistrée, haut du site). */
 @keyframes fm-in-l { from { transform: translateX(-60%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fm-in-r { from { transform: translateX(60%); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes fm-in-bar { from { transform: scaleX(0); } to { transform: none; } }
 .flow-form .fm-l { animation: fm-in-l 560ms var(--ease-out) both; }
 .flow-form .fm-r { animation: fm-in-r 560ms var(--ease-out) both; }
-.flow-form .fm-bar { animation: fm-in-bar 480ms var(--ease-out) 200ms both; }
 
 /* Flux : pendant une attente, les deux moitiés glissent en sens contraire
-   et le trait respire. Mouvement continu, courbe in-out. */
+   Mouvement continu, courbe in-out. */
 @keyframes fm-flux-l { 0%, 100% { transform: none; } 50% { transform: translateY(14%); } }
 @keyframes fm-flux-r { 0%, 100% { transform: none; } 50% { transform: translateY(-14%); } }
-@keyframes fm-flux-bar { 0%, 100% { transform: none; } 50% { transform: scaleX(0.45); } }
 .flow-flux .fm-l { animation: fm-flux-l 1.3s var(--ease-in-out) infinite; }
 .flow-flux .fm-r { animation: fm-flux-r 1.3s var(--ease-in-out) infinite; }
-.flow-flux .fm-bar { animation: fm-flux-bar 1.3s var(--ease-in-out) infinite; }
 
 @keyframes flow-glow { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 @keyframes flow-glow-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .flow-form .fm-l, .flow-form .fm-r, .flow-form .fm-bar { animation: flow-glow-in 200ms ease both; }
-  .flow-flux .fm-l, .flow-flux .fm-r, .flow-flux .fm-bar { animation: flow-glow 1.6s ease infinite; }
+  .flow-form .fm-l, .flow-form .fm-r { animation: flow-glow-in 200ms ease both; }
+  .flow-flux .fm-l, .flow-flux .fm-r { animation: flow-glow 1.6s ease infinite; }
 }
 
 /* Pastille de quantité sur une tuile : apparaît sans surgir de rien */
