@@ -33,6 +33,7 @@ import {
 } from './pin'
 import type { LoginDto } from './dto/login.dto'
 import type { RegisterDto } from './dto/register.dto'
+import { TERMS_VERSION } from './terms'
 
 const BCRYPT_ROUNDS = 12
 
@@ -73,6 +74,8 @@ export class AuthService {
           firstName: dto.firstName?.trim() ?? '',
           lastName: dto.lastName?.trim() ?? '',
           role: 'OWNER',
+          termsAcceptedAt: new Date(),
+          termsVersion: TERMS_VERSION,
         },
         select: { id: true, email: true, firstName: true, lastName: true, role: true, organizationId: true },
       })

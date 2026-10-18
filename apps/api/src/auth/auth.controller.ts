@@ -6,6 +6,8 @@ import { LoginDto } from './dto/login.dto'
 import { PinLoginDto } from './dto/pin-login.dto'
 import { BadgeLoginDto } from './dto/badge-login.dto'
 import { OfflineRosterDto } from './dto/offline-roster.dto'
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto'
+import { PasswordResetService } from './password-reset.service'
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 
@@ -13,7 +15,10 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
 export class AuthController {
-  constructor(private auth: AuthService) {}
+  constructor(
+    private auth: AuthService,
+    private passwords: PasswordResetService,
+  ) {}
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -51,6 +56,21 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto)
+  }
+
+  // Toujours 204 : la réponse ne dit pas si un compte existe pour cet e-mail
+  @Post('password/forgot')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    this.passwords.forgot(dto.email)
+  }
+
+  @Post('password/reset')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.passwords.reset(dto.token, dto.password)
   }
 
   @Post('refresh')

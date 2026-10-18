@@ -28,6 +28,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [pinError, setPinError] = useState<string | null>(null)
+  // Retour de « mot de passe oublié » : le nouveau est enregistré
+  const [passwordReset, setPasswordReset] = useState(false)
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('mdp') === 'nouveau') setPasswordReset(true)
+  }, [])
 
   useEffect(() => {
     localTerminals()
@@ -35,7 +41,8 @@ export default function LoginPage() {
         setTills(t)
         if (t.length) {
           setTill(t[0])
-          setMode('pin')
+          // Après un nouveau mot de passe, on reste sur l'e-mail
+          if (new URLSearchParams(window.location.search).get('mdp') !== 'nouveau') setMode('pin')
         }
       })
       .catch(() => setTills([]))
@@ -131,6 +138,11 @@ export default function LoginPage() {
               }
             }}
           >
+            {passwordReset && (
+              <p role="status" className="rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-3 text-[15px] font-medium">
+                Mot de passe enregistré. Connectez-vous avec le nouveau.
+              </p>
+            )}
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-medium">
                 E-mail
@@ -138,9 +150,14 @@ export default function LoginPage() {
               <input id="email" type="email" autoComplete="email" required aria-invalid={!!error} aria-describedby={error ? 'login-error' : undefined} value={email} onChange={(e) => setEmail(e.target.value)} className={fieldCls} />
             </div>
             <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium">
-                Mot de passe
-              </label>
+              <div className="flex items-baseline justify-between gap-4">
+                <label htmlFor="password" className="block text-sm font-medium">
+                  Mot de passe
+                </label>
+                <Link href="/mot-de-passe" className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
+                  Mot de passe oublié&nbsp;?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   id="password"

@@ -141,31 +141,49 @@ model Site {
 }
 
 model User {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  email          String       @unique
-  passwordHash   String
-  firstName      String
-  lastName       String
-  role           Role         @default(SELLER)
+  id              String          @id @default(cuid())
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email           String          @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  role            Role            @default(SELLER)
   // Code vendeur à 4 chiffres : empreinte HMAC (clé serveur), unique dans
   // l'organisation pour identifier la personne sans e-mail
   // Incrémenté pour révoquer toutes les sessions (rôle changé, mot de passe changé, déconnexion partout)
-  tokenVersion   Int          @default(0)
-  pinLookup      String?
-  pinSetAt       DateTime?
+  tokenVersion    Int             @default(0)
+  pinLookup       String?
+  pinSetAt        DateTime?
   // Badge : carte à QR code ou badge NFC, même principe (empreinte seulement)
-  badgeLookup    String?
-  badgeKind      String? // QR | NFC
-  badgeSetAt     DateTime?
-  sites          UserSite[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  badgeLookup     String?
+  badgeKind       String? // QR | NFC
+  badgeSetAt      DateTime?
+  // Conditions acceptées à l'inscription : date et version du texte
+  termsAcceptedAt DateTime?
+  termsVersion    String?
+  sites           UserSite[]
+  passwordResets  PasswordReset[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@unique([organizationId, pinLookup])
   @@unique([organizationId, badgeLookup])
   @@index([organizationId])
+}
+
+// Mot de passe oublié : seule l'empreinte SHA-256 du jeton envoyé par e-mail
+// est gardée. Valable une heure, une seule fois.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model UserSite {

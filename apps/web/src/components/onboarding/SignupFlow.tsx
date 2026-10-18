@@ -35,7 +35,7 @@ export function SignupFlow() {
   const router = useRouter()
   const { register, isLoading } = useAuthStore()
   const [step, setStep] = useState(0)
-  const [account, setAccount] = useState({ businessName: '', email: '', password: '' })
+  const [account, setAccount] = useState({ businessName: '', email: '', password: '', acceptTerms: false })
   const [showPassword, setShowPassword] = useState(false)
   const [others, setOthers] = useState(false)
   const [chosen, setChosen] = useState<Metier | null>(null)
@@ -51,6 +51,7 @@ export function SignupFlow() {
         businessName: account.businessName.trim(),
         email: account.email.trim(),
         password: account.password,
+        acceptTerms: true,
       })
       // Directement en caisse, en mode découverte : ventes d'essai fictives
       router.push(`/pos/${siteId}?decouverte=1`)
@@ -126,7 +127,7 @@ export function SignupFlow() {
                   className="space-y-4"
                   onSubmit={(e) => {
                     e.preventDefault()
-                    if (account.businessName.trim().length >= 2) setStep(1)
+                    if (account.businessName.trim().length >= 2 && account.acceptTerms) setStep(1)
                   }}
                 >
                   <div className="space-y-2">
@@ -179,6 +180,22 @@ export function SignupFlow() {
                       10 caractères minimum.
                     </p>
                   </div>
+                  <div className="flex items-start gap-3">
+                    <input
+                      id="terms"
+                      type="checkbox"
+                      required
+                      checked={account.acceptTerms}
+                      onChange={(e) => setAccount({ ...account, acceptTerms: e.target.checked })}
+                      className="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)]"
+                    />
+                    <label htmlFor="terms" className="text-sm text-[var(--color-text-secondary)]">
+                      J’accepte les{' '}
+                      <TermsLink href="/legal/cgu">conditions générales d’utilisation</TermsLink> et{' '}
+                      <TermsLink href="/legal/cgv">de vente</TermsLink> et la{' '}
+                      <TermsLink href="/legal/confidentialite">politique de confidentialité</TermsLink>.
+                    </label>
+                  </div>
                   <button type="submit" className="h-14 w-full rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] press">
                     Continuer
                   </button>
@@ -228,6 +245,16 @@ export function SignupFlow() {
         </div>
       </main>
     </MotionConfig>
+  )
+}
+
+// S'ouvre dans un nouvel onglet : le formulaire en cours reste rempli
+function TermsLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-[var(--color-accent)] underline underline-offset-4">
+      {children}
+      <span className="sr-only"> (nouvel onglet)</span>
+    </a>
   )
 }
 

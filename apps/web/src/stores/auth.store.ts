@@ -26,6 +26,8 @@ export interface RegisterInput {
   lastName?: string
   email: string
   password: string
+  // Case « J'accepte les conditions » cochée
+  acceptTerms: true
 }
 
 interface AuthState {

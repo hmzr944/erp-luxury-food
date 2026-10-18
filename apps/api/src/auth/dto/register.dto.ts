@@ -1,4 +1,5 @@
-import { IsEmail, IsEnum, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
+import { Transform } from 'class-transformer'
+import { Equals, IsEmail, IsEnum, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
 import { METIERS, Sector } from '@erp/types'
 
 export class RegisterDto {
@@ -39,4 +40,10 @@ export class RegisterDto {
   @MinLength(10, { message: 'Mot de passe : 10 caractères minimum' })
   @MaxLength(128)
   password!: string
+
+  // CGU, CGV et politique de confidentialité : case à cocher obligatoire. Seul
+  // le booléen true compte : la conversion implicite ferait de "false" un true
+  @Transform(({ obj }) => obj.acceptTerms === true)
+  @Equals(true, { message: 'Acceptez les conditions générales et la politique de confidentialité pour continuer' })
+  acceptTerms!: boolean
 }
