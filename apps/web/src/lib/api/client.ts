@@ -1,3 +1,5 @@
+import { hasOfflineSession } from '@/lib/auth/offline-session'
+
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 // Erreur de l'API avec son statut et les champs utiles (ex. écart de caisse)
@@ -35,6 +37,11 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
     const refreshed = await tryRefresh()
     if (refreshed) {
       return apiClient(path, options)
+    }
+    // Caisse reprise sans réseau : pas de jeton tant que la reconnexion
+    // n'est pas faite. On ne quitte pas la caisse (vente en cours).
+    if (hasOfflineSession()) {
+      throw new ApiError('Reconnexion en cours : cette action attend la confirmation de votre code', 401, {})
     }
     // Refresh échoué — déconnexion
     if (typeof window !== 'undefined') {

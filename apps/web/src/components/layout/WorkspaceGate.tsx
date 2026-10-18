@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { WORKSPACE_ROLES, homePath, type Workspace } from '@/lib/workspace'
+import { hasOfflineSession } from '@/lib/auth/offline-session'
 
 // Garde d'espace côté écran : renvoie chacun vers le sien. Le serveur refuse
 // de toute façon ce que le rôle ne permet pas ; ceci évite d'afficher un
@@ -14,7 +15,8 @@ export function WorkspaceGate({ workspace, children }: { workspace: Workspace; c
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    if (!localStorage.getItem('access_token')) {
+    // Caisse reprise sans réseau : pas encore de jeton, la session est locale
+    if (!localStorage.getItem('access_token') && !(workspace === 'pos' && hasOfflineSession())) {
       router.replace('/login')
       return
     }

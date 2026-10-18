@@ -32,6 +32,7 @@ import { CashCloseSheet, CashOpenSheet, useCashState } from './CashSheets'
 import { DiscoveryChecklist, useDiscovery } from './Discovery'
 import { ClosingChecklist, LockScreen, RoutineBanner, YesterdayClosure, useIdle, useRoutine } from './Routine'
 import { PinPad } from '@/components/auth/PinPad'
+import { useOfflineTill } from './useOfflineTill'
 import { BadgeLogin } from '@/components/auth/BadgeLogin'
 import { useAuthStore } from '@/stores/auth.store'
 import { fiscalApi } from '@/lib/api/fiscal'
@@ -72,7 +73,29 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
   const idle = useIdle(2 * 60_000)
   const [checklist, setChecklist] = useState<null | 'auto' | 'manual' | 'lock'>(null)
   const [checklistSnooze, setChecklistSnooze] = useState(0)
-  const [locked, setLocked] = useState<null | 'manual' | 'unclosed'>(null)
+  const [locked, setLockedState] = useState<null | 'manual' | 'unclosed' | 'reauth'>(null)
+  // Le verrou survit au rechargement de la page : recharger ne le lève pas
+  const lockKey = `flow-locked:${siteId}`
+  const setLocked = useCallback(
+    (reason: null | 'manual' | 'unclosed' | 'reauth') => {
+      setLockedState(reason)
+      try {
+        if (reason) window.localStorage.setItem(lockKey, reason)
+        else window.localStorage.removeItem(lockKey)
+      } catch {
+        // stockage indisponible : verrou gardé pour la session
+      }
+    },
+    [lockKey],
+  )
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(lockKey)
+      if (saved === 'manual' || saved === 'unclosed' || saved === 'reauth') setLockedState(saved)
+    } catch {
+      // rien à reprendre
+    }
+  }, [lockKey])
   const [lockSnooze, setLockSnooze] = useState(0)
   const [lockError, setLockError] = useState<string | null>(null)
   const [retroClosing, setRetroClosing] = useState(false)
@@ -103,6 +126,20 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
         }}
       />
     )
+
+  // Reprise sans réseau : reconnexion silencieuse au retour de la connexion
+  useOfflineTill(siteId, queue.online, {
+    onConfirmed: () => {
+      toast.success(`Connexion rétablie : session de ${useAuthStore.getState().user?.firstName ?? ''} confirmée`)
+      queue.flush()
+    },
+    onNeedsPin: (refused) => {
+      setLockError(refused ? 'Votre code n’a pas été confirmé (code changé ou accès retiré). Entrez votre code actuel.' : null)
+      setLocked('reauth')
+    },
+  })
+  const greetOffline = () =>
+    toast(`Sans réseau : bonjour ${useAuthStore.getState().user?.firstName ?? ''}. Vous pouvez vendre ; le reste attendra la connexion.`)
 
   const requestLock = () => {
     if (pendingTasks && level >= 1) setChecklist('lock')
@@ -654,15 +691,19 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
           <LockScreen
             reason={locked}
             error={lockError}
+            online={queue.online}
             onUnlock={async (pin) => {
               try {
-                await pinLogin(siteId, pin)
+                const { offline } = await pinLogin(siteId, pin)
                 setLockError(null)
                 if (locked === 'unclosed') {
                   // Le temps de clôturer : pas de nouveau verrouillage avant 30 minutes
                   setLockSnooze(Date.now() + 30 * 60_000)
-                  setChecklist('manual')
+                  // La clôture demande le réseau : sans lui, on vend en attendant
+                  if (offline) toast('Sans réseau : la clôture attendra la connexion.')
+                  else setChecklist('manual')
                 }
+                if (offline) greetOffline()
                 setLocked(null)
               } catch (e) {
                 setLockError((e as Error).message)
@@ -674,13 +715,20 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
 
         <Sheet open={switching} title="Qui encaisse ?" onClose={() => setSwitching(false)}>
           <div className="pb-4">
+            {!queue.online && (
+              <p className="mb-4 text-center text-sm text-[var(--color-text-secondary)]">
+                Sans réseau : seuls les codes déjà utilisés sur cette caisse ces 7 derniers jours sont reconnus, et le badge attendra la connexion.
+              </p>
+            )}
             <PinPad
               error={pinError}
               onSubmit={async (pin) => {
                 try {
-                  await pinLogin(siteId, pin)
+                  const { offline } = await pinLogin(siteId, pin)
                   setSwitching(false)
-                  toast.success(`Bonjour ${useAuthStore.getState().user?.firstName ?? ''}`)
+                  setPinError(null)
+                  if (offline) greetOffline()
+                  else toast.success(`Bonjour ${useAuthStore.getState().user?.firstName ?? ''}`)
                 } catch (e) {
                   setPinError((e as Error).message)
                   throw e

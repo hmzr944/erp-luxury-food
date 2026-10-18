@@ -2,6 +2,7 @@ import { TRIAL_DAYS, metierByKey } from '@erp/types'
 import { StarterService } from '../products/starter.service'
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
   ConflictException,
@@ -14,7 +15,22 @@ import { randomBytes } from 'node:crypto'
 import { PlatformService } from '../platform/platform.service'
 import { AuditService } from '../audit/audit.service'
 import type { Prisma } from '@prisma/client'
-import { BADGE_QR_PREFIX, PIN_RE, PinAttempts, badgeLookup, newBadgeToken, normalizeBadge, pinChallenge, pinLookup, randomPin, verifyTerminalSignature } from './pin'
+import {
+  BADGE_QR_PREFIX,
+  OFFLINE_ROLES,
+  PIN_RE,
+  PinAttempts,
+  badgeLookup,
+  newBadgeToken,
+  normalizeBadge,
+  offlineChallenge,
+  offlineTerminalSalt,
+  offlineUserSalt,
+  pinChallenge,
+  pinLookup,
+  randomPin,
+  verifyTerminalSignature,
+} from './pin'
 import type { LoginDto } from './dto/login.dto'
 import type { RegisterDto } from './dto/register.dto'
 
@@ -177,14 +193,23 @@ export class AuthService {
     terminal: { id: string; siteId: string; siteOrg: string },
     where: Prisma.UserWhereUniqueInput | null,
     unknown: string,
+    opts: { pin?: boolean; offlineAt?: string; offlineUserId?: string } = {},
   ) {
     const user = where
       ? await this.prisma.user.findUnique({
           where,
-          select: { id: true, email: true, firstName: true, lastName: true, role: true, organizationId: true, tokenVersion: true, sites: { where: { siteId: terminal.siteId }, select: { siteId: true } } },
+          select: { id: true, email: true, firstName: true, lastName: true, role: true, organizationId: true, tokenVersion: true, pinLookup: true, sites: { where: { siteId: terminal.siteId }, select: { siteId: true } } },
         })
       : null
     const allowed = user && (user.role === 'OWNER' || user.role === 'MANAGER' || user.sites.length > 0)
+    // Confirmation d'une reprise sans réseau : le code doit être encore celui
+    // de la même personne (un code changé a pu être donné à quelqu'un d'autre)
+    if (opts.offlineUserId && user && user.id !== opts.offlineUserId) {
+      this.pinAttempts.fail(terminal.id)
+      this.orgAttempts.fail(terminal.siteOrg)
+      await this.audit.log({ organizationId: user.organizationId, userId: user.id, action: 'auth.till_refused', detail: 'Code changé depuis la reprise sans réseau', terminalId: terminal.id })
+      throw new UnauthorizedException('Ce code a changé depuis la reprise sans réseau : entrez votre code actuel')
+    }
     if (!user || !allowed) {
       this.pinAttempts.fail(terminal.id)
       this.orgAttempts.fail(terminal.siteOrg)
@@ -192,20 +217,87 @@ export class AuthService {
       throw new UnauthorizedException(user ? "Ce compte n'a pas accès à cette boutique" : unknown)
     }
     this.pinAttempts.succeed(terminal.id)
-    const { sites: _, tokenVersion, ...safeUser } = user
+    const { sites: _, tokenVersion, pinLookup: lookup, ...safeUser } = user
     await this.audit.log({ organizationId: user.organizationId, userId: user.id, action: 'auth.till_login', terminalId: terminal.id })
-    return { ...this.issue({ ...safeUser, tokenVersion }), user: safeUser, siteId: terminal.siteId }
+    const offlineAt = opts.pin ? offlineMoment(opts.offlineAt) : null
+    if (offlineAt) {
+      await this.audit.log({
+        organizationId: user.organizationId,
+        userId: user.id,
+        action: 'auth.till_offline_unlock',
+        detail: `Reprise sans réseau le ${offlineAt}, confirmée au retour de la connexion`,
+        terminalId: terminal.id,
+      })
+    }
+    // Code accepté sur cette caisse : de quoi le vérifier sans réseau la prochaine fois
+    const offline =
+      opts.pin && lookup && (OFFLINE_ROLES as readonly string[]).includes(user.role)
+        ? { terminalSalt: offlineTerminalSalt(this.pinSecret, terminal.id), salt: offlineUserSalt(this.pinSecret, terminal.id, { id: user.id, pinLookup: lookup, tokenVersion }) }
+        : undefined
+    return { ...this.issue({ ...safeUser, tokenVersion }), user: safeUser, siteId: terminal.siteId, ...(offline ? { offline } : {}) }
   }
 
   // Connexion par code vendeur à 4 chiffres
-  async pinLogin(dto: { terminalId: string; signedAt: string; signature: string; pin: string }) {
+  async pinLogin(dto: { terminalId: string; signedAt: string; signature: string; pin: string; offlineAt?: string; offlineUserId?: string }) {
     const terminal = await this.verifiedTerminal(dto)
     const org = terminal.site.organizationId
     return this.openTillSession(
       { ...terminal, siteOrg: org },
       PIN_RE.test(dto.pin) ? { organizationId_pinLookup: { organizationId: org, pinLookup: pinLookup(this.pinSecret, org, dto.pin) } } : null,
       'Code inconnu',
+      { pin: true, offlineAt: dto.offlineUserId ? dto.offlineAt : undefined, offlineUserId: dto.offlineUserId },
     )
+  }
+
+  // Équipe que cette caisse pourra reconnaître sans réseau. Demandé par une
+  // caisse enregistrée (signature) au nom d'une personne connectée qui a accès
+  // à la boutique. Ne contient ni code, ni empreinte, ni e-mail : seulement
+  // les sels opaques liés à cette caisse. Une caisse désactivée reçoit une
+  // liste vide et efface ce qu'elle avait gardé.
+  async offlineRoster(caller: { id: string; organizationId: string; role: string }, dto: { terminalId: string; signedAt: string; signature: string }) {
+    const terminal = await this.prisma.terminal.findUnique({
+      where: { id: dto.terminalId },
+      select: { id: true, siteId: true, publicKey: true, isActive: true, site: { select: { organizationId: true } } },
+    })
+    const age = Math.abs(Date.now() - new Date(dto.signedAt).getTime())
+    if (
+      !terminal ||
+      !(age < 2 * 60_000) ||
+      !(await verifyTerminalSignature(JSON.parse(terminal.publicKey), offlineChallenge(terminal.id, dto.signedAt), dto.signature)) ||
+      !this.pinAttempts.firstUse(dto.signature)
+    ) {
+      throw new UnauthorizedException("Cette caisse n'est pas reconnue")
+    }
+    if (terminal.site.organizationId !== caller.organizationId) throw new ForbiddenException('Accès refusé')
+    if (caller.role !== 'OWNER' && caller.role !== 'MANAGER') {
+      const member = await this.prisma.userSite.findUnique({ where: { userId_siteId: { userId: caller.id, siteId: terminal.siteId } }, select: { siteId: true } })
+      if (!member) throw new ForbiddenException('Accès refusé à ce site')
+    }
+    const issuedAt = new Date().toISOString()
+    if (!terminal.isActive) return { terminalId: terminal.id, active: false, issuedAt, terminalSalt: null, users: [] }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        organizationId: caller.organizationId,
+        pinLookup: { not: null },
+        OR: [{ role: { in: ['OWNER', 'MANAGER'] } }, { role: 'SELLER', sites: { some: { siteId: terminal.siteId } } }],
+      },
+      select: { id: true, firstName: true, lastName: true, role: true, organizationId: true, tokenVersion: true, pinLookup: true },
+    })
+    return {
+      terminalId: terminal.id,
+      active: true,
+      issuedAt,
+      terminalSalt: offlineTerminalSalt(this.pinSecret, terminal.id),
+      users: users.map((u) => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        role: u.role,
+        organizationId: u.organizationId,
+        salt: offlineUserSalt(this.pinSecret, terminal.id, { id: u.id, pinLookup: u.pinLookup!, tokenVersion: u.tokenVersion }),
+      })),
+    }
   }
 
   // Connexion par badge : QR code présenté à la caméra ou badge NFC
@@ -265,6 +357,15 @@ export class AuthService {
   async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, BCRYPT_ROUNDS)
   }
+}
+
+// Heure de la reprise sans réseau, telle que déclarée par la caisse : gardée
+// seulement si elle est plausible (sept jours au plus, pas dans le futur)
+export function offlineMoment(iso: string | undefined, now = Date.now()): string | null {
+  if (!iso) return null
+  const at = new Date(iso).getTime()
+  if (!Number.isFinite(at) || at > now + 5 * 60_000 || at < now - 8 * 86_400_000) return null
+  return new Date(at).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'short', timeStyle: 'short' }).replace(' ', ' à ')
 }
 
 // « Maison Dupont & Fils » → « maison-dupont-fils »

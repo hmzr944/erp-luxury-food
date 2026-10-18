@@ -19,6 +19,7 @@ const LABEL: Record<string, string> = {
   'auth.login_failed': 'Mot de passe refusé',
   'auth.till_login': 'Connexion en caisse (code ou badge)',
   'auth.till_refused': 'Code ou badge refusé en caisse',
+  'auth.till_offline_unlock': 'Reprise de la caisse sans réseau',
   'auth.logout_everywhere': 'Déconnexion de tous les appareils',
   'user.created': 'Membre ajouté',
   'user.removed': 'Membre retiré',

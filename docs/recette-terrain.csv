@@ -292,6 +292,12 @@ CAI-09;Espèces du tiroir, ouverture, fermeture, routines;P0;Oui;Verrouiller et 
 2. Saisir le code du vendeur B.
 3. menu ⋮ (Plus d'actions) > « Changer de vendeur », code du vendeur A.
 4. Vendre et imprimer.";"« Entrez votre code pour reprendre. » ; déverrouillé avec le code. « Bonjour <prénom> » au changement. Le ticket porte « Vendeur » au nom du vendeur A.";Non exécuté;
+CAI-10;Espèces du tiroir, ouverture, fermeture, routines;P0;Oui;Verrouiller et changer de vendeur sans réseau;CAI-09 fait avec le réseau dans les 7 derniers jours (A et B ont tapé leur code sur cette caisse). Box : prise WAN débranchée.;"1. menu ⋮ (Plus d'actions) > « Verrouiller la caisse ».
+2. Saisir le code du vendeur B.
+3. Vendre en espèces et imprimer.
+4. menu ⋮ (Plus d'actions) > « Changer de vendeur », taper 3 codes faux puis le code de A.
+5. Rebrancher la box, attendre une minute.
+6. En gérant : Paramètres > Sécurité, filtre « Connexions ».";"Écran verrouillé : « Sans réseau : la caisse reconnaît les codes déjà utilisés ici ces 7 derniers jours, pour vendre seulement. » Code de B accepté : « Sans réseau : bonjour <prénom>. Vous pouvez vendre ; le reste attendra la connexion. » Le ticket porte « Vendeur » au nom de B. Codes faux : « Code inconnu de cette caisse hors ligne… » (blocage de 30 s après 5 erreurs). Au retour du réseau : « Connexion rétablie : session de <prénom> confirmée », ventes envoyées ; ligne « Reprise de la caisse sans réseau » au nom de A (« Reprise sans réseau le … »). Un code jamais tapé ici avec le réseau est refusé ; le badge demande le réseau. À noter : temps de vérification d'un code sur la tablette (visé : moins d'une demi-seconde).";Non exécuté;
 ONB-01;Inscription, mode découverte, import;P0;Oui;Inscription et choix du métier;Adresse e-mail jamais utilisée. Chronomètre.;"1. Ouvrir /inscription : « Essayez FLŌW gratuitement ».
 2. Saisir « Nom de la boutique », e-mail, « Mot de passe » (10 caractères au moins).
 3. « Quel est votre commerce ? » : choisir « Boulangerie et pâtisserie ».

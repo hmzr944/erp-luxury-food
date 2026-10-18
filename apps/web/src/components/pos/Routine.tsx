@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { CheckCircle, Circle, ClockCountdown, LockSimple, Warning } from '@phosphor-icons/react'
+import { CheckCircle, Circle, ClockCountdown, LockSimple, Warning, WifiSlash } from '@phosphor-icons/react'
 import { hhmm, routineApi, type RoutineStatus, type RoutineTask } from '@/lib/api/routine'
 import { FlowMark } from '@/components/brand/FlowLogo'
 import { PinPad } from '@/components/auth/PinPad'
@@ -189,7 +189,17 @@ export function ClosingChecklist({
 }
 
 // Caisse verrouillée : déverrouillage par le code d'un membre de l'équipe
-export function LockScreen({ reason, error, onUnlock }: { reason: 'manual' | 'unclosed'; error: string | null; onUnlock: (pin: string) => Promise<void> }) {
+export function LockScreen({
+  reason,
+  error,
+  online = true,
+  onUnlock,
+}: {
+  reason: 'manual' | 'unclosed' | 'reauth'
+  error: string | null
+  online?: boolean
+  onUnlock: (pin: string) => Promise<void>
+}) {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 15_000)
@@ -207,9 +217,17 @@ export function LockScreen({ reason, error, onUnlock }: { reason: 'manual' | 'un
           <p className="text-[15px] text-[var(--color-text-secondary)]">
             {reason === 'unclosed'
               ? 'La journée n’a pas été clôturée après la fermeture. Le gérant a été prévenu. Entrez votre code pour clôturer la caisse.'
-              : 'Entrez votre code pour reprendre.'}
+              : reason === 'reauth'
+                ? 'La connexion est revenue. Entrez votre code pour confirmer votre session.'
+                : 'Entrez votre code pour reprendre.'}
           </p>
         </div>
+        {!online && (
+          <p className="flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-3 py-2 text-left text-sm text-[var(--color-text-secondary)]">
+            <WifiSlash size={18} aria-hidden className="mt-0.5 shrink-0" />
+            <span>Sans réseau : la caisse reconnaît les codes déjà utilisés ici ces 7 derniers jours, pour vendre seulement.</span>
+          </p>
+        )}
         <div className="text-left">
           <PinPad error={error} onSubmit={onUnlock} />
         </div>

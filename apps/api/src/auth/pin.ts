@@ -16,6 +16,27 @@ export const randomPin = () => String(randomInt(0, 10_000)).padStart(4, '0')
 
 export const pinChallenge = (terminalId: string, signedAt: string) => `pin-login:${terminalId}:${signedAt}`
 
+// --- Reprise de la caisse sans réseau -----------------------------------------
+// Le serveur ne connaît pas les codes (seulement leur empreinte HMAC) : c'est
+// la caisse qui dérive un vérificateur lent (PBKDF2) au moment où un code est
+// accepté en ligne. Le serveur lui fournit deux sels opaques liés à la caisse :
+// - le sel de caisse, pour la dérivation faite sur l'appareil ;
+// - un sel par personne, qui change avec son code et avec la révocation de ses
+//   sessions : la caisse efface d'elle-même un vérificateur périmé.
+// Sans PIN_SECRET, ces sels ne disent rien des codes.
+export const offlineChallenge = (terminalId: string, signedAt: string) => `pin-offline:${terminalId}:${signedAt}`
+
+// Rôles qui peuvent reprendre la caisse sans réseau (pour vendre seulement)
+export const OFFLINE_ROLES = ['OWNER', 'MANAGER', 'SELLER'] as const
+
+export function offlineTerminalSalt(secret: string, terminalId: string): string {
+  return createHmac('sha256', secret).update(`offline-pin:v1:terminal:${terminalId}`).digest('base64url')
+}
+
+export function offlineUserSalt(secret: string, terminalId: string, user: { id: string; pinLookup: string; tokenVersion: number }): string {
+  return createHmac('sha256', secret).update(`offline-pin:v1:user:${terminalId}:${user.id}:${user.tokenVersion}:${user.pinLookup}`).digest('base64url')
+}
+
 export async function verifyTerminalSignature(publicKeyJwk: webcrypto.JsonWebKey, message: string, signatureB64: string) {
   try {
     const key = await webcrypto.subtle.importKey('jwk', publicKeyJwk, ECDSA_PARAMS, false, ['verify'])

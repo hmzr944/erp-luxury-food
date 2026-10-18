@@ -51,7 +51,12 @@ export default function LoginPage() {
       if (!till) return
       setPinError(null)
       try {
-        await pinLogin(till.siteId, pin)
+        const { offline } = await pinLogin(till.siteId, pin)
+        // Sans réseau : directement à la caisse de cet appareil, pour vendre
+        if (offline) {
+          router.replace(`/pos/${till.siteId}`)
+          return
+        }
         const user = useAuthStore.getState().user
         router.replace(await homePath(user?.role, till.siteId))
       } catch (e) {

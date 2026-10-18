@@ -4,6 +4,7 @@ import { ECDSA_PARAMS, RECEIPT_GENESIS_HASH, priceOrder, type SignedSaleContent 
 import { authorizedFetch } from '@/lib/api/client'
 import { db, type SaleRecord, type TerminalRecord } from '@/lib/offline/db'
 import { signSale, type TerminalReceipt } from './signer'
+import { applyOfflineRoster, type OfflineRoster } from './offline-pin'
 
 // Toutes les ventes passent par ici, réseau ou pas :
 // 1. la caisse signe le ticket localement (il est valable immédiatement),
@@ -206,18 +207,34 @@ export function countSales(siteId: string) {
 
 // Connexion par code vendeur : la caisse signe la demande avec sa clé,
 // le serveur sait ainsi que le code est tapé sur une caisse enregistrée
-export async function signPinChallenge(siteId: string) {
+export async function signPinChallenge(siteId: string, purpose: 'pin-login' | 'pin-offline' = 'pin-login') {
   const terminal = await db.terminals.get(siteId)
   if (!terminal) throw new TerminalNotRegisteredError()
   const signedAt = new Date().toISOString()
   const sig = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     terminal.privateKey,
-    new TextEncoder().encode(`pin-login:${terminal.terminalId}:${signedAt}`),
+    new TextEncoder().encode(`${purpose}:${terminal.terminalId}:${signedAt}`),
   )
   let b = ''
   for (const x of new Uint8Array(sig)) b += String.fromCharCode(x)
   return { terminalId: terminal.terminalId, signedAt, signature: btoa(b) }
+}
+
+// Met à jour la liste des personnes que la caisse reconnaît sans réseau :
+// au démarrage, au retour de la connexion, puis régulièrement. Sans réseau ou
+// sans session, on garde ce qu'on a (l'expiration à 7 jours s'applique).
+export async function syncOfflineRoster(siteId: string): Promise<boolean> {
+  if (!localStorage.getItem('access_token') || !(await db.terminals.get(siteId))) return false
+  let res: Response
+  try {
+    res = await authorizedFetch('/auth/pin/offline', { method: 'POST', body: JSON.stringify(await signPinChallenge(siteId, 'pin-offline')) })
+  } catch {
+    return false
+  }
+  if (!res.ok) return false
+  await applyOfflineRoster(siteId, (await res.json()) as OfflineRoster)
+  return true
 }
 
 // Caisses enregistrées sur cet appareil (une par boutique)

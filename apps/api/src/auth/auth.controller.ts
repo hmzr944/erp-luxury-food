@@ -5,6 +5,7 @@ import { AuthService } from './auth.service'
 import { LoginDto } from './dto/login.dto'
 import { PinLoginDto } from './dto/pin-login.dto'
 import { BadgeLoginDto } from './dto/badge-login.dto'
+import { OfflineRosterDto } from './dto/offline-roster.dto'
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard'
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 
@@ -27,6 +28,15 @@ export class AuthController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   pinLogin(@Body() dto: PinLoginDto) {
     return this.auth.pinLogin(dto)
+  }
+
+  // Équipe reconnue par cette caisse sans réseau (sels liés à la caisse, aucun code)
+  @Post('pin/offline')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  offlineRoster(@Req() req: Request & { user: { id: string; organizationId: string; role: string } }, @Body() dto: OfflineRosterDto) {
+    return this.auth.offlineRoster(req.user, dto)
   }
 
   // Badge vendeur (QR ou NFC) sur une caisse enregistrée

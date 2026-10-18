@@ -2,7 +2,7 @@
 
 Liste de contrôle à dérouler dans une vraie boutique, sur le vrai matériel, avant le premier commerçant en production. Priorités : impression des tickets en ESC/POS, ouverture du tiroir-caisse, dialogue avec un vrai TPE bancaire, et tout ce qu'une journée de vente réelle met à l'épreuve.
 
-Les mêmes 147 cas sont dans `docs/recette-terrain.csv`, à ouvrir dans Excel ou Numbers pour cocher les résultats. Structure inspirée du skill `qa-test-planner` (softaworks/agent-toolkit, skills.sh) : plan, critères d'entrée et de sortie, suite fumée, suite complète, fiche d'anomalie.
+Les mêmes 148 cas sont dans `docs/recette-terrain.csv`, à ouvrir dans Excel ou Numbers pour cocher les résultats. Structure inspirée du skill `qa-test-planner` (softaworks/agent-toolkit, skills.sh) : plan, critères d'entrée et de sortie, suite fumée, suite complète, fiche d'anomalie.
 
 Chaque résultat attendu a été relu dans le code de la branche `feat/plateforme-multi-secteurs`. Quand une fonction n'existe pas, le cas décrit le comportement actuel et renvoie à la liste des anomalies et limites connues (section 10) : un cas ne doit pas « échouer » parce qu'une fonction absente est absente. Les points juridiques sont marqués **à faire valider** : ils s'appuient sur `docs/legal`, `research_notes` et `reports`, rien de plus.
 
@@ -190,11 +190,11 @@ Durée indicative : une journée et demie à deux, plus FIS-13 le premier jour d
 | RET Retours, remboursements, échanges | 7 | 3 | 4 | 0 | 7 / 0 / 0 |
 | ART Articles : douchette, balance, création, variantes, formules | 12 | 5 | 7 | 0 | 4 / 7 / 1 |
 | FID Fidélité, cartes cadeaux, ticket dématérialisé, facture | 9 | 2 | 7 | 0 | 9 / 0 / 0 |
-| CAI Espèces du tiroir, ouverture, fermeture, routines | 9 | 4 | 5 | 0 | 8 / 1 / 0 |
+| CAI Espèces du tiroir, ouverture, fermeture, routines | 10 | 5 | 5 | 0 | 9 / 1 / 0 |
 | ONB Inscription, mode découverte, import | 8 | 3 | 5 | 0 | 7 / 0 / 1 |
 | SUP Aide et support dans l'application | 4 | 2 | 2 | 0 | 4 / 0 / 0 |
 | RES Résilience : réseau, courant, plusieurs caisses, iPad | 10 | 5 | 4 | 1 | 8 / 1 / 1 |
-| **Total** | **147** | **68** | **72** | **7** | 108 / 26 / 13 |
+| **Total** | **148** | **69** | **72** | **7** | 109 / 26 / 13 |
 
 ### BRG : FLŌW-Bridge : installation et appairage
 
@@ -404,6 +404,7 @@ Sources : `CashSheets.tsx`, `Routine.tsx`, `apps/api/src/cash/cash.service.ts`, 
 | CAI-07 | P1 | Oui | Routine de fin de journée | Paramètres > Routines et rappels : heure de fermeture dans 15 minutes, clôture de caisse cochée. | 1. Attendre l'approche de l'heure : bandeau en haut de la caisse.<br>2. Laisser la caisse inactive 2 minutes après l'échéance.<br>3. « Plus tard », attendre 10 minutes.<br>4. « Lancer la clôture de caisse ». | Bandeau discret avant l'échéance ; liste « Fin de journée » quand la caisse est inactive (jamais en pleine vente) ; elle revient 10 minutes après « Plus tard » ; le bouton lance la fermeture. | |
 | CAI-08 | P1 | Oui | Caisse laissée ouverte après la fermeture | Routine avec verrouillage activé, caisse laissée ouverte bien après l'heure. | 1. Attendre le verrouillage automatique.<br>2. Saisir le code d'un membre de l'équipe. | Écran « La journée n’a pas été clôturée après la fermeture. Le gérant a été prévenu. Entrez votre code pour clôturer la caisse. » ; e-mail reçu par le gérant (une fois par soir). Après le code, la liste de fin de journée s'ouvre. | |
 | CAI-09 | P0 | Oui | Verrouiller et changer de vendeur | Deux vendeurs avec code à 4 chiffres. Caisse en ligne. | 1. menu ⋮ (Plus d'actions) > « Verrouiller la caisse ».<br>2. Saisir le code du vendeur B.<br>3. menu ⋮ (Plus d'actions) > « Changer de vendeur », code du vendeur A.<br>4. Vendre et imprimer. | « Entrez votre code pour reprendre. » ; déverrouillé avec le code. « Bonjour <prénom> » au changement. Le ticket porte « Vendeur » au nom du vendeur A. | |
+| CAI-10 | P0 | Oui | Verrouiller et changer de vendeur sans réseau | CAI-09 fait avec le réseau dans les 7 derniers jours (A et B ont tapé leur code sur cette caisse). Box : prise WAN débranchée. | 1. menu ⋮ (Plus d'actions) > « Verrouiller la caisse ».<br>2. Saisir le code du vendeur B.<br>3. Vendre en espèces et imprimer.<br>4. menu ⋮ (Plus d'actions) > « Changer de vendeur », taper 3 codes faux puis le code de A.<br>5. Rebrancher la box, attendre une minute.<br>6. En gérant : Paramètres > Sécurité, filtre « Connexions ». | Écran verrouillé : « Sans réseau : la caisse reconnaît les codes déjà utilisés ici ces 7 derniers jours, pour vendre seulement. » Code de B accepté : « Sans réseau : bonjour <prénom>. Vous pouvez vendre ; le reste attendra la connexion. » Le ticket porte « Vendeur » au nom de B. Codes faux : « Code inconnu de cette caisse hors ligne… » (blocage de 30 s après 5 erreurs). Au retour du réseau : « Connexion rétablie : session de <prénom> confirmée », ventes envoyées ; ligne « Reprise de la caisse sans réseau » au nom de A (« Reprise sans réseau le … »). Un code jamais tapé ici avec le réseau est refusé ; le badge demande le réseau. À noter : temps de vérification d'un code sur la tablette (visé : moins d'une demi-seconde). | |
 
 ### ONB : Inscription, mode découverte, import
 
@@ -487,7 +488,7 @@ Relevées en lisant le code ; non corrigées ici. Les cas concernés décrivent 
 | 3 | Corrigé | Après une coupure (pont, rechargement), la caisse ne retrouvait pas l'issue du paiement. Corrigé : paiement en cours gardé sur l'appareil, issue demandée au pont, bouton « Le TPE a accepté : enregistrer la vente » si elle reste inconnue. Le premier paiement attend aussi la connexion au pont au lieu d'échouer. | `apps/web/src/components/pos/BridgeTerminalWait.tsx`, `apps/web/src/lib/bridge/client.ts` | TPE-08, TPE-09, TPE-10 |
 | 4 | P0 | Une vente refusée par le serveur (400, 404, 422) est marquée « refusée » et la caisse passe à la suivante, mais le serveur attend toujours ce numéro de ticket (409) : toutes les ventes suivantes de la caisse restent « à envoyer ». | `apps/web/src/lib/terminal/terminal.ts:184-187`, `apps/api/src/orders/orders.service.ts:125-131` | FIS-04, RES-02 |
 | 5 | Corrigé | Le pont n'était joignable que depuis l'ordinateur où il tourne. Corrigé : accès des iPad sur le réseau de la boutique, en wss avec certificat local (voir docs/flow-bridge-securite.md). À valider sur un vrai iPad et un vrai Mac. | `apps/bridge/src/cert.ts`, `apps/web/src/components/settings/BridgePairing.tsx` | BRG-10, BRG-11 |
-| 6 | P1 | Caisse verrouillée (à la main ou après la fermeture) sans réseau : le déverrouillage par code passe par le serveur, la caisse reste bloquée. Idem « Changer de vendeur ». | `apps/web/src/components/pos/POSClient.tsx:651`, `apps/web/src/stores/auth.store.ts:86-96` | CAI-08, CAI-09 |
+| 6 | Corrigé | Caisse verrouillée sans réseau : le déverrouillage par code passait par le serveur, la caisse restait bloquée. Corrigé : sans réseau, la caisse reconnaît les codes déjà acceptés sur elle avec le réseau ces 7 derniers jours (vérificateur lent lié à la caisse, jamais le code), pour vendre seulement ; reconnexion silencieuse et trace au journal au retour du réseau. Limite assumée : un code à 4 chiffres se retrouve en essayant les 10 000 valeurs si l'on copie le stockage de l'appareil ; appareil perdu : désactiver la caisse. Badge : réseau toujours nécessaire. | `apps/web/src/lib/terminal/offline-pin.ts`, `apps/web/src/stores/auth.store.ts`, `apps/api/src/auth/auth.service.ts` | CAI-08, CAI-09, CAI-10 |
 | 7 | P1 | Le pont ne lit pas l'état de l'imprimante (papier, capot) : « Ticket imprimé » peut s'afficher sans ticket. | `apps/bridge/src/printer.ts:63` | IMP-10, IMP-11 |
 | 8 | P1 | Remboursement : pas de ticket « REMBOURSEMENT » imprimé d'office (seulement en duplicata) et pas d'ouverture du tiroir pour un remboursement en espèces. | `apps/web/src/components/orders/OrderDetailSheet.tsx:478` | RET-01 |
 | 9 | P1 | « Réessayer l’impression » après une erreur n'ouvre pas le tiroir d'un paiement en espèces. | `PaymentSheet.tsx:715` | TIR-07 |
@@ -579,4 +580,4 @@ Gravité : **Bloquante** = un critère de la section 5 ; **Majeure** = fonction 
 
 Décision possible : **Go** (critères de sortie remplis), **Go sous réserve** (liste des réserves et date de levée), **No go** (anomalies bloquantes listées).
 
-Synthèse à remplir : cas exécutés / 147, OK, KO, bloqués ; anomalies ouvertes par gravité ; réserves.
+Synthèse à remplir : cas exécutés / 148, OK, KO, bloqués ; anomalies ouvertes par gravité ; réserves.
