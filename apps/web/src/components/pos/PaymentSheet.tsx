@@ -68,6 +68,7 @@ interface PaymentSheetProps {
   ruleLines: RuleLine[]
   methods: Method[]
   siteName: string
+  siteAddress?: string | null
   // Mentions du ticket et nom du vendeur, pour l'impression
   receiptSettings?: ReceiptSettings
   sellerName?: string | null
@@ -83,7 +84,7 @@ interface PaymentSheetProps {
   onQrShow?: (qr: { url: string; expiresAt: string | null } | null) => void
 }
 
-export function PaymentSheet({ open, siteId, device: realDevice, training = false, total, ruleLines, methods, siteName, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose, qrAvailable, onQrShow }: PaymentSheetProps) {
+export function PaymentSheet({ open, siteId, device: realDevice, training = false, total, ruleLines, methods, siteName, siteAddress, receiptSettings, sellerName, receipt, busy, error, creditCode, onPay, onClose, qrAvailable, onQrShow }: PaymentSheetProps) {
   const device = training ? null : realDevice
   const bridgeTpe = !training && getBridgeTpe().enabled
   const [split, setSplit] = useState(false)
@@ -169,7 +170,7 @@ export function PaymentSheet({ open, siteId, device: realDevice, training = fals
     // pourrait payer sans que la vente soit enregistrée
     <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || !!bridgeCard || qr || partsLocked))}>
       {receipt ? (
-        <Receipt receipt={receipt} siteId={siteId} siteName={siteName} settings={receiptSettings} sellerName={sellerName} onNext={onClose} />
+        <Receipt receipt={receipt} siteId={siteId} siteName={siteName} siteAddress={siteAddress} settings={receiptSettings} sellerName={sellerName} onNext={onClose} />
       ) : terminal && device ? (
         <>
           {error && (
@@ -597,6 +598,7 @@ function Receipt({
   receipt,
   siteId,
   siteName,
+  siteAddress,
   settings,
   sellerName,
   onNext,
@@ -604,6 +606,7 @@ function Receipt({
   receipt: ReceiptView
   siteId: string
   siteName: string
+  siteAddress?: string | null
   settings?: ReceiptSettings
   sellerName?: string | null
   onNext: () => void
@@ -620,7 +623,7 @@ function Receipt({
     setPrint({ state: 'printing' })
     try {
       for (const [i, copy] of copies.entries()) {
-        await printTicket(ticketForSale(receipt, { receipt: settings, siteName, sellerName }, { copy }), { openDrawer: drawer && i === 0 })
+        await printTicket(ticketForSale(receipt, { receipt: settings, siteName, siteAddress, sellerName }, { copy }), { openDrawer: drawer && i === 0 })
       }
       setPrint({ state: 'printed' })
     } catch (e) {
@@ -655,6 +658,7 @@ function Receipt({
           className="border border-[var(--color-border)] bg-[var(--color-bg-base)] px-4 py-4 font-data text-[13px] leading-relaxed"
         >
           <p className="text-center font-body text-[15px] font-semibold">{siteName}</p>
+          {siteAddress && <p className="text-center text-sm text-[var(--color-text-secondary)]">{siteAddress}</p>}
           <p className="text-center text-[var(--color-text-secondary)]">
             {signedAt.toLocaleDateString('fr-FR')} {signedAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
           </p>

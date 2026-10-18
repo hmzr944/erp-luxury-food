@@ -135,7 +135,7 @@ export const ordersApi = {
 }
 
 export interface ApiOrderDetail extends Omit<ApiOrder, 'refunds'> {
-  site?: { name: string }
+  site?: { name: string; address?: string | null }
   refunds: Array<ApiOrder>
 }
 

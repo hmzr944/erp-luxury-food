@@ -117,3 +117,24 @@ export function tableToRows(table: unknown[][]): { headers: string[]; rows: Arra
   const cell = (c: unknown) => (c === null || c === undefined ? '' : c instanceof Date ? c.toISOString().slice(0, 10) : String(c))
   return { headers, rows: body.map((r) => Object.fromEntries(headers.map((h, i) => [h, cell(r[i])]))) }
 }
+
+// Texte d'un fichier importé. Excel français enregistre « CSV (séparateur :
+// point-virgule) » en Windows-1252 : lu en UTF-8, « Café » devient « Caf� ».
+// On tente l'UTF-8 strict (BOM retiré), sinon Windows-1252.
+export function decodeImportText(bytes: Uint8Array): string {
+  const body = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? bytes.subarray(3) : bytes
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(body)
+  } catch {
+    // Décodage explicite : certains environnements traitent windows-1252 comme latin-1 (€ perdu)
+    let out = ''
+    for (const b of body) out += b >= 0x80 && b < 0xa0 ? CP1252_HIGH[b - 0x80] : String.fromCharCode(b)
+    return out
+  }
+}
+
+// Octets 0x80 à 0x9F de Windows-1252 (les autres valent leur code latin-1)
+const CP1252_HIGH = [
+  '€', '\u0081', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u008d', 'Ž', '\u008f',
+  '\u0090', '‘', '’', '“', '”', '•', '\u2013', '\u2014', '˜', '™', 'š', '›', 'œ', '\u009d', 'ž', 'Ÿ',
+]

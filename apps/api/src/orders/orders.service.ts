@@ -24,7 +24,7 @@ import { CustomersService, giftCardsOf } from '../customers/customers.service'
 const ORDER_INCLUDE = {
   items: { include: { product: { select: { name: true } } } },
   payments: true,
-  site: { select: { name: true } },
+  site: { select: { name: true, address: true } },
   receiptChain: {
     select: { id: true, counter: true, hash: true, signedAt: true, terminalCounter: true, terminalHash: true, terminal: { select: { name: true } } },
   },
@@ -512,7 +512,7 @@ export class OrdersService {
         items: { include: { product: { select: { name: true, subtitle: true } } } },
         payments: true,
         receiptChain: true,
-        site: { select: { name: true } },
+        site: { select: { name: true, address: true } },
         refundOf: { select: { id: true, createdAt: true, receiptChain: { select: { counter: true } } } },
         refunds: {
           orderBy: { createdAt: 'asc' },

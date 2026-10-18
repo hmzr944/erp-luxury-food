@@ -200,6 +200,7 @@ function DuplicateButton({ siteId, order: o }: { siteId: string; order: ApiOrder
       const ticket = buildSaleTicket({
         receipt: config?.receipt,
         siteName: o.site?.name ?? 'Boutique',
+        siteAddress: o.site?.address ?? null,
         terminalName: o.receiptChain!.terminal?.name ?? 'Caisse',
         sellerName: user ? `${user.firstName}` : null,
         // Même numéro que le ticket d'origine, imprimé par la caisse

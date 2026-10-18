@@ -197,10 +197,16 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
   const loyaltyRules = useQuery({ queryKey: ['loyalty'], queryFn: customersApi.loyalty, staleTime: 5 * 60_000 })
   const sites = useQuery({ queryKey: ['sites'], queryFn: sitesApi.getAll, staleTime: 5 * 60_000 })
   const siteName = sites.data?.find((s) => s.id === siteId)?.name ?? 'Caisse'
+  const siteAddress = sites.data?.find((s) => s.id === siteId)?.address ?? null
   // TPE connecté de cette caisse : celui choisi sur cet appareil, sinon le premier
   const devices = useQuery({ queryKey: ['payment-devices', siteId], queryFn: () => paymentsApi.devices(siteId), staleTime: 60_000 })
   const device = useTerminalDevice(siteId, devices.data ?? [])
   const qrProvider = useQuery({ queryKey: ['qr-provider', siteId], queryFn: () => paymentsApi.qrProvider(siteId), staleTime: 5 * 60_000, enabled: queue.online })
+
+  // Vente en cours gardée sur l'appareil : relue au montage, réservée à ce site
+  useEffect(() => {
+    void Promise.resolve(useCartStore.persist.rehydrate()).then(() => useCartStore.getState().bindSite(siteId))
+  }, [siteId])
 
   // Cet appareil devient une caisse du site à sa première ouverture
   useEffect(() => {
@@ -724,6 +730,7 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
           ruleLines={ruleLines}
           methods={methods}
           siteName={siteName}
+          siteAddress={siteAddress}
           receiptSettings={config?.receipt}
           sellerName={sellerName}
           receipt={receipt}

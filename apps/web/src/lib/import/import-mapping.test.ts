@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyMapping, guessMapping, missingRequired, parseCsv, tableToRows } from '@erp/utils'
+import { applyMapping, decodeImportText, guessMapping, missingRequired, parseCsv, tableToRows } from '@erp/utils'
 
 describe('Import : reconnaissance des colonnes', () => {
   it('reconnaît un export d’un autre logiciel de caisse', () => {
@@ -53,5 +53,18 @@ describe('Import : reconnaissance des colonnes', () => {
     const rows = parseCsv('Désignation;PV TTC\nBaguette;1,30\n')
     const m = guessMapping(Object.keys(rows[0]))
     expect(applyMapping(rows, m)).toEqual([{ nom: 'Baguette', prix: '1,30' }])
+  })
+})
+
+describe('decodeImportText', () => {
+  it('lit un CSV UTF-8 avec ou sans BOM', () => {
+    const utf8 = new TextEncoder().encode('nom;prix\nCafé;2,50')
+    expect(decodeImportText(utf8)).toBe('nom;prix\nCafé;2,50')
+    expect(decodeImportText(new Uint8Array([0xef, 0xbb, 0xbf, ...utf8]))).toBe('nom;prix\nCafé;2,50')
+  })
+  it('lit un CSV d’Excel français (Windows-1252) sans perdre les accents ni l’euro', () => {
+    // « Crème brûlée;4,50 € » en Windows-1252
+    const cp1252 = new Uint8Array([0x43, 0x72, 0xe8, 0x6d, 0x65, 0x20, 0x62, 0x72, 0xfb, 0x6c, 0xe9, 0x65, 0x3b, 0x34, 0x2c, 0x35, 0x30, 0x20, 0x80])
+    expect(decodeImportText(cp1252)).toBe('Crème brûlée;4,50 €')
   })
 })

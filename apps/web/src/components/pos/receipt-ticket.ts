@@ -8,7 +8,7 @@ import { saleItems, soldView } from '@/stores/cart.store'
 // Ticket imprimable d'une vente de la caisse (ou d'une vente de formation)
 export function ticketForSale(
   view: ReceiptView,
-  ctx: { receipt?: ReceiptSettings; siteName: string; sellerName?: string | null },
+  ctx: { receipt?: ReceiptSettings; siteName: string; siteAddress?: string | null; sellerName?: string | null },
   extra: { duplicate?: number; copy?: 'CLIENT' | 'DOUBLE' } = {},
 ): TicketModel {
   const { sale } = view
@@ -16,6 +16,8 @@ export function ticketForSale(
   return buildSaleTicket({
     receipt: ctx.receipt,
     siteName: ctx.siteName,
+    // Adresse de la boutique où la vente a lieu (le siège reste dans les mentions légales)
+    siteAddress: ctx.siteAddress,
     terminalName: sale.terminalName,
     sellerName: ctx.sellerName,
     number: view.training ? `F-${view.training.number}` : String(sale.receipt.counter),

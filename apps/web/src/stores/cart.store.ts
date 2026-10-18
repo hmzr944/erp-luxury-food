@@ -1,6 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { formatPrice, modifiersLabel, priceMenu, priceOrder, splitDiscount, weightLabel, type ModifierChoice, type SignedSaleItem, type SoldItemView } from '@erp/utils'
 
 export interface CartProduct {
@@ -74,6 +75,9 @@ export interface CartCustomer {
 }
 
 interface CartState {
+  // Boutique de la vente en cours : une vente gardée ne passe pas d'un site à l'autre
+  siteId: string | null
+  savedAt: number
   lines: CartLine[]
   orderDiscount: number
   customer: CartCustomer | null
@@ -88,7 +92,12 @@ interface CartState {
   setCustomer: (customer: CartCustomer | null) => void
   setLoyalty: (loyalty: { points: number; amount: number } | null) => void
   clearCart: () => void
+  bindSite: (siteId: string) => void
 }
+
+// Vente en cours gardée sur l'appareil : un rechargement, un redémarrage ou une
+// coupure de courant ne la perd plus. Au-delà de 12 h, elle est abandonnée.
+const CART_MAX_AGE_MS = 12 * 3600_000
 
 // Une pièce numérotée est toujours une ligne à part, en un exemplaire
 function lineKey(productId: string, options: AddOptions = {}, price?: number) {
@@ -102,7 +111,11 @@ function lineKey(productId: string, options: AddOptions = {}, price?: number) {
   return [productId, options.variantId ?? '', options.serialNumber ?? '', custom, mods, menu, weighed].join(':')
 }
 
-export const useCartStore = create<CartState>()((set) => ({
+export const useCartStore = create<CartState>()(
+  persist(
+    (set) => ({
+  siteId: null,
+  savedAt: 0,
   lines: [],
   orderDiscount: 0,
   customer: null,
@@ -146,7 +159,22 @@ export const useCartStore = create<CartState>()((set) => ({
   setCustomer: (customer) => set({ customer, loyalty: null }),
   setLoyalty: (loyalty) => set({ loyalty }),
   clearCart: () => set({ lines: [], orderDiscount: 0, customer: null, loyalty: null, lastAddedKey: null }),
-}))
+  bindSite: (siteId) =>
+    set((state) =>
+      state.siteId === siteId && Date.now() - state.savedAt < CART_MAX_AGE_MS
+        ? {}
+        : { siteId, lines: [], orderDiscount: 0, customer: null, loyalty: null, lastAddedKey: null },
+    ),
+    }),
+    {
+      name: 'flow-vente-en-cours',
+      storage: createJSONStorage(() => localStorage),
+      // Relue par la caisse au montage (pas pendant le rendu serveur)
+      skipHydration: true,
+      partialize: (s) => ({ siteId: s.siteId, savedAt: Date.now(), lines: s.lines, orderDiscount: s.orderDiscount, customer: s.customer, loyalty: s.loyalty }),
+    },
+  ),
+)
 
 // Ligne vendue : ce que la caisse signe, plus de quoi l'afficher
 export interface SaleItem extends SignedSaleItem, Omit<SoldItemView, 'modifiers'> {

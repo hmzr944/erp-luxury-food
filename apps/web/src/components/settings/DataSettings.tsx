@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { DownloadSimple, FileArrowUp, WarningCircle, CheckCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { applyMapping, guessMapping, IMPORT_FIELD_LABELS, missingRequired, parseCsv, tableToRows, toCsv, type ColumnMapping, type ImportField } from '@erp/utils'
+import { applyMapping, decodeImportText, guessMapping, IMPORT_FIELD_LABELS, missingRequired, parseCsv, tableToRows, toCsv, type ColumnMapping, type ImportField } from '@erp/utils'
 import { authorizedFetch } from '@/lib/api/client'
 import { sitesApi } from '@/lib/api/sites'
 
@@ -130,7 +130,7 @@ export function DataSettings() {
       } else if (/\.xls$/i.test(f.name)) {
         throw new Error('Ancien format Excel (.xls) : enregistrez le fichier en .xlsx ou en CSV')
       } else {
-        const rows = parseCsv(await f.text())
+        const rows = parseCsv(decodeImportText(new Uint8Array(await f.arrayBuffer())))
         table = { headers: rows.length ? Object.keys(rows[0]) : [], rows }
       }
       if (!table.rows.length) throw new Error('Fichier vide ou illisible')
