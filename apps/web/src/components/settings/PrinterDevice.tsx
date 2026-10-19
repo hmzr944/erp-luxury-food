@@ -5,7 +5,7 @@ import { CheckCircle, Printer, Tray } from '@phosphor-icons/react'
 import { BridgePairing } from './BridgePairing'
 import { PrinterSearch } from './PrinterSearch'
 import { canOpenDrawer, openDrawer, printTicket, setPrinterConfig, usePrinterConfig, type PrinterConfig } from '@/lib/printing/printer'
-import { buildSaleTicket } from '@/lib/printing/ticket'
+import { buildTestTicket } from '@/lib/printing/ticket'
 import { usePlatformConfig } from '@/lib/api/platform'
 
 const MODES: Array<{ key: PrinterConfig['mode']; label: string; hint: string }> = [
@@ -38,19 +38,7 @@ export function PrinterDevice() {
     }
   }
 
-  const testTicket = () =>
-    buildSaleTicket({
-      receipt: platform?.receipt,
-      siteName: 'Ticket d’essai',
-      terminalName: 'Cette caisse',
-      number: 'ESSAI',
-      signedAt: new Date(),
-      lines: [{ quantity: 1, name: 'Article d’essai éèàç €', unit: 1, total: 1, taxRate: 20 }],
-      total: 1,
-      taxBreakdown: [{ rate: 20, ht: 0.83, tax: 0.17 }],
-      payments: [{ label: 'Essai', amount: 1 }],
-      training: { operator: 'Essai d’impression' },
-    })
+  const testTicket = () => buildTestTicket(platform?.receipt)
 
   return (
     <div className="space-y-5">
@@ -73,13 +61,13 @@ export function PrinterDevice() {
         </div>
       </fieldset>
 
-      {draft.mode === 'bridge' && <PrinterSearch kind="ticket" onPick={(p) => setDraft({ ...draft, host: p.host, port: p.port })} />}
+      {draft.mode === 'bridge' && <PrinterSearch kind="ticket" onPick={(p) => setDraft({ ...draft, host: p.host, port: p.port, name: p.model || p.name })} />}
 
       {needsHost && (
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
           <label className="space-y-1.5">
             <span className="text-sm font-medium">Adresse de l’imprimante</span>
-            <input className={field} inputMode="url" placeholder="192.168.1.50" value={draft.host ?? ''} onChange={(e) => setDraft({ ...draft, host: e.target.value.trim() })} />
+            <input className={field} inputMode="url" placeholder="192.168.1.50" value={draft.host ?? ''} onChange={(e) => setDraft({ ...draft, host: e.target.value.trim(), name: undefined })} />
           </label>
           {draft.mode === 'bridge' && (
             <label className="space-y-1.5">

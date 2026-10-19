@@ -416,3 +416,13 @@
   letter-spacing: -0.03em;
   color: var(--color-text-primary);
 }
+
+/* Assistant matériel : l'étape suivante se pose (pas au clavier, géré en JS) */
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.step-in { animation: step-in 220ms var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .step-in { animation: flow-glow-in 150ms ease both; }
+}

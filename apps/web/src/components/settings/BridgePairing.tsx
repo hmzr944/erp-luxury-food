@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { LockKey, Plugs, WifiHigh } from '@phosphor-icons/react'
+import { DownloadSimple, LockKey, Plugs, WifiHigh } from '@phosphor-icons/react'
 import {
   bridgePageUrl,
   bridgeUrls,
@@ -27,12 +27,9 @@ const panel = 'space-y-2 rounded-[var(--radius-md)] bg-[var(--color-bg-base)] p-
 // État du pont sur cet ordinateur et appairage par le code à six chiffres
 export function BridgePairing() {
   const { status, bridge } = useBridge()
-  const [code, setCode] = useState('')
-  const [state, setState] = useState<{ busy?: boolean; error?: string }>({})
   const [platform, setPlatform] = useState<BridgePlatform>('other')
   const [saved, setSaved] = useState('')
   const titleId = useId()
-  const codeId = useId()
 
   useEffect(() => {
     setPlatform(detectBridgePlatform(navigator.userAgent, navigator.maxTouchPoints))
@@ -67,47 +64,77 @@ export function BridgePairing() {
       />
       {(apple || !address.local) && <SecureConnection platform={platform} address={address} needed={status !== 'ready'} />}
       {status === 'ready' && address.local && <LanAccess />}
-      {status !== 'ready' && (
-        <div className="flex flex-wrap gap-2">
-          <label htmlFor={codeId} className="sr-only">
-            Code d’appairage
-          </label>
-          <input
-            id={codeId}
-            name="bridge-pairing-code"
-            className={`${field} max-w-[12rem] tabular tracking-[0.3em]`}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={7}
-            placeholder="123 456"
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ''))}
-          />
-          <button
-            type="button"
-            className={btn}
-            disabled={code.replace(/\s/g, '').length !== 6 || state.busy || status === 'off' || status === 'connecting'}
-            onClick={async () => {
-              setState({ busy: true })
-              try {
-                await getBridge().pair(code.replace(/\s/g, ''), mobile ? 'iPad FLŌW' : 'Caisse FLŌW')
-                setCode('')
-                setState({})
-              } catch (e) {
-                setState({ error: (e as Error).message })
-              }
-            }}
-          >
-            Appairer
-          </button>
-        </div>
-      )}
+      {status !== 'ready' && <PairingCodeForm name={mobile ? 'iPad FLŌW' : 'Caisse FLŌW'} disabled={status === 'off' || status === 'connecting'} />}
+    </section>
+  )
+}
+
+// Saisie du code à six chiffres affiché par le pont (réglages et assistant)
+export function PairingCodeForm({
+  name,
+  disabled,
+  describedBy,
+  autoFocus,
+  onPaired,
+}: {
+  name: string
+  disabled?: boolean
+  describedBy?: string
+  autoFocus?: boolean
+  onPaired?: () => void
+}) {
+  const [code, setCode] = useState('')
+  const [state, setState] = useState<{ busy?: boolean; error?: string }>({})
+  const codeId = useId()
+  const errorId = useId()
+  const digits = code.replace(/\s/g, '')
+
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        if (digits.length !== 6 || state.busy || disabled) return
+        setState({ busy: true })
+        try {
+          await getBridge().pair(digits, name)
+          setCode('')
+          setState({})
+          onPaired?.()
+        } catch (err) {
+          setState({ error: (err as Error).message })
+        }
+      }}
+    >
+      <label htmlFor={codeId} className="sr-only">
+        Code d’appairage
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <input
+          id={codeId}
+          name="bridge-pairing-code"
+          className={`${field} max-w-[12rem] tabular tracking-[0.3em]`}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          autoFocus={autoFocus}
+          data-autofocus={autoFocus ? '' : undefined}
+          maxLength={7}
+          placeholder="123 456"
+          aria-describedby={[describedBy, state.error ? errorId : ''].filter(Boolean).join(' ') || undefined}
+          aria-invalid={state.error ? true : undefined}
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ''))}
+        />
+        <button type="submit" className={btn} disabled={digits.length !== 6 || state.busy || disabled}>
+          {state.busy ? 'Appairage' : 'Appairer'}
+        </button>
+      </div>
       {state.error && (
-        <p role="alert" className="alert-box">
+        <p id={errorId} role="alert" className="alert-box">
           {state.error}
         </p>
       )}
-    </section>
+    </form>
   )
 }
 
@@ -410,13 +437,11 @@ function detectOs(): Os | null {
 }
 
 function BridgeDownload() {
-  const [os, setOs] = useState<Os | null>(null)
-  useEffect(() => setOs(detectOs()), [])
+  const os = useDetectedOs()
 
   if (!DOWNLOAD_BASE) return <NodePackageDownload />
 
   const main = os ? BINARIES[os] : null
-  const others = ORDER.filter((o) => o !== os)
   return (
     <div className="space-y-2 rounded-[var(--radius-md)] bg-[var(--color-bg-base)] p-3 text-sm">
       <p className="font-medium">Pas encore installé sur cet ordinateur ?</p>
@@ -428,9 +453,49 @@ function BridgeDownload() {
         </li>
         <li>Saisissez ici le code à six chiffres qui s’affiche et laissez la fenêtre ouverte.</li>
       </ol>
+      <BridgeDownloadButton />
+    </div>
+  )
+}
+
+function useDetectedOs() {
+  const [os, setOs] = useState<Os | null>(null)
+  useEffect(() => setOs(detectOs()), [])
+  return os
+}
+
+// Bouton de téléchargement adapté au système de cet ordinateur, autres
+// systèmes en liens (réglages et assistant matériel). withHelp : rappelle
+// comment ouvrir le fichier et l'avertissement du système au premier lancement.
+export function BridgeDownloadButton({ withHelp = false }: { withHelp?: boolean }) {
+  const os = useDetectedOs()
+
+  if (!DOWNLOAD_BASE) {
+    return (
+      <div className="space-y-2 text-sm">
+        <a href="/downloads/flow-bridge.zip" download className={primary}>
+          <DownloadSimple size={18} aria-hidden /> Télécharger FLŌW-Bridge
+        </a>
+        {withHelp && (
+          <p className="text-[var(--color-text-secondary)]">
+            Demande Node.js 22 (
+            <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className={link}>
+              nodejs.org
+            </a>
+            , version LTS). Décompressez, puis double-cliquez sur « Démarrer FLŌW-Bridge ».
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  const main = os ? BINARIES[os] : null
+  const others = ORDER.filter((o) => o !== os)
+  return (
+    <div className="space-y-2 text-sm">
       {main ? (
         <a href={`${DOWNLOAD_BASE}/${main.file}`} download className={primary}>
-          Télécharger pour {main.label}
+          <DownloadSimple size={18} aria-hidden /> Télécharger pour {main.label}
         </a>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -440,6 +505,11 @@ function BridgeDownload() {
             </a>
           ))}
         </div>
+      )}
+      {withHelp && main && (
+        <p className="text-[var(--color-text-secondary)]">
+          {main.open} {main.warning}
+        </p>
       )}
       <p className="text-[var(--color-text-secondary)]">
         {main && (

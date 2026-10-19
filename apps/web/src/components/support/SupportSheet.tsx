@@ -33,7 +33,7 @@ export function SupportHost() {
 }
 
 // Pages sans compte connecté : écran client, ticket, paiement, connexion
-const PUBLIC = ['/login', '/inscription', '/display', '/r/', '/pickup', '/invoice', '/paiement', '/tpe', '/onboarding']
+const PUBLIC = ['/login', '/inscription', '/display', '/r/', '/pickup', '/invoice', '/paiement', '/tpe']
 
 // Réponse de l'équipe arrivée pendant qu'on travaille (caisse comprise) :
 // une notification discrète, qui ne coupe pas la vente

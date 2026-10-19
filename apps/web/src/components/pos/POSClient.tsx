@@ -41,6 +41,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import { fiscalApi } from '@/lib/api/fiscal'
 import { BridgeTpeSettings } from '@/components/settings/BridgeTpeSettings'
 import { PrinterDevice } from '@/components/settings/PrinterDevice'
+import { HardwareWizard } from '@/components/hardware/HardwareWizard'
+import { hasPairingLink } from '@/lib/hardware/link'
 import type { RecordedSale } from '@/lib/terminal/terminal'
 
 interface POSClientProps {
@@ -74,6 +76,12 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
     return () => useCartStore.getState().setSalesLocked(false)
   }, [salesLocked])
   const [printerOpen, setPrinterOpen] = useState(false)
+  // Réglages fins de l'imprimante et du TPE, derrière l'assistant
+  const [hardwareAdvanced, setHardwareAdvanced] = useState(false)
+  // Vendeur arrivé par le lien du pont (/materiel#pont=...) : l'assistant s'ouvre ici
+  useEffect(() => {
+    if (hasPairingLink()) setPrinterOpen(true)
+  }, [])
   const [displayOpen, setDisplayOpen] = useState(false)
   // QR de paiement montré à l'écran client
   const [qrShown, setQrShown] = useState<{ url: string; expiresAt: string | null } | null>(null)
@@ -788,12 +796,37 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
 
         <DisplaySheet siteId={siteId} terminalId={terminalId} open={displayOpen} onClose={() => setDisplayOpen(false)} />
 
-        <Sheet open={printerOpen} title="Imprimante, tiroir et TPE" onClose={() => setPrinterOpen(false)} width="lg">
-          <div className="pb-2">
-            <PrinterDevice />
-            <h3 className="mb-3 mt-8 text-[15px] font-semibold">TPE bancaire</h3>
-            <BridgeTpeSettings />
-          </div>
+        <Sheet
+          open={printerOpen}
+          title={hardwareAdvanced ? 'Réglages avancés' : 'Imprimante, tiroir et TPE'}
+          onClose={() => {
+            setPrinterOpen(false)
+            setHardwareAdvanced(false)
+          }}
+          width="lg"
+        >
+          {hardwareAdvanced ? (
+            <div className="pb-2">
+              <button
+                type="button"
+                onClick={() => setHardwareAdvanced(false)}
+                className="mb-4 inline-flex min-h-11 items-center font-medium text-[var(--color-accent)] underline underline-offset-4"
+              >
+                Revenir à l’assistant
+              </button>
+              <PrinterDevice />
+              <h3 className="mb-3 mt-8 text-[15px] font-semibold">TPE bancaire</h3>
+              <BridgeTpeSettings />
+            </div>
+          ) : (
+            <div className="pb-2">
+              <HardwareWizard
+                headingLevel={3}
+                onDone={() => setPrinterOpen(false)}
+                onAdvanced={() => setHardwareAdvanced(true)}
+              />
+            </div>
+          )}
         </Sheet>
 
         <PaymentSheet

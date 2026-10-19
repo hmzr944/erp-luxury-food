@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Eye, EyeSlash } from '@phosphor-icons/react'
 import { useAuthStore } from '@/stores/auth.store'
 import { homePath } from '@/lib/workspace'
+import { takeReturnTo } from '@/lib/hardware/link'
 import { localTerminals } from '@/lib/terminal/terminal'
 import { PinPad } from '@/components/auth/PinPad'
 import { BadgeLogin } from '@/components/auth/BadgeLogin'
@@ -15,6 +16,11 @@ const fieldCls =
   'h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-4 text-base focus:border-[var(--color-accent)]'
 
 type Till = { siteId: string; terminalId: string; name: string }
+
+// Page demandée avant la connexion (fragment compris), sinon l'espace de chacun
+async function destination(siteId?: string) {
+  return takeReturnTo() ?? (await homePath(useAuthStore.getState().user?.role, siteId))
+}
 
 // Connexion. Sur une tablette déjà caisse, le code vendeur à 4 chiffres
 // suffit ; ailleurs, e-mail et mot de passe. Chacun arrive dans son espace.
@@ -49,8 +55,7 @@ export default function LoginPage() {
   }, [])
 
   const go = async () => {
-    const user = useAuthStore.getState().user
-    router.replace(await homePath(user?.role, till?.siteId))
+    router.replace(await destination(till?.siteId))
   }
 
   const submitPin = useCallback(
@@ -64,8 +69,7 @@ export default function LoginPage() {
           router.replace(`/pos/${till.siteId}`)
           return
         }
-        const user = useAuthStore.getState().user
-        router.replace(await homePath(user?.role, till.siteId))
+        router.replace(await destination(till.siteId))
       } catch (e) {
         setPinError((e as Error).message)
         throw e
@@ -116,8 +120,7 @@ export default function LoginPage() {
             <BadgeLogin
               onBadge={async (code) => {
                 await badgeLogin(till.siteId, code)
-                const user = useAuthStore.getState().user
-                router.replace(await homePath(user?.role, till.siteId))
+                router.replace(await destination(till.siteId))
               }}
             />
             <button type="button" onClick={() => setMode('email')} className="block h-11 w-full text-[15px] font-medium text-[var(--color-accent)]">

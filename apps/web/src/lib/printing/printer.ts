@@ -15,6 +15,8 @@ export interface PrinterConfig {
   mode: 'none' | 'system' | 'bridge' | 'epos'
   host?: string
   port?: number
+  // Nom annoncé par l'imprimante détectée (affichage seulement)
+  name?: string
   width: 48 | 32
   drawerPin: 0 | 1
   // Le tiroir s'ouvre à chaque encaissement en espèces

@@ -15,6 +15,7 @@ import {
   Gear,
   ArrowsLeftRight,
   Truck,
+  Printer,
 } from '@phosphor-icons/react'
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
@@ -38,6 +39,7 @@ export const NAV = [
 ]
 
 export const NAV_BOTTOM = [
+  { href: '/materiel', icon: Printer, label: 'Matériel' },
   { href: '/settings', icon: Gear, label: 'Paramètres' },
 ]
 
@@ -151,6 +153,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              aria-current={active ? 'page' : undefined}
               className={[
                 'flex items-center gap-2.5 h-10 px-3 rounded-[var(--radius-md)] transition-colors',
                 active
