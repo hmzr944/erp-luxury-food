@@ -25,6 +25,7 @@ import { BridgeTerminalWait } from './BridgeTerminalWait'
 import { getBridgeTpe } from '@/lib/bridge'
 import { PartsPayment } from './PartsPayment'
 import { CreditPayment, type PayLine } from './CreditPayment'
+import { MealCardPayment, mealCardTpe, type MealCardTpe } from './MealCardPayment'
 
 const KIND_ICON: Record<PaymentKind, React.ElementType> = {
   [PaymentKind.CARD]: CreditCard,
@@ -94,6 +95,8 @@ export function PaymentSheet({ open, siteId, device: realDevice, training = fals
   const [terminal, setTerminal] = useState<Method | null>(null)
   // TPE bancaire branché sur FLŌW-Bridge (Caisse-AP)
   const [bridgeCard, setBridgeCard] = useState<Method | null>(null)
+  // Carte titre-restaurant passée sur le TPE relié (connecté ou Caisse-AP)
+  const [mealCard, setMealCard] = useState<{ method: Method; tpe: MealCardTpe; allowed: number } | null>(null)
   const [parts, setParts] = useState(false)
   const [partsLocked, setPartsLocked] = useState(false)
   // Avoir ou carte cadeau FLŌW : vérifiés par leur code
@@ -114,6 +117,7 @@ export function PaymentSheet({ open, siteId, device: realDevice, training = fals
       setQr(false)
       setTerminal(null)
       setBridgeCard(null)
+      setMealCard(null)
       setParts(false)
       setPartsLocked(false)
       setCredit(false)
@@ -128,7 +132,7 @@ export function PaymentSheet({ open, siteId, device: realDevice, training = fals
 
   const title = receipt
     ? 'Vente enregistrée'
-    : terminal || bridgeCard
+    : terminal || bridgeCard || mealCard
       ? 'Paiement sur le TPE'
       : credit
         ? `Payer ${formatPrice(total)} par ${credit === 'GIFT_CARD' ? 'carte cadeau' : 'avoir'}`
@@ -153,6 +157,10 @@ export function PaymentSheet({ open, siteId, device: realDevice, training = fals
     if (m.mealVoucher) {
       const allowed = mealVoucherAllowance(ruleLines, m)
       if (allowed <= 0) return setNotice('Aucun article de cette vente n’est payable en titre-restaurant.')
+      // Carte titre-restaurant et TPE relié : le montant autorisé part au TPE,
+      // le reste se règle ensuite. Sans TPE, saisie comme avant.
+      const tpe = mealCardTpe(m, device, bridgeTpe, navigator.onLine)
+      if (tpe) return setMealCard({ method: m, tpe, allowed })
       if (Math.round(allowed * 100) < Math.round(total * 100)) {
         const why = m.maxAmount != null && allowed >= Number(m.maxAmount) ? `plafond de ${formatPrice(Number(m.maxAmount))} par ticket` : 'articles éligibles'
         setSplitPreset({ amounts: { [m.code]: allowed.toFixed(2).replace('.', ',') }, notice: `${m.label} : ${formatPrice(allowed)} au plus (${why}). Le reste avec un autre moyen.` })
@@ -168,7 +176,7 @@ export function PaymentSheet({ open, siteId, device: realDevice, training = fals
   return (
     // Pendant l'attente du TPE, on ne ferme qu'en annulant : sinon le client
     // pourrait payer sans que la vente soit enregistrée
-    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || !!bridgeCard || qr || partsLocked))}>
+    <Sheet open={open} title={title} onClose={onClose} locked={busy || (!receipt && (!!terminal || !!bridgeCard || !!mealCard || qr || partsLocked))}>
       {receipt ? (
         <Receipt receipt={receipt} siteId={siteId} siteName={siteName} siteAddress={siteAddress} settings={receiptSettings} sellerName={sellerName} onNext={onClose} />
       ) : terminal && device ? (
@@ -216,6 +224,31 @@ export function PaymentSheet({ open, siteId, device: realDevice, training = fals
             onApproved={(ref) => onPay([{ code: bridgeCard.code, amount: total, ...(ref ? { reference: ref } : {}) }], mail)}
             onPaidElsewhere={() => onPay([{ code: bridgeCard.code, amount: total }], mail)}
             onBack={() => setBridgeCard(null)}
+          />
+        </>
+      ) : mealCard ? (
+        <>
+          {error && (
+            <p role="alert" className="mb-4 alert-box">
+              Paiement accepté, mais la vente n&apos;a pas pu être enregistrée : {error}
+            </p>
+          )}
+          <MealCardPayment
+            siteId={siteId}
+            tpe={mealCard.tpe}
+            method={mealCard.method}
+            total={total}
+            allowed={mealCard.allowed}
+            methods={plain}
+            device={device}
+            bridgeTpe={bridgeTpe}
+            busy={busy}
+            onLock={setPartsLocked}
+            onPay={(p, clientId) => onPay(p, mail, clientId)}
+            onBack={() => {
+              setMealCard(null)
+              setPartsLocked(false)
+            }}
           />
         </>
       ) : credit ? (

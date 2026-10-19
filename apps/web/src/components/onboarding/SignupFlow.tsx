@@ -205,13 +205,15 @@ export function SignupFlow() {
 
               {step === 1 && (
                 <div className="space-y-4">
-                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {/* Neuf métiers : une liste sur téléphone, trois colonnes au-delà.
+                      Aucune case orpheline dans un cas comme dans l'autre. */}
+                  <ul className="grid gap-2 sm:grid-cols-3 sm:gap-3">
                     {main.map((m) => (
                       <MetierTile key={m.key} metier={m} onPick={() => void submit(m)} />
                     ))}
                   </ul>
                   {others ? (
-                    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <ul className="grid gap-2 sm:grid-cols-3 sm:gap-3">
                       {secondary.map((m) => (
                         <MetierTile key={m.key} metier={m} onPick={() => void submit(m)} />
                       ))}
@@ -219,7 +221,7 @@ export function SignupFlow() {
                         <button
                           type="button"
                           onClick={() => void submit(null)}
-                          className="flex h-full min-h-36 w-full flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] p-4 text-left hover:border-[var(--color-accent)] press"
+                          className="flex h-full min-h-16 w-full flex-col items-start justify-center gap-1 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] px-4 py-3 text-left hover:border-[var(--color-accent)] press sm:min-h-36 sm:justify-start sm:gap-3 sm:p-4"
                         >
                           <span className="text-[15px] font-semibold">Autre</span>
                           <span className="text-sm text-[var(--color-text-secondary)]">Caisse vide, réglages généraux</span>
@@ -265,14 +267,14 @@ function MetierTile({ metier, onPick }: { metier: Metier; onPick: () => void }) 
       <button
         type="button"
         onClick={onPick}
-        className="flex h-full min-h-36 w-full flex-col items-start gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] p-4 text-left hover:border-[var(--color-accent)] press"
+        className="flex h-full w-full items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-bg-surface)] px-3 py-3 text-left hover:border-[var(--color-accent)] press sm:min-h-36 sm:flex-col sm:items-start sm:gap-4 sm:p-4"
       >
-        <span className="grid size-12 place-items-center rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] text-[var(--color-accent)]">
-          <Icon size={28} aria-hidden />
+        <span className="grid size-11 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] text-[var(--color-accent)] sm:size-12">
+          <Icon size={26} aria-hidden />
         </span>
         <span>
           <span className="block text-[15px] font-semibold leading-snug">{metier.label}</span>
-          <span className="mt-1 block text-sm text-[var(--color-text-secondary)]">{metier.hint}</span>
+          <span className="mt-0.5 block text-sm text-[var(--color-text-secondary)] sm:mt-1">{metier.hint}</span>
         </span>
       </button>
     </li>

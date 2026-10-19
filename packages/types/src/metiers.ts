@@ -40,7 +40,7 @@ export interface Metier {
   sector: Sector
   // Taux par défaut des nouveaux articles, s'il diffère de celui du secteur
   defaultTaxRate?: number
-  // Affiché sous « Autre activité » plutôt que dans les huit visuels
+  // Affiché sous « Autre activité » plutôt que dans les neuf visuels
   secondary?: boolean
   categories: Array<{ name: string; color: string }>
   modifierGroups?: StarterModifierGroup[]
@@ -300,7 +300,6 @@ export const METIERS: Metier[] = [
     label: 'Services et prestations',
     hint: 'Ateliers, réparations, abonnements',
     sector: Sector.SERVICES,
-    secondary: true,
     categories: [{ name: 'Prestations', color: '#8A5BB5' }],
     products: [
       { name: 'Prestation d’une heure', category: 'Prestations', price: 50, taxRate: 20 },

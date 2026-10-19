@@ -37,3 +37,28 @@ describe('Règles d’encaissement', () => {
     expect(checkPayments({ lines: [{ total: 16000, mealVoucherEligible: false }], payments: [{ code: 'CASH', amount: 16000 }], methods, nonResident: true })[0]).toMatch(/non résident/)
   })
 })
+
+describe('Carte titre-restaurant passée sur le TPE', () => {
+  const withCard = [
+    ...methods,
+    { code: 'TICKET_RESTO_CARD', label: 'Carte titre-restaurant', kind: 'OTHER', mealVoucher: true, maxAmount: '25' },
+  ]
+
+  it('accepte le paiement avec la référence de transaction du TPE, même plafond que le papier', () => {
+    expect(
+      checkPayments({ lines: [food, wine], payments: [{ code: 'TICKET_RESTO_CARD', amount: 18, reference: 'A12345' }, { code: 'CARD', amount: 30 }], methods: withCard }),
+    ).toEqual([])
+    expect(
+      checkPayments({ lines: [food, food], payments: [{ code: 'TICKET_RESTO_CARD', amount: 30, reference: 'A12345' }, { code: 'CARD', amount: 6 }], methods: withCard })[0],
+    ).toMatch(/plafonné/)
+  })
+
+  it('carte et papier ensemble ne dépassent pas le plafond', () => {
+    const issues = checkPayments({
+      lines: [food, food],
+      payments: [{ code: 'TICKET_RESTO', amount: 15 }, { code: 'TICKET_RESTO_CARD', amount: 15, reference: 'A12345' }, { code: 'CARD', amount: 6 }],
+      methods: withCard,
+    })
+    expect(issues[0]).toMatch(/plafonné/)
+  })
+})

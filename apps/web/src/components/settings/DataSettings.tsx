@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DownloadSimple, FileArrowUp, WarningCircle, CheckCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { applyMapping, decodeImportText, guessMapping, IMPORT_FIELD_LABELS, missingRequired, parseCsv, tableToRows, toCsv, type ColumnMapping, type ImportField } from '@erp/utils'
-import { authorizedFetch } from '@/lib/api/client'
+import { apiClient, authorizedFetch } from '@/lib/api/client'
 import { sitesApi } from '@/lib/api/sites'
 
 // Colonnes du format d'import FLŌW (voir apps/api/src/data/product-import.ts)
@@ -128,7 +129,8 @@ export function DataSettings() {
         const { readSheet } = await import('read-excel-file/browser')
         table = tableToRows((await readSheet(f)) as unknown[][])
       } else if (/\.xls$/i.test(f.name)) {
-        throw new Error('Ancien format Excel (.xls) : enregistrez le fichier en .xlsx ou en CSV')
+        // read-excel-file ne lit que le format .xlsx (Office Open XML)
+        throw new Error('Ancien format Excel (.xls) : enregistrez le fichier en .xlsx ou .csv, puis déposez-le à nouveau')
       } else {
         const rows = parseCsv(decodeImportText(new Uint8Array(await f.arrayBuffer())))
         table = { headers: rows.length ? Object.keys(rows[0]) : [], rows }
@@ -257,7 +259,7 @@ export function DataSettings() {
           <FileArrowUp size={28} aria-hidden className="text-[var(--color-accent)]" />
           <span className="text-[15px] font-medium">{source ? source.name : 'Déposez votre fichier ici, ou choisissez-le'}</span>
           <span className="text-sm text-[var(--color-text-secondary)]">Excel (.xlsx) ou CSV, export de votre ancien logiciel ou tableur maison</span>
-          <input type="file" accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
+          <input type="file" accept=".csv,.xlsx,.xlsm,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
         </label>
 
         {source && (
@@ -297,6 +299,7 @@ export function DataSettings() {
         {busy === 'preview' && <p role="status" className="text-sm text-[var(--color-text-secondary)]">Lecture du fichier...</p>}
 
         {report && <ImportResult report={report} busy={busy === 'import'} onConfirm={() => runImport(false)} />}
+        {report?.imported && site && <AfterImport siteId={site} />}
       </section>
     </div>
   )
@@ -372,6 +375,127 @@ function ImportResult({ report, busy, onConfirm }: { report: ImportReport; busy:
           {report.skipped.slice(0, 5).map((s) => s.message.match(/« (.*) »/)?.[1]).join(', ')}
           {report.skipped.length > 5 ? '...' : ''}
         </p>
+      )}
+    </div>
+  )
+}
+
+// Lu sur cet appareil seulement : le mode découverte et le mode formation
+// sont propres à chaque caisse (voir pos/Discovery.tsx et POSClient.tsx)
+function practiceOnThisDevice(siteId: string): 'decouverte' | 'formation' | null {
+  try {
+    if (window.localStorage.getItem(`flow-discovery:${siteId}`)) return 'decouverte'
+    if (window.localStorage.getItem(`flow-training:${siteId}`) === '1') return 'formation'
+  } catch {
+    // stockage indisponible : rien à rappeler
+  }
+  return null
+}
+
+// Après un import réussi : retirer le catalogue d'exemple de l'inscription et
+// rappeler le passage en vente réelle. Le mode formation se quitte depuis la
+// caisse, où le changement est tracé au journal pour ce terminal.
+function AfterImport({ siteId }: { siteId: string }) {
+  const qc = useQueryClient()
+  const [samples, setSamples] = useState<number | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [removed, setRemoved] = useState<number | null>(null)
+  const [practice, setPractice] = useState<'decouverte' | 'formation' | null>(null)
+
+  useEffect(() => {
+    setPractice(practiceOnThisDevice(siteId))
+    apiClient<{ count: number }>(`/sites/${siteId}/products/samples`)
+      .then((r) => setSamples(r.count))
+      .catch(() => setSamples(null))
+  }, [siteId])
+
+  const remove = async () => {
+    setRemoving(true)
+    try {
+      const r = await apiClient<{ removed: number; hidden: number }>(`/sites/${siteId}/products/samples`, { method: 'DELETE' })
+      setRemoved(r.removed + r.hidden)
+      setSamples(0)
+      setConfirming(false)
+      void qc.invalidateQueries({ queryKey: ['products', siteId] })
+      toast.success(`${plural(r.removed + r.hidden, 'article d’exemple retiré', 'articles d’exemple retirés')}`)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  const hasSamples = !!samples
+  if (!hasSamples && removed === null && !practice) return null
+
+  return (
+    <div className="space-y-4 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] p-4" aria-live="polite">
+      <p className="text-[15px] font-semibold">Passer à votre vrai catalogue</p>
+
+      {hasSamples && (
+        <div className="space-y-3">
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Le catalogue d’exemple de l’inscription est encore en caisse, à côté de vos produits.
+          </p>
+          {confirming ? (
+            <div className="space-y-3">
+              <p className="text-sm">
+                Les articles jamais vendus sont supprimés ; ceux déjà vendus sont seulement retirés de la caisse, leurs ventes restent intactes. Ce
+                retrait ne peut pas être annulé.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void remove()}
+                  disabled={removing}
+                  className="h-11 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-4 text-[15px] font-semibold text-[var(--color-on-accent)] press disabled:opacity-60"
+                >
+                  {removing ? 'Retrait...' : 'Confirmer le retrait'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(false)}
+                  disabled={removing}
+                  className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-4 text-[15px] font-medium press"
+                >
+                  Garder les exemples
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="h-11 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-4 text-[15px] font-semibold text-[var(--color-on-accent)] press"
+            >
+              {samples > 1 ? `Retirer les ${samples} articles d’exemple` : 'Retirer l’article d’exemple'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {removed !== null && !hasSamples && (
+        <p className="flex items-center gap-2 text-sm">
+          <CheckCircle size={18} aria-hidden weight="fill" className="shrink-0 text-[var(--color-accent)]" />
+          {plural(removed, 'article d’exemple retiré', 'articles d’exemple retirés')} : la caisse ne montre plus que vos produits.
+        </p>
+      )}
+
+      {practice && (
+        <div className={['space-y-2', hasSamples || removed !== null ? 'border-t border-[var(--color-border)] pt-3' : ''].join(' ')}>
+          <p className="text-sm">
+            {practice === 'decouverte'
+              ? 'Cette caisse est encore en mode découverte : les ventes y sont fictives. Pour encaisser pour de bon, ouvrez la caisse et touchez « Passer en vente réelle ».'
+              : 'Cette caisse est encore en mode formation : les ventes y sont fictives. Ouvrez la caisse pour quitter le mode formation avant votre première vraie vente.'}
+          </p>
+          <Link
+            href={`/pos/${siteId}`}
+            className="inline-flex h-11 items-center rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-4 text-[15px] font-medium press"
+          >
+            Ouvrir la caisse
+          </Link>
+        </div>
       )}
     </div>
   )

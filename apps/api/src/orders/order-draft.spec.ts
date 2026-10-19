@@ -152,3 +152,23 @@ describe('carte cadeau vendue en caisse', () => {
     expect(() => sell({ discount: 5 })).toThrow('ne se remise pas')
   })
 })
+
+describe('buildOrderDraft, carte titre-restaurant sur le TPE', () => {
+  it('garde le moyen TICKET_RESTO_CARD et la référence du TPE sur la vente', () => {
+    const d = buildOrderDraft(
+      base({
+        items: [{ productId: 'pull', variantId: 'pull-s', quantity: 1 }],
+        paymentMethods: [...methods, { code: 'TICKET_RESTO_CARD', label: 'Carte titre-restaurant', kind: 'OTHER' }],
+        payments: [
+          { code: 'TICKET_RESTO_CARD', amount: 25, reference: 'AUTO-778899' },
+          { code: 'CARD', amount: 265 },
+        ],
+      }),
+    )
+    expect(d.payments.map((p) => [p.code, p.kind, p.amount, p.reference])).toEqual([
+      ['TICKET_RESTO_CARD', 'OTHER', 25, 'AUTO-778899'],
+      ['CARD', 'CARD', 265, undefined],
+    ])
+    expect(d.paymentMode).toBe('MIXED')
+  })
+})
