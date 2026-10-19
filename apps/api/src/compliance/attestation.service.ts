@@ -17,6 +17,21 @@ export interface EditorIdentity {
   address: string
   representative: string // NOM Prénom du représentant légal
   city: string // « Fait à »
+  // Entrepreneur individuel : pas de société ni de « représentant légal ».
+  // Le modèle officiel prévoit d'adapter le volet 1 selon le cas
+  individual: boolean
+}
+
+export function isIndividualStatus(status: string | undefined) {
+  if (!status) return false
+  return /entrepreneur individuel|micro[- ]?entrepr|auto[- ]?entrepr|^\s*EI\s*$/i.test(status)
+}
+
+// « Je soussigné… » du volet 1 : société ou entrepreneur individuel
+export function editorDeclarant(e: EditorIdentity) {
+  return e.individual
+    ? `${e.representative}, entrepreneur individuel (EI) exerçant sous la dénomination ${e.company} (SIREN ${e.siren})`
+    : `${e.representative}, représentant légal de la société ${e.company} (SIREN ${e.siren})`
 }
 
 export function editorFromEnv(env: NodeJS.ProcessEnv = process.env): EditorIdentity | null {
@@ -28,7 +43,7 @@ export function editorFromEnv(env: NodeJS.ProcessEnv = process.env): EditorIdent
     city: env.EDITOR_CITY?.trim(),
   }
   if (!e.company || !e.siren || !e.address || !e.representative || !e.city) return null
-  return e as EditorIdentity
+  return { ...e, individual: isIndividualStatus(env.EDITOR_STATUS) } as EditorIdentity
 }
 
 const FONTS = join(__dirname, '..', '..', 'assets', 'fonts')
@@ -99,7 +114,7 @@ export class AttestationService {
     // Texte du volet 1, signé par la clé de l'éditeur : toute retouche du
     // document se voit en recalculant l'empreinte
     const volet1 = [
-      `Je soussigné, ${editor.representative}, représentant légal de la société ${editor.company} (SIREN ${editor.siren}), éditeur du logiciel / système de caisse ${FISCAL_SOFTWARE.name} (logiciel de caisse en ligne), atteste que les fonctionnalités de caisse de ce logiciel, mis sur le marché à compter du ${fr(FISCAL_SOFTWARE.releasedAt)}, dans sa version n° ${FISCAL_SOFTWARE.version}, sous le numéro de licence ${licence}, satisfont aux conditions d’inaltérabilité, de sécurisation, de conservation et d’archivage des données en vue du contrôle de l’administration fiscale, prévues au 3° bis du I de l’article 286 du code général des impôts.`,
+      `Je soussigné, ${editorDeclarant(editor)}, éditeur du logiciel / système de caisse ${FISCAL_SOFTWARE.name} (logiciel de caisse en ligne), atteste que les fonctionnalités de caisse de ce logiciel, mis sur le marché à compter du ${fr(FISCAL_SOFTWARE.releasedAt)}, dans sa version n° ${FISCAL_SOFTWARE.version}, sous le numéro de licence ${licence}, satisfont aux conditions d’inaltérabilité, de sécurisation, de conservation et d’archivage des données en vue du contrôle de l’administration fiscale, prévues au 3° bis du I de l’article 286 du code général des impôts.`,
       `J’atteste que la dernière version majeure de ce logiciel ou système est identifiée avec la racine suivante : ${FISCAL_SOFTWARE.majorVersion} et que les versions mineures développées ultérieurement à cette version majeure sont ou seront identifiées par les subdivisions suivantes de cette racine : ${FISCAL_SOFTWARE.majorVersion}.x.y. Je m’engage à ce que ces subdivisions ne soient utilisées par ${editor.company} que pour l’identification des versions mineures ultérieures, à l’exclusion de toute version majeure. Les versions majeures et mineures du logiciel ou système s’entendent au sens du III-A § 340 du BOI-TVA-DECLA-30-10-30.`,
     ]
     const signed = [
@@ -190,7 +205,7 @@ export class AttestationService {
       para('Les fonctionnalités suivantes ne sont pas couvertes par cette attestation :', { font: 'medium' })
       list(NOT_COVERED)
       para(`Fait à ${a.editor.city}, le ${a.fr(a.issuedAt)}.`)
-      para(`Signature du représentant légal de l’éditeur du logiciel ou système de caisse : ${a.editor.representative}, pour ${a.editor.company}, ${a.editor.address}.`, { font: 'medium' })
+      para(`${a.editor.individual ? 'Signature de l’éditeur' : 'Signature du représentant légal de l’éditeur'} du logiciel ou système de caisse : ${a.editor.representative}, ${a.editor.individual ? 'entrepreneur individuel' : `pour ${a.editor.company}`}, ${a.editor.address}.`, { font: 'medium' })
       para(
         `Signé électroniquement par la clé de l’éditeur (ECDSA P-256, clé ${a.keyId}). Empreinte SHA-256 du volet 1 : ${a.digest}. Signature : ${a.signature}`,
         { size: 7.5, color: MUTED },
