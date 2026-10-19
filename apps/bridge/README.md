@@ -13,7 +13,7 @@ Connexion sécurisée (Safari, iPad), certificat fabriqué par le pont et accès
 
 ## Installation et lancement
 
-Pour un commerçant : exécutables autonomes, sans Node.js (Windows, macOS, Linux), voir [docs/flow-bridge-executables.md](../../docs/flow-bridge-executables.md).
+Pour un commerçant : exécutables autonomes, sans Node.js (Windows, macOS, Linux), voir [docs/flow-bridge-executables.md](../../docs/flow-bridge-executables.md). Lancé une fois d'un double-clic, l'exécutable s'installe pour l'utilisateur, démarre avec chaque session (sans droits administrateur) et ouvre la caisse dans le navigateur pour l'appairage : rien à recopier.
 
 En développement, prérequis : Node.js 22 ou plus récent.
 
@@ -40,6 +40,10 @@ Commandes :
 | `flow-bridge --pair` | démarre le pont et affiche un code même si des caisses sont déjà appairées |
 | `flow-bridge pair` | affiche un nouveau code pour le pont **déjà lancé** (en service) |
 | `flow-bridge clients` | liste les caisses appairées |
+| `flow-bridge installer` (`install`) | exécutable autonome : copie dans le dossier de l'utilisateur et démarrage avec la session (fait seul au premier double-clic) |
+| `flow-bridge desinstaller` (`désinstaller`, `uninstall`) | retire le démarrage automatique, arrête le pont installé et supprime sa copie ; garde `~/.flow-bridge` |
+| `flow-bridge --sans-installation` | démarre le pont dans la fenêtre, sans s'installer |
+| `flow-bridge --arriere-plan` | mode utilisé par le démarrage de session : pas de console, journal dans `~/.flow-bridge/flow-bridge.log` (sous systemd, dans `journalctl --user -u flow-bridge`) ; si un pont tourne déjà, s'arrête sans erreur |
 
 (`flow-bridge` = `node apps/bridge/dist/index.js`.)
 
@@ -54,12 +58,21 @@ Commandes :
 | `FLOW_BRIDGE_TLS` | `1` | `0` : pas de `wss://`, `ws://` local seulement (ancien fonctionnement) |
 | `FLOW_BRIDGE_LAN` | réglage enregistré | `1` : ouvert aux iPad du réseau local ; `0` : cet ordinateur seulement |
 | `FLOW_BRIDGE_LOG` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
+| `FLOW_APP_URL` | adresse inscrite à la construction | adresse de la caisse web : ouverte dans le navigateur pour l'appairage, lien « Ouvrir la caisse » de la page locale. Son origine est ajoutée aux origines autorisées. |
+| `FLOW_BRIDGE_INSTALL` | `1` | `0` : l'exécutable ne s'installe pas au premier double-clic (comme `--sans-installation`) |
+| `FLOW_BRIDGE_NAVIGATEUR` | `1` | `0` : le pont n'ouvre jamais le navigateur (aussi désactivé quand `CI` est défini, et sous Linux sans `DISPLAY` ni `WAYLAND_DISPLAY`) |
 
 Commandes : `flow-bridge cert` (empreinte et fichiers du certificat ; `--renouveler` recrée l'autorité, `--approuver` l'approuve sur Mac), `flow-bridge reseau` (`oui` / `non`), `flow-bridge --reseau` (ouvert au réseau pour ce lancement).
 
 ## Appairer une caisse
 
-1. Lancer le pont : le code s'affiche dans la console (ou `flow-bridge pair` si le pont tourne en service). Un code ne sert qu'une fois.
+**Caisse sur le même ordinateur que le pont** : au démarrage, si aucune caisse n'est appairée et que l'adresse de la caisse est connue (`FLOW_APP_URL` ou celle inscrite dans l'exécutable), le pont ouvre le navigateur par défaut sur `<adresse de la caisse>/materiel#pont=<code>&port=<port>`. Le code reste dans le fragment (`#`), que le navigateur n'envoie jamais au serveur web ; la caisse appelle ensuite `bridge.pair` avec ce code. Le code garde les mêmes règles (usage unique, 10 minutes, blocages après 5 essais). Le navigateur n'est ouvert que dans une session avec bureau (commande `start`, `open` ou `xdg-open` du système).
+
+**Page locale** : `http://127.0.0.1:51717/`, ouverte sur l'ordinateur du pont, affiche le code en cours, un bouton « Nouveau code », les caisses appairées, la dernière imprimante utilisée, le TPE enregistré et un lien « Ouvrir la caisse ». Ces informations ne sont jamais montrées à une requête venue du réseau local (un iPad voit seulement qu'il faut lire le code sur l'ordinateur du pont). Le bouton envoie un formulaire POST protégé par un jeton propre à la page et par la vérification de `Origin` et `Sec-Fetch-Site`.
+
+**iPad ou autre poste** :
+
+1. Lire le code sur la page locale du pont (ci-dessus), dans sa console, ou avec `flow-bridge pair` si le pont tourne en service. Un code ne sert qu'une fois.
 2. Dans la caisse, menu ⋮ > « Imprimante, tiroir et TPE » (ou Paramètres > Paiement > Mon TPE bancaire) : saisir le code.
 3. La caisse reçoit un jeton long qu'elle garde dans `localStorage` (`flow-bridge-token`). Aux connexions suivantes, elle s'authentifie seule.
 
@@ -86,7 +99,7 @@ Pour retirer un poste : `bridge.unpair` depuis la caisse, ou supprimer l'entrée
 
 ## Faire tourner le pont en service
 
-Le pont doit démarrer avec l'ordinateur. Adapter les chemins et l'origine de la caisse.
+Avec l'exécutable autonome, rien à faire : il s'installe seul (voir « Démarrage automatique » dans [docs/flow-bridge-executables.md](../../docs/flow-bridge-executables.md)). Ce qui suit concerne le pont lancé avec Node.js (`dist/index.js`), ou un service système qui doit tourner sans session ouverte. Adapter les chemins et l'origine de la caisse.
 
 ### Linux (systemd)
 
@@ -174,13 +187,15 @@ N'importe quel site ouvert dans le navigateur du magasin peut essayer de joindre
 - **Appairage** : code à 6 chiffres, valable 10 minutes, à usage unique, affiché seulement sur l'ordinateur du pont. 5 codes faux : le code est annulé, un nouveau est affiché et l'appairage est bloqué 30 secondes, puis deux fois plus à chaque nouveau blocage (une heure au plus). Le jeton remis (32 octets aléatoires) n'est stocké que **haché en SHA-256**, dans un fichier lisible par le seul utilisateur (`0600`).
 - **Authentification obligatoire** : en dehors de `bridge.pair` et `bridge.hello`, toute méthode exige une connexion authentifiée.
 - **Pas de relais vers Internet** : imprimantes et TPE doivent être sur le réseau local (10.x, 172.16-31.x, 192.168.x, 169.254.x, 127.x) ou nommés `localhost` / `*.local`. Le nom est résolu puis l'adresse obtenue revérifiée. IPv6 n'est pas accepté pour l'instant.
-- **Pas de balayage hors du magasin** : `printer.discover` ne sonde que le /24 privé (RFC 1918) de chaque carte réseau de l'ordinateur du pont, jamais une plage publique ni le lien local.
+- **Code d'appairage sur la page locale** : seulement pour une requête venant de la boucle locale (`127.0.0.1`, `::1`). Tout programme ou compte de cet ordinateur peut donc le lire, comme la console du pont ; il reste à usage unique, limité à 10 minutes et protégé par les blocages ci-dessus. « Nouveau code » : POST, jeton de la page, `Origin` et `Sec-Fetch-Site` vérifiés, `form-action 'self'` et `frame-ancestors 'none'`.
+- **Pas de balayage hors du magasin** : `printer.discover` et `tpe.discover` ne sondent que le /24 privé (RFC 1918) de chaque carte réseau de l'ordinateur du pont, jamais une plage publique ni le lien local.
 - **Messages limités à 20 Mo** (pour un PDF A4 de 14 Mo encodé en base64), JSON invalide et méthodes inconnues renvoient une erreur sans arrêter le pont.
 
 ## Matériel pris en charge
 
 - **Imprimantes ticket réseau ESC/POS** (port RAW 9100) : Epson TM-m30 / TM-T20, Star en émulation ESC/POS, Bixolon, Sunmi... Le ticket est mis en forme par la caisse, le pont transmet les octets tels quels. Les travaux sont mis en file par imprimante : deux tickets ne s'entremêlent jamais.
 - **Imprimantes de bureau et AirPrint en IPP** (`printer.printDocument`, port 631, sans pilote) : factures et documents A4 en PDF. Le pont interroge d'abord l'imprimante (Get-Printer-Attributes) et refuse proprement (`format_unsupported`) si elle n'accepte pas le PDF : il faut alors passer par la fenêtre d'impression du navigateur. IPPS (`tls: true`) accepte le certificat auto-signé de l'imprimante.
+- **Détection des TPE** (`tpe.discover`) : balayage du port Caisse-AP (8888) sur le /24 du magasin. La sonde ouvre la connexion TCP puis la referme sans rien envoyer : aucun paiement n'est demandé. Un autre appareil qui écouterait sur le même port apparaîtrait aussi : la caisse fait choisir puis essayer un petit paiement.
 - **Détection automatique** (`printer.discover`) : annonces mDNS / Bonjour (`_pdl-datastream._tcp`, `_ipp._tcp`, `_ipps._tcp`, `_printer._tcp`) et, en complément, balayage du port 9100 sur le /24 du magasin (300 ms par adresse, 64 à la fois).
 - **Tiroir-caisse** branché sur la prise RJ11/RJ12 de l'imprimante : commande `ESC p m t1 t2` (`1B 70 m 19 FA`), broche 2 (`pin: 0`) ou 5 (`pin: 1`).
 - **Terminal de paiement simulé** (`simulator`) : accepte après environ 2 s, refuse les montants en ,13 (ex. 10,13 €), émet les étapes « Présentez la carte », « Carte lue », « Code saisi », « Autorisation en cours ».
@@ -244,6 +259,9 @@ WebSocket, messages texte JSON.
 | `printer.discover` | `timeoutMs=2500` (10000 max), `scan=true` | `{ printers: [{ name, host, port, protocols: (escpos\|ipp\|ipps)[], ippPort?, model?, airprint?, rp?, source: mdns\|scan }] }` |
 | `printer.printDocument` | `host`, `port=631`, `path=/ipp/print` (ou `rp` de la découverte), `tls=false`, `data` (PDF base64, 14 Mo max), `jobName=FLOW`, `copies=1` (1 à 20), `timeoutMs=30000` | `{ ok, jobId?, printer? }` |
 | `drawer.open` | `host`, `port=9100`, `pin=0` | `{ ok }` |
+| `tpe.discover` | `timeoutMs=3000` (500 à 10000), `ports=[8888]` (1 à 4 ports) | `{ terminals: [{ host, port, protocol: "caisse-ap" }] }` |
+| `tpe.get` | | `{ tpe: { adapter, host?, port?, posNumber?, updatedAt } \| null }` |
+| `tpe.set` | `adapter` (`caisse-ap`, `simulator`, ou `null` pour oublier) ; Caisse-AP : `host`, `port=8888`, `posNumber?` (1 ou 2 chiffres) | `{ tpe }` (comme `tpe.get`) |
 | `payment.start` | `adapter`, `amountCents`, `currency=EUR`, `reference`, `paymentId?` ; Caisse-AP : `host`, `port=8888`, `posNumber=01`, `mode=card\|check`, `refund`, `timeoutMs=180000` | `{ paymentId, status, message?, authorizationCode?, maskedPan?, cardType?, transactionId?, receiptText?, raw? }` |
 | `payment.cancel` | `paymentId` | `{ accepted, message }` |
 | `payment.status` | `paymentId` | `{ state: pending\|done\|unknown, result? }` |
@@ -252,13 +270,15 @@ WebSocket, messages texte JSON.
 
 `printer.print` lit l'état de l'imprimante avant le ticket (commande ESC/POS temps réel `DLE EOT 1` à `4`, réponse attendue 500 ms) et le relit une fois le ticket envoyé. Sans papier, capot ouvert, hors ligne ou en erreur, le ticket n'est pas envoyé et l'appel échoue avec `printer_no_paper`, `printer_cover_open`, `printer_offline` ou `printer_error` (message français prêt à afficher). Papier presque fini : le ticket part, avec `warning`. Une imprimante qui ne répond pas à `DLE EOT` (certains modèles, ou retour d'état désactivé) imprime comme avant, avec `status.known: false` : la caisse affiche alors « Ticket envoyé » et non « Ticket imprimé ». `drawer.open` ne lit pas l'état. Signification des bits : référence ESC/POS d'Epson (DLE EOT) et spécification ESC/POS de Star, citées dans `src/printer.ts`.
 
+`tpe.set` mémorise le TPE choisi dans `~/.flow-bridge/config.json` (affiché sur la page locale, relu par les autres caisses avec `tpe.get`) ; `payment.start` reçoit toujours l'adresse du TPE dans ses paramètres.
+
 `payment.start` ne répond qu'à la fin du paiement ; un seul paiement à la fois par terminal (`payment_busy` sinon). Fournir son propre `paymentId` permet d'annuler sans attendre.
 
 Codes d'erreur courants : `parse_error`, `invalid_request`, `invalid_params`, `unknown_method`, `unauthorized`, `invalid_token`, `pairing_closed`, `pairing_code_invalid`, `pairing_code_invalidated`, `pairing_locked`, `rate_limited`, `forbidden`, `tls_required`, `lan_failed`, `host_not_allowed`, `host_unresolved`, `printer_unreachable`, `printer_timeout`, `printer_reset`, `printer_error`, `printer_no_paper`, `printer_cover_open`, `printer_offline`, `printer_busy`, `format_unsupported`, `ipp_error`, `document_too_large`, `payment_busy`, `unknown_adapter`, `payment_currency`, `internal_error`.
 
 `GET /health` (sans authentification, depuis cet ordinateur seulement) : `{ name: "FLŌW-Bridge", version, capabilities, tls }`.
 
-Pages publiques, en `http://` comme en `https://` : `/` (état de la connexion, empreinte), `/certificat` (profil iOS), `/certificat/flow-bridge.cer` (DER), `/certificat/flow-bridge.pem`.
+Pages publiques, en `http://` comme en `https://` : `/` (état de la connexion, empreinte ; en plus, depuis cet ordinateur seulement, code d'appairage et état du matériel), `POST /appairage/nouveau-code` (boucle locale seulement, jeton de la page), `/certificat` (profil iOS), `/certificat/flow-bridge.cer` (DER), `/certificat/flow-bridge.pem`.
 
 ## Développement
 

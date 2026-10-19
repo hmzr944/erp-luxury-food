@@ -16,6 +16,7 @@
 // téléchargement du certificat de l'autorité (public par nature) ; les essais
 // d'appairage sont limités par appareil.
 
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https'
 import { createServer as createNetServer, isIPv4, type AddressInfo, type Server as NetServer, type Socket } from 'node:net'
@@ -24,16 +25,26 @@ import type { TLSSocket } from 'node:tls'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { currentLocalNames, lanIPv4, mobileconfig, type TlsMaterial } from './cert.js'
 import { normalizeOrigin, type BridgeConfig } from './config.js'
-import { defaultDiscoveryDeps, DEFAULT_DISCOVER_TIMEOUT_MS, discoverPrinters, MAX_DISCOVER_TIMEOUT_MS, type DiscoveryDeps } from './discovery.js'
+import { pairingPageUrl } from './autostart.js'
+import {
+  defaultDiscoveryDeps,
+  DEFAULT_DISCOVER_TIMEOUT_MS,
+  DEFAULT_TPE_DISCOVER_TIMEOUT_MS,
+  discoverPrinters,
+  discoverTerminals,
+  MAX_DISCOVER_TIMEOUT_MS,
+  type DiscoveryDeps,
+} from './discovery.js'
 import { DEFAULT_IPP_PORT, MAX_DOCUMENT_BYTES, printDocument } from './ipp.js'
-import { resolveLanHost } from './lan.js'
+import { isLanHostSyntax, resolveLanHost } from './lan.js'
 import { createLogger, type Logger } from './log.js'
-import { renderHomePage } from './pages.js'
+import { NEW_CODE_PATH, renderHomePage, type LocalStatus } from './pages.js'
 import { PairingManager, type PairingOptions } from './pairing.js'
+import { CAISSE_AP_DEFAULT_PORT } from './payment/caisse-ap.js'
 import { PaymentManager, PAYMENT_ADAPTERS, type PaymentManagerOptions } from './payment/manager.js'
 import { DEFAULT_PRINTER_PORT, PrinterService, probe } from './printer.js'
 import { BridgeError, bool, int, isRecord, requireParams, str, type RpcErrorBody, type RpcEvent } from './protocol.js'
-import { ConfigStore, type PairedClient } from './store.js'
+import { ConfigStore, type PairedClient, type SavedTpe } from './store.js'
 import { NAME, VERSION } from './version.js'
 
 export const CAPABILITIES = [
@@ -45,6 +56,8 @@ export const CAPABILITIES = [
   'drawer',
   'bridge.tls',
   'bridge.lan',
+  'tpe.discover',
+  'tpe.config',
   ...PAYMENT_ADAPTERS.map((a) => `payment.${a}`),
 ]
 
@@ -107,6 +120,25 @@ function hostnameOf(hostHeader: string | undefined): string | null {
   }
 }
 
+// Nom d'hôte de la boucle locale (en-têtes Host et Origin de la page du pont)
+function isLoopbackName(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || (isIPv4(hostname) && hostname.startsWith('127.'))
+}
+
+function tpeLabel(t: SavedTpe): string {
+  if (t.adapter === 'simulator') return 'TPE simulé par le pont (essai)'
+  return `TPE Caisse-AP ${t.host}:${t.port ?? CAISSE_AP_DEFAULT_PORT}${t.posNumber ? `, caisse n° ${t.posNumber}` : ''}`
+}
+
+function ports(p: Record<string, unknown>, key: string): number[] | undefined {
+  const v = p[key]
+  if (v === undefined || v === null) return undefined
+  if (!Array.isArray(v) || v.length === 0 || v.length > 4 || !v.every((x) => Number.isInteger(x) && x >= 1 && x <= 65535)) {
+    throw new BridgeError('invalid_params', `Paramètre « ${key} » invalide (1 à 4 ports attendus).`)
+  }
+  return v as number[]
+}
+
 function decodeBase64(data: string): Buffer {
   const clean = data.replace(/\s+/g, '')
   if (clean.length === 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(clean) || clean.length % 4 === 1) {
@@ -150,6 +182,10 @@ export class BridgeServer {
   private refreshTimer: NodeJS.Timeout | undefined
   private readonly pairAttempts = new Map<string, number[]>()
   private hostCache: { at: number; names: Set<string> } | null = null
+  // Jeton du formulaire de la page locale (nouveau code), propre à ce lancement
+  private readonly formToken = randomBytes(24).toString('base64url')
+  // Dernier ticket envoyé, pour la page locale
+  private lastPrinter: LocalStatus['printer'] = null
 
   constructor(
     private readonly config: BridgeConfig,
@@ -381,8 +417,12 @@ export class BridgeServer {
     const local = isLoopback(req.socket.remoteAddress)
     const secure = (req.socket as TLSSocket).encrypted === true
 
+    if (path === NEW_CODE_PATH && local) {
+      this.onNewCode(req, res)
+      return
+    }
     if (path === '/' || path === CERT_PATH || path.startsWith(`${CERT_PATH}/`)) {
-      this.onCertificateRequest(req, res, path, secure)
+      this.onCertificateRequest(req, res, path, secure, local)
       return
     }
     // Depuis le réseau local : rien d'autre sans authentification
@@ -406,7 +446,7 @@ export class BridgeServer {
 
   // Page d'accueil et certificat de l'autorité : publics, en clair comme en
   // TLS, pour qu'un iPad puisse l'installer avant de l'avoir approuvé
-  private onCertificateRequest(req: IncomingMessage, res: ServerResponse, path: string, secure: boolean) {
+  private onCertificateRequest(req: IncomingMessage, res: ServerResponse, path: string, secure: boolean, local: boolean) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { Allow: 'GET, HEAD' }).end()
       return
@@ -414,11 +454,19 @@ export class BridgeServer {
     const common = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }
     const ca = this.tls?.ca
     if (path === '/') {
-      const html = renderHomePage({ secure, ca, port: this.port, lan: this.lan, addresses: this.lan ? this.lanAddresses() : [] })
+      const html = renderHomePage({
+        secure,
+        ca,
+        port: this.port,
+        lan: this.lan,
+        addresses: this.lan ? this.lanAddresses() : [],
+        // Code et état : seulement pour cet ordinateur, jamais pour le réseau
+        local: local ? this.localStatus() : undefined,
+      })
       res.writeHead(200, {
         ...common,
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",
         'Referrer-Policy': 'no-referrer',
       })
       res.end(req.method === 'HEAD' ? undefined : html)
@@ -451,6 +499,60 @@ export class BridgeServer {
     }
     res.writeHead(200, { ...common, 'Content-Type': type, 'Content-Disposition': `attachment; filename="${file}"` })
     res.end(req.method === 'HEAD' ? undefined : body)
+  }
+
+  localStatus(): LocalStatus {
+    const code = this.pairing.currentCode
+    const tpe = this.store.getTpe()
+    const appUrl = this.config.appUrl
+    return {
+      code,
+      expiresAt: this.pairing.currentExpiresAt,
+      clients: this.store.listClients().map((c) => ({ name: c.name, lastSeenAt: c.lastSeenAt })),
+      printer: this.lastPrinter,
+      tpe: tpe ? { label: tpeLabel(tpe), at: tpe.updatedAt } : null,
+      openUrl: appUrl ? (code ? pairingPageUrl(appUrl, code, this.port) : appUrl) : undefined,
+      formToken: this.formToken,
+    }
+  }
+
+  // « Nouveau code » depuis la page locale. Un autre site ouvert dans le
+  // navigateur pourrait poster ce formulaire à l'aveugle : il faut le jeton
+  // de la page (illisible depuis un autre site) et, quand le navigateur les
+  // envoie, une origine et un Sec-Fetch-Site de la page elle-même.
+  private onNewCode(req: IncomingMessage, res: ServerResponse) {
+    const deny = (status: number, text: string) => res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }).end(text)
+    if (req.method !== 'POST') {
+      res.writeHead(405, { Allow: 'POST' }).end()
+      return
+    }
+    const site = req.headers['sec-fetch-site']
+    if (site !== undefined && site !== 'same-origin') return deny(403, 'Requête refusée')
+    const origin = req.headers.origin
+    if (origin !== undefined) {
+      let o: URL | null = null
+      try {
+        o = new URL(origin)
+      } catch {
+        o = null
+      }
+      if (!o || o.host !== (req.headers.host ?? '').toLowerCase() || !isLoopbackName(o.hostname)) return deny(403, 'Requête refusée')
+    }
+    const chunks: Buffer[] = []
+    let size = 0
+    req.on('data', (c: Buffer) => {
+      size += c.length
+      if (size > 2048) req.destroy()
+      else chunks.push(c)
+    })
+    req.on('end', () => {
+      const given = Buffer.from(new URLSearchParams(Buffer.concat(chunks).toString('utf8')).get('jeton') ?? '')
+      const expected = Buffer.from(this.formToken)
+      if (given.length !== expected.length || !timingSafeEqual(given, expected)) return deny(403, 'Requête refusée')
+      this.pairing.renew()
+      this.log.info("Nouveau code d'appairage demandé depuis la page du pont")
+      res.writeHead(303, { Location: '/', 'Cache-Control': 'no-store' }).end()
+    })
   }
 
   // --- WebSocket --------------------------------------------------------
@@ -625,6 +727,7 @@ export class BridgeServer {
         const data = decodeBase64(str(p, 'data', { required: true })!)
         try {
           const r = await this.printers.print(host, port, data, timeoutMs)
+          this.lastPrinter = { host, port, ok: true, at: new Date().toISOString() }
           this.log.info(r.status.known ? 'Ticket imprimé' : 'Ticket envoyé (état de l’imprimante inconnu)', {
             imprimante: `${host}:${port}`,
             octets: r.bytes,
@@ -632,7 +735,10 @@ export class BridgeServer {
           })
           return { ok: true, ...r }
         } catch (e) {
-          if (e instanceof BridgeError) this.log.warn('Ticket non imprimé', { imprimante: `${host}:${port}`, cause: e.code })
+          if (e instanceof BridgeError) {
+            this.log.warn('Ticket non imprimé', { imprimante: `${host}:${port}`, cause: e.code })
+            if (e.code !== 'host_not_allowed') this.lastPrinter = { host, port, ok: false, at: new Date().toISOString() }
+          }
           throw e
         }
       },
@@ -688,6 +794,35 @@ export class BridgeServer {
         await this.printers.openDrawer(host, port, pin, timeoutMs)
         this.log.info('Tiroir ouvert', { imprimante: `${host}:${port}` })
         return { ok: true }
+      },
+
+      // TPE Caisse-AP du réseau local : connexion ouverte puis refermée,
+      // aucun octet envoyé, donc aucun paiement
+      'tpe.discover': async (p) => {
+        const timeoutMs = int(p, 'timeoutMs', { min: 500, max: MAX_DISCOVER_TIMEOUT_MS, def: DEFAULT_TPE_DISCOVER_TIMEOUT_MS })
+        const r = await discoverTerminals({ timeoutMs, ports: ports(p, 'ports') }, this.opts.discovery ?? defaultDiscoveryDeps)
+        this.log.info('Recherche des TPE', { trouves: r.terminals.length })
+        return r
+      },
+
+      'tpe.get': () => ({ tpe: this.store.getTpe() }),
+
+      // TPE choisi sur la caisse, gardé par le pont ; adapter: null l'oublie
+      'tpe.set': (p) => {
+        if (p.adapter === null) return { tpe: this.store.setTpe(null) }
+        const adapter = str(p, 'adapter', { required: true })
+        if (adapter === 'simulator') return { tpe: this.store.setTpe({ adapter }) }
+        if (adapter !== 'caisse-ap') throw new BridgeError('unknown_adapter', `Terminal de paiement inconnu : ${adapter}.`)
+        const host = str(p, 'host', { required: true, max: 253 })!.trim().toLowerCase()
+        if (!isLanHostSyntax(host)) {
+          throw new BridgeError('host_not_allowed', `Adresse refusée : ${host}. Seules les adresses du réseau local ou les noms en .local sont acceptés.`)
+        }
+        const port = int(p, 'port', { min: 1, max: 65535, def: CAISSE_AP_DEFAULT_PORT })
+        const posNumber = str(p, 'posNumber', { max: 2 })
+        if (posNumber !== undefined && !/^\d{1,2}$/.test(posNumber)) throw new BridgeError('invalid_params', 'Paramètre « posNumber » invalide (1 ou 2 chiffres).')
+        const tpe = this.store.setTpe({ adapter, host, port, ...(posNumber ? { posNumber } : {}) })
+        this.log.info('TPE enregistré', { tpe: `${host}:${port}` })
+        return { tpe }
       },
 
       'payment.start': async (p, conn) => {

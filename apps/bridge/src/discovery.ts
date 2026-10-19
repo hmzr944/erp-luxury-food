@@ -2,6 +2,8 @@
 // 1. mDNS / DNS-SD (Bonjour, AirPrint) : requêtes PTR en multicast 224.0.0.251:5353 ;
 // 2. en complément, balayage TCP du port 9100 sur le /24 de chaque carte réseau
 //    privée de l'ordinateur (jamais une plage publique).
+// Les TPE Caisse-AP sur IP sont cherchés de la même façon (port 8888) :
+// connexion TCP ouverte puis refermée sans rien envoyer, donc aucun paiement.
 
 import { createSocket, type Socket as UdpSocket } from 'node:dgram'
 import { Socket } from 'node:net'
@@ -15,6 +17,7 @@ import {
   type DiscoveredPrinter,
   type ReceivedRecord,
 } from './dns.js'
+import { CAISSE_AP_DEFAULT_PORT } from './payment/caisse-ap.js'
 import { DEFAULT_PRINTER_PORT } from './printer.js'
 
 export const MDNS_ADDRESS = '224.0.0.251'
@@ -88,7 +91,7 @@ export function privateInterfaces(): LocalAddress[] {
   return out
 }
 
-function tcpConnect(ip: string, port: number, timeoutMs: number): Promise<boolean> {
+export function tcpConnect(ip: string, port: number, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = new Socket()
     const end = (ok: boolean) => {
@@ -197,19 +200,49 @@ async function pool<T>(items: readonly T[], limit: number, job: (item: T) => Pro
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
 }
 
-// Balayage du port 9100 (imprimantes ticket) sur le /24 de chaque carte privée
-export async function scanSubnets(deps: DiscoveryDeps = defaultDiscoveryDeps, deadlineMs = MAX_DISCOVER_TIMEOUT_MS): Promise<DiscoveredPrinter[]> {
+// Ports ouverts sur le /24 de chaque carte privée, triés par adresse
+export async function scanPorts(
+  ports: readonly number[],
+  deps: DiscoveryDeps = defaultDiscoveryDeps,
+  deadlineMs = MAX_DISCOVER_TIMEOUT_MS,
+): Promise<Array<{ host: string; port: number }>> {
   const hosts = new Set<string>()
   for (const i of deps.interfaces()) for (const h of subnetHosts(i.address, i.netmask)) hosts.add(h)
-  const found: DiscoveredPrinter[] = []
+  const targets = [...hosts].flatMap((host) => ports.map((port) => ({ host, port })))
+  const found: Array<{ host: string; port: number }> = []
   const stopAt = Date.now() + deadlineMs
-  await pool([...hosts], SCAN_CONCURRENCY, async (ip) => {
+  await pool(targets, SCAN_CONCURRENCY, async (t) => {
     if (Date.now() > stopAt) return
-    if (await deps.connect(ip, DEFAULT_PRINTER_PORT, SCAN_CONNECT_TIMEOUT_MS)) {
-      found.push({ name: ip, host: ip, port: DEFAULT_PRINTER_PORT, protocols: ['escpos'], source: 'scan' })
-    }
+    if (await deps.connect(t.host, t.port, SCAN_CONNECT_TIMEOUT_MS)) found.push(t)
   })
-  return found
+  return found.sort((a, b) => toNum(a.host) - toNum(b.host) || a.port - b.port)
+}
+
+// Balayage du port 9100 (imprimantes ticket) sur le /24 de chaque carte privée
+export async function scanSubnets(deps: DiscoveryDeps = defaultDiscoveryDeps, deadlineMs = MAX_DISCOVER_TIMEOUT_MS): Promise<DiscoveredPrinter[]> {
+  const open = await scanPorts([DEFAULT_PRINTER_PORT], deps, deadlineMs)
+  return open.map(({ host, port }) => ({ name: host, host, port, protocols: ['escpos'], source: 'scan' }))
+}
+
+export interface DiscoveredTerminal {
+  host: string
+  port: number
+  protocol: 'caisse-ap'
+}
+
+export const DEFAULT_TPE_DISCOVER_TIMEOUT_MS = 3000
+
+// TPE Caisse-AP sur IP : le port répond. La sonde n'envoie aucun octet ; un
+// autre appareil qui écouterait sur le même port apparaîtrait aussi, c'est à
+// la caisse de faire choisir puis d'essayer un petit paiement.
+export async function discoverTerminals(
+  opts: { timeoutMs?: number; ports?: readonly number[] } = {},
+  deps: DiscoveryDeps = defaultDiscoveryDeps,
+): Promise<{ terminals: DiscoveredTerminal[] }> {
+  const timeoutMs = Math.min(Math.max(opts.timeoutMs ?? DEFAULT_TPE_DISCOVER_TIMEOUT_MS, 0), MAX_DISCOVER_TIMEOUT_MS)
+  const ports = opts.ports?.length ? [...new Set(opts.ports)] : [CAISSE_AP_DEFAULT_PORT]
+  const open = await scanPorts(ports, deps, Math.max(timeoutMs, 1500))
+  return { terminals: open.map(({ host, port }) => ({ host, port, protocol: 'caisse-ap' })) }
 }
 
 export async function discoverPrinters(opts: DiscoverOptions = {}, deps: DiscoveryDeps = defaultDiscoveryDeps): Promise<{ printers: DiscoveredPrinter[] }> {

@@ -1,6 +1,9 @@
 import { request } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
+import type { Server } from 'node:net'
+import { startFakeTpe } from './bench/fake-tpe.js'
+import { tcpConnect } from './discovery.js'
 import { createPendingCode } from './pairing.js'
 import { findAttribute, TAG_JOB } from './ipp.js'
 import { fakePrinter, ORIGIN, pairClient, startBridge, startFakeIpp, TestClient, type FakePrinter } from './test-utils.js'
@@ -16,6 +19,21 @@ function httpGet(port: number, path: string, headers: Record<string, string> = {
     })
     req.on('error', reject)
     req.end()
+  })
+}
+
+function httpPost(port: number, path: string, body: string, headers: Record<string, string> = {}) {
+  return new Promise<{ status: number; headers: Record<string, unknown>; body: string }>((resolve, reject) => {
+    const req = request(
+      { host: '127.0.0.1', port, path, method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers } },
+      (res) => {
+        let text = ''
+        res.on('data', (c) => (text += c))
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: text }))
+      },
+    )
+    req.on('error', reject)
+    req.end(body)
   })
 }
 
@@ -41,6 +59,8 @@ describe('serveur du pont', () => {
       expect(body.capabilities).toContain('printer.escpos')
       expect(body.capabilities).toContain('printer.discover')
       expect(body.capabilities).toContain('printer.ipp')
+      expect(body.capabilities).toContain('tpe.discover')
+      expect(body.capabilities).toContain('tpe.config')
       expect(r.headers['access-control-allow-origin']).toBe(ORIGIN)
     })
 
@@ -467,6 +487,120 @@ describe('serveur du pont', () => {
       const noScan = await client.call('printer.discover', { timeoutMs: 500, scan: false })
       expect(noScan.result).toEqual({ printers: [] })
       expect((await client.call('printer.discover', { timeoutMs: 60_000 })).error?.code).toBe('invalid_params')
+      client.close()
+    })
+  })
+
+  describe('page locale du pont', () => {
+    const APP = 'https://caisse.exemple.fr'
+    const spaced = (c: string) => `${c.slice(0, 3)} ${c.slice(3)}`
+    const token = (html: string) => /name="jeton" value="([^"]+)"/.exec(html)![1]
+
+    it('montre le code, l’état et « Ouvrir la caisse » à cet ordinateur', async () => {
+      await b.stop()
+      b = await startBridge({}, { appUrl: APP })
+      const code = b.server.pairing.currentCode!
+      const r = await httpGet(b.server.port, '/')
+      expect(r.status).toBe(200)
+      expect(r.body).toContain(spaced(code))
+      expect(r.body).toContain(`href="${APP}/materiel#pont=${code}&amp;port=${b.server.port}"`)
+      expect(r.body).toContain('Aucune caisse appairée')
+      expect(r.body).toContain('Aucun TPE enregistré')
+      expect(r.body).not.toContain('—')
+      expect(String(r.headers['content-security-policy'])).toContain("form-action 'self'")
+      // Une fois la caisse appairée, elle apparaît et le code a servi
+      const { client } = await pairClient(b.server.url, b.server, 'Comptoir')
+      const after = await httpGet(b.server.port, '/')
+      expect(after.body).toContain('Comptoir')
+      expect(after.body).not.toContain(spaced(code))
+      expect(after.body).toContain(`href="${APP}"`)
+      client.close()
+    })
+
+    it('« Nouveau code » : jeton de la page exigé, requêtes intersites refusées', async () => {
+      const first = b.server.pairing.currentCode!
+      const page = (await httpGet(b.server.port, '/')).body
+      const jeton = token(page)
+      const self = `http://127.0.0.1:${b.server.port}`
+      const host = { Host: `127.0.0.1:${b.server.port}` }
+
+      expect((await httpPost(b.server.port, '/appairage/nouveau-code', 'jeton=faux', host)).status).toBe(403)
+      expect((await httpPost(b.server.port, '/appairage/nouveau-code', `jeton=${jeton}`, { ...host, Origin: 'https://pirate.example' })).status).toBe(403)
+      expect((await httpPost(b.server.port, '/appairage/nouveau-code', `jeton=${jeton}`, { ...host, 'Sec-Fetch-Site': 'cross-site' })).status).toBe(403)
+      expect((await httpGet(b.server.port, '/appairage/nouveau-code')).status).toBe(405)
+      expect(b.server.pairing.currentCode).toBe(first)
+
+      const ok = await httpPost(b.server.port, '/appairage/nouveau-code', `jeton=${jeton}`, { ...host, Origin: self, 'Sec-Fetch-Site': 'same-origin' })
+      expect(ok.status).toBe(303)
+      expect(ok.headers.location).toBe('/')
+      const second = b.server.pairing.currentCode!
+      expect(second).toMatch(/^\d{6}$/)
+      expect((await httpGet(b.server.port, '/')).body).toContain(spaced(second))
+    })
+  })
+
+  describe('TPE', () => {
+    let tpe: Server | null = null
+    afterEach(async () => {
+      if (tpe) await new Promise((r) => tpe!.close(r))
+      tpe = null
+    })
+
+    it('tpe.discover trouve le faux TPE du banc d’essai sans lancer de paiement', async () => {
+      let requests = 0
+      tpe = await startFakeTpe({ port: 0, host: '127.0.0.1', delayMs: 10, onRequest: () => requests++ })
+      const tpePort = (tpe.address() as { port: number }).port
+      await b.stop()
+      const scanned: string[] = []
+      // 10.0.0.9 du « réseau » est le faux TPE ; les autres adresses ne répondent pas
+      b = await startBridge({
+        discovery: {
+          interfaces: () => [{ address: '10.0.0.5', netmask: '255.255.255.0' }],
+          createSocket: () => ({ on: () => {}, bind: (_a, cb) => cb(), send: () => {}, close: () => {} }),
+          connect: async (ip, port, timeoutMs) => {
+            scanned.push(`${ip}:${port}`)
+            return ip === '10.0.0.9' && tcpConnect('127.0.0.1', port, timeoutMs)
+          },
+        },
+      })
+      const anonymous = await TestClient.open(b.server.url)
+      expect((await anonymous.call('tpe.discover')).error?.code).toBe('unauthorized')
+      anonymous.close()
+
+      const { client } = await pairClient(b.server.url, b.server)
+      const r = await client.call('tpe.discover', { timeoutMs: 1000, ports: [tpePort] })
+      expect(r.result).toEqual({ terminals: [{ host: '10.0.0.9', port: tpePort, protocol: 'caisse-ap' }] })
+      expect(scanned).toHaveLength(253)
+      await new Promise((res) => setTimeout(res, 50))
+      expect(requests).toBe(0)
+
+      // Port par défaut : 8888 (Caisse-AP)
+      scanned.length = 0
+      await client.call('tpe.discover', { timeoutMs: 500 })
+      expect(new Set(scanned.map((s) => s.split(':')[1]))).toEqual(new Set(['8888']))
+
+      expect((await client.call('tpe.discover', { ports: [] })).error?.code).toBe('invalid_params')
+      expect((await client.call('tpe.discover', { ports: [1, 2, 3, 4, 5] })).error?.code).toBe('invalid_params')
+      expect((await client.call('tpe.discover', { ports: [70000] })).error?.code).toBe('invalid_params')
+      expect((await client.call('tpe.discover', { timeoutMs: 60_000 })).error?.code).toBe('invalid_params')
+      client.close()
+    })
+
+    it('tpe.set enregistre le TPE choisi, tpe.get le relit, la page locale l’affiche', async () => {
+      const { client } = await pairClient(b.server.url, b.server)
+      expect((await client.call('tpe.get')).result).toEqual({ tpe: null })
+      const set = await client.call('tpe.set', { adapter: 'caisse-ap', host: '192.168.1.60', posNumber: '02' })
+      expect(set.result).toMatchObject({ tpe: { adapter: 'caisse-ap', host: '192.168.1.60', port: 8888, posNumber: '02' } })
+      expect((await client.call('tpe.get')).result).toMatchObject({ tpe: { host: '192.168.1.60', port: 8888 } })
+      expect((await httpGet(b.server.port, '/')).body).toContain('TPE Caisse-AP 192.168.1.60:8888, caisse n° 02')
+
+      expect((await client.call('tpe.set', { adapter: 'caisse-ap', host: '8.8.8.8' })).error?.code).toBe('host_not_allowed')
+      expect((await client.call('tpe.set', { adapter: 'caisse-ap' })).error?.code).toBe('invalid_params')
+      expect((await client.call('tpe.set', { adapter: 'caisse-ap', host: '192.168.1.60', posNumber: 'ab' })).error?.code).toBe('invalid_params')
+      expect((await client.call('tpe.set', { adapter: 'magique' })).error?.code).toBe('unknown_adapter')
+      expect((await client.call('tpe.set', { adapter: 'simulator' })).result).toMatchObject({ tpe: { adapter: 'simulator' } })
+      expect((await client.call('tpe.set', { adapter: null })).result).toEqual({ tpe: null })
+      expect(b.server.store.getTpe()).toBeNull()
       client.close()
     })
   })

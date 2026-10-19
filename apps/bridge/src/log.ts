@@ -1,6 +1,8 @@
 // Journal structuré minimal : une ligne par événement, lisible dans un
 // terminal comme dans journalctl ou un fichier de service Windows.
 
+import { appendFileSync, renameSync, statSync } from 'node:fs'
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 export type LogFields = Record<string, string | number | boolean | null | undefined>
@@ -55,4 +57,23 @@ export function levelFromEnv(value: string | undefined): LogLevel | 'silent' {
   const v = (value ?? '').toLowerCase()
   if (v === 'debug' || v === 'info' || v === 'warn' || v === 'error' || v === 'silent') return v
   return 'info'
+}
+
+// Pont lancé en arrière-plan (démarrage de session) : pas de console, le
+// journal va dans un fichier, recommencé au-delà de 5 Mo (l'ancien est gardé en .1)
+export function redirectConsoleToFile(path: string, maxBytes = 5 * 1024 * 1024) {
+  try {
+    if (statSync(path).size > maxBytes) renameSync(path, `${path}.1`)
+  } catch {
+    // pas encore de journal
+  }
+  const write = (...args: unknown[]) => {
+    try {
+      appendFileSync(path, args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ') + '\n', { mode: 0o600 })
+    } catch {
+      // disque plein ou dossier inaccessible : le pont continue sans journal
+    }
+  }
+  console.log = write
+  console.error = write
 }

@@ -99,6 +99,11 @@ export class PairingManager {
     return this.codeHash && Date.now() < this.expiresAt ? this.lastCode : null
   }
 
+  // Fin de validité du code courant (page locale du pont)
+  get currentExpiresAt(): number | null {
+    return this.currentCode ? this.expiresAt : null
+  }
+
   private invalidateAll() {
     this.codeHash = null
     this.lastCode = null

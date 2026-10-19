@@ -193,6 +193,30 @@ describe('pont en TLS (wss://)', () => {
       expect(cer.status).toBe(200)
     })
 
+    it('depuis le réseau : la page d’accueil ne montre jamais le code ni l’état', async () => {
+      await b.server.setLan(true)
+      const code = b.server.pairing.currentCode!
+      const page = (await get(`http://${EXTERNAL}:${b.server.port}/`)).body.toString()
+      expect(page).toContain('uniquement sur l’ordinateur où tourne le pont')
+      expect(page).not.toContain(code.slice(0, 3) + ' ' + code.slice(3))
+      expect(page).not.toContain('name="jeton"')
+      expect(page).not.toContain('Caisses appairées')
+      // Le formulaire « Nouveau code » n'existe pas pour le réseau
+      const post = await new Promise<number>((resolve, reject) => {
+        const req = httpRequest(
+          { host: EXTERNAL!, port: b.server.port, path: '/appairage/nouveau-code', method: 'POST', headers: { Host: `localhost:${b.server.port}` } },
+          (res) => {
+            res.resume()
+            resolve(res.statusCode ?? 0)
+          },
+        )
+        req.on('error', reject)
+        req.end('jeton=x')
+      })
+      expect(post).toBe(404)
+      expect(b.server.pairing.currentCode).toBe(code)
+    })
+
     it('limite les essais d’appairage par appareil et interdit bridge.setLan depuis le réseau', async () => {
       await b.server.setLan(true)
       const c = await TestClient.open(`wss://${EXTERNAL}:${b.server.port}`, ORIGIN, {

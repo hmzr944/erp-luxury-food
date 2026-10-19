@@ -5,6 +5,7 @@ import { startFakePrinter, describeJob, describeState, type FakePrinterState } f
 import { sendRaw } from '../printer.js'
 import { startFakeTpe } from './fake-tpe.js'
 import { CaisseApAdapter } from '../payment/caisse-ap.js'
+import { discoverTerminals, tcpConnect } from '../discovery.js'
 
 let servers: Server[] = []
 afterEach(async () => {
@@ -57,6 +58,25 @@ describe('banc d’essai réseau', () => {
     expect(ok.status).toBe('approved')
     const ko = await tpe.start(1213, 'EUR', 'v2', () => {})
     expect(ko).toMatchObject({ status: 'declined' })
+  })
+
+  it('la sonde de tpe.discover repère le faux TPE sans lui demander de paiement', async () => {
+    const requests: number[] = []
+    const s = await startFakeTpe({ port: 0, host: '127.0.0.1', delayMs: 10, onRequest: (r) => requests.push(r.amountCents) })
+    servers.push(s)
+    const port = (s.address() as { port: number }).port
+    const deps = {
+      interfaces: () => [{ address: '192.168.7.10', netmask: '255.255.255.0' }],
+      createSocket: () => ({ on: () => {}, bind: (_a: string | undefined, cb: () => void) => cb(), send: () => {}, close: () => {} }),
+      // 192.168.7.42 est le faux TPE, réellement joint sur la boucle locale
+      connect: (ip: string, p: number, t: number) => (ip === '192.168.7.42' ? tcpConnect('127.0.0.1', p, t) : Promise.resolve(false)),
+    }
+    const r = await discoverTerminals({ ports: [port], timeoutMs: 1000 }, deps)
+    expect(r.terminals).toEqual([{ host: '192.168.7.42', port, protocol: 'caisse-ap' }])
+    await new Promise((done) => setTimeout(done, 50))
+    expect(requests).toEqual([])
+    // Le TPE reste utilisable juste après la sonde
+    expect((await new CaisseApAdapter({ host: '127.0.0.1', port }).start(500, 'EUR', 'apres-sonde', () => {})).status).toBe('approved')
   })
 
   it('la fausse imprimante répond à DLE EOT selon son état, de bout en bout avec le pont', async () => {

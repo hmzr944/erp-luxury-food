@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TYPE_A, TYPE_PTR, TYPE_SRV } from './dns.js'
-import { discoverPrinters, MDNS_ADDRESS, MDNS_PORT, subnetHosts, type DiscoveryDeps, type MdnsSocket } from './discovery.js'
+import { discoverPrinters, discoverTerminals, MDNS_ADDRESS, MDNS_PORT, scanPorts, subnetHosts, type DiscoveryDeps, type MdnsSocket } from './discovery.js'
 
 // Réponse mDNS minimale sans compression : PTR + SRV + A
 function response(): Buffer {
@@ -90,5 +90,31 @@ describe('découverte', () => {
     const r = await discoverPrinters({ timeoutMs: 100, scan: false }, deps)
     expect(deps.scanned).toEqual([])
     expect(r.printers.map((p) => p.host)).toEqual(['192.168.1.77'])
+  })
+})
+
+describe('TPE Caisse-AP', () => {
+  it('balaie le port 8888 du /24 privé et rend les TPE trouvés', async () => {
+    const deps = fakeDeps(['192.168.1.60'])
+    const r = await discoverTerminals({ timeoutMs: 100 }, deps)
+    expect(r).toEqual({ terminals: [{ host: '192.168.1.60', port: 8888, protocol: 'caisse-ap' }] })
+    expect(deps.scanned).toHaveLength(253)
+    // Pas de requête mDNS pour les TPE
+    expect(deps.sent).toEqual([])
+  })
+
+  it('plusieurs ports, résultats triés par adresse puis port', async () => {
+    const deps = fakeDeps([])
+    deps.connect = async (ip, port) => (ip === '192.168.1.200' && port === 8888) || (ip === '192.168.1.9' && port === 9999)
+    expect(await scanPorts([8888, 9999], deps, 2000)).toEqual([
+      { host: '192.168.1.9', port: 9999 },
+      { host: '192.168.1.200', port: 8888 },
+    ])
+  })
+
+  it('aucune carte réseau privée : rien à balayer', async () => {
+    const deps = fakeDeps(['8.8.8.8'])
+    deps.interfaces = () => [{ address: '8.8.8.1', netmask: '255.255.255.0' }]
+    expect(await discoverTerminals({ timeoutMs: 100 }, deps)).toEqual({ terminals: [] })
   })
 })

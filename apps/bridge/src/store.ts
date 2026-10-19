@@ -15,11 +15,23 @@ export interface PairedClient {
   lastSeenAt?: string
 }
 
+// TPE choisi sur la caisse (tpe.set) : affiché sur la page locale du pont et
+// proposé aux autres caisses (tpe.get). Le paiement reçoit toujours son
+// adresse dans payment.start.
+export interface SavedTpe {
+  adapter: 'caisse-ap' | 'simulator'
+  host?: string
+  port?: number
+  posNumber?: string
+  updatedAt: string
+}
+
 interface ConfigFile {
   version: 1
   clients: PairedClient[]
   // Pont ouvert aux iPad du réseau local (« flow-bridge reseau oui »)
   lan?: boolean
+  tpe?: SavedTpe
 }
 
 // Code d'appairage demandé par « flow-bridge pair » alors que le service
@@ -61,7 +73,12 @@ export class ConfigStore {
   private read(): ConfigFile {
     try {
       const raw = JSON.parse(readFileSync(this.configPath, 'utf8')) as Partial<ConfigFile>
-      return { version: 1, clients: Array.isArray(raw.clients) ? raw.clients : [], ...(raw.lan === true ? { lan: true } : {}) }
+      return {
+        version: 1,
+        clients: Array.isArray(raw.clients) ? raw.clients : [],
+        ...(raw.lan === true ? { lan: true } : {}),
+        ...(raw.tpe && typeof raw.tpe === 'object' && typeof raw.tpe.adapter === 'string' ? { tpe: raw.tpe } : {}),
+      }
     } catch {
       return { version: 1, clients: [] }
     }
@@ -130,6 +147,18 @@ export class ConfigStore {
     if (enabled) cfg.lan = true
     else delete cfg.lan
     this.write(cfg)
+  }
+
+  getTpe(): SavedTpe | null {
+    return this.read().tpe ?? null
+  }
+
+  setTpe(tpe: Omit<SavedTpe, 'updatedAt'> | null): SavedTpe | null {
+    const cfg = this.read()
+    if (tpe) cfg.tpe = { ...tpe, updatedAt: new Date().toISOString() }
+    else delete cfg.tpe
+    this.write(cfg)
+    return cfg.tpe ?? null
   }
 
   readPendingPairing(): PendingPairing | null {

@@ -34,7 +34,8 @@ console.log(`--version : ${version}`)
 const home = mkdtempSync(join(tmpdir(), 'flow-bridge-smoke-'))
 const port = await freePort()
 const child = spawn(binary, [], {
-  env: { ...process.env, FLOW_BRIDGE_HOME: home, FLOW_BRIDGE_PORT: String(port), FLOW_BRIDGE_ORIGINS: ORIGIN },
+  // Ni installation au démarrage de session ni navigateur pendant l'essai
+  env: { ...process.env, FLOW_BRIDGE_HOME: home, FLOW_BRIDGE_PORT: String(port), FLOW_BRIDGE_ORIGINS: ORIGIN, FLOW_BRIDGE_INSTALL: '0', FLOW_BRIDGE_NAVIGATEUR: '0' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 let output = ''
