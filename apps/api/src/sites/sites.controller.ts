@@ -7,6 +7,7 @@ import { Roles } from '../common/decorators/roles.decorator'
 import { RequireSubscription } from '../common/decorators/require-subscription.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { SitesService } from './sites.service'
+import { BillingService } from '../billing/billing.service'
 import { Role } from '@erp/types'
 import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator'
 
@@ -14,6 +15,9 @@ class SiteDto {
   @IsString() @MaxLength(120) name!: string
   @IsOptional() @IsString() @MaxLength(300) address?: string
   @IsOptional() @IsString() @MaxLength(60) timezone?: string
+  // Catalogue de départ : copie d'un autre site de l'organisation, ou celui d'un métier
+  @IsOptional() @IsString() @MaxLength(40) copyCatalogFromSiteId?: string
+  @IsOptional() @IsString() @MaxLength(40) starterMetier?: string
 }
 class UpdateSiteDto {
   @IsOptional() @IsString() @MaxLength(120) name?: string
@@ -27,7 +31,10 @@ class PrintTestDto {
 @Controller('sites')
 @UseGuards(JwtAuthGuard)
 export class SitesController {
-  constructor(private sites: SitesService) {}
+  constructor(
+    private sites: SitesService,
+    private billing: BillingService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: { id: string; organizationId: string; role: Role }) {
@@ -40,11 +47,14 @@ export class SitesController {
   @UseGuards(RolesGuard)
   @Roles(Role.OWNER)
   @RequireSubscription()
-  create(
+  async create(
     @CurrentUser() user: { organizationId: string },
     @Body() dto: SiteDto,
   ) {
-    return this.sites.create(user.organizationId, dto)
+    const site = await this.sites.create(user.organizationId, dto)
+    // Facturation de la boutique ajoutée ; n'échoue jamais (rattrapage à la lecture du statut)
+    await this.billing.syncSubscriptionQuantity(user.organizationId)
+    return site
   }
 
   @Patch(':id')

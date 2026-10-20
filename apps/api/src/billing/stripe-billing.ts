@@ -19,6 +19,26 @@ export async function stripeCall<T>(secretKey: string, path: string, params: Rec
   return json
 }
 
+export async function stripeGet<T>(secretKey: string, path: string): Promise<T> {
+  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${secretKey}` } })
+  const json = (await res.json().catch(() => ({}))) as T & { error?: { message?: string } }
+  if (!res.ok) throw new StripeBillingError(json.error?.message ?? `Stripe a répondu ${res.status}`)
+  return json
+}
+
+// Client Stripe minimal, remplaçable dans les tests
+export interface StripeApi {
+  get<T>(secretKey: string, path: string): Promise<T>
+  post<T>(secretKey: string, path: string, params: Record<string, string | number | undefined>): Promise<T>
+}
+export const STRIPE_API = 'STRIPE_API'
+export const defaultStripeApi: StripeApi = { get: stripeGet, post: stripeCall }
+
+// Décision commerciale et juridique non tranchée (CGV : « le mois commencé n'est pas remboursé »,
+// ajout d'une boutique en cours d'abonnement à valider) : on garde le comportement standard de Stripe,
+// qui proratise l'ajout ou le retrait sur le prochain avoir ou la prochaine facture.
+export const SITE_QUANTITY_PRORATION = 'create_prorations'
+
 // En-tête Stripe-Signature : t=horodatage,v1=signature HMAC-SHA256 de "t.corps"
 export function verifyStripeSignature(rawBody: Buffer, header: string | undefined, secret: string, toleranceSec = 300, now = Date.now()): boolean {
   if (!header) return false

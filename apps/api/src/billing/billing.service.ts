@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, Inject, Injectable, Optional, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PLAN_OFFERS, type PlanCode } from '@erp/types'
 import { PrismaService } from '../common/prisma/prisma.service'
-import { mapStripeStatus, stripeCall, StripeBillingError, verifyStripeSignature } from './stripe-billing'
+import { defaultStripeApi, mapStripeStatus, SITE_QUANTITY_PRORATION, STRIPE_API, stripeCall, StripeBillingError, type StripeApi, verifyStripeSignature } from './stripe-billing'
 import { accessState, billingEnabled } from './access-state'
 
 interface StripeEvent {
@@ -18,7 +18,38 @@ export class BillingService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    @Optional() @Inject(STRIPE_API) private stripe: StripeApi = defaultStripeApi,
   ) {}
+
+  // Aligne la quantité de la ligne d'abonnement Stripe sur le nombre de sites.
+  // Idempotent : aucune écriture si Stripe a déjà la bonne quantité. Ne lève jamais :
+  // la gestion des sites et les ventes ne dépendent pas de Stripe (rattrapage à la lecture du statut).
+  async syncSubscriptionQuantity(organizationId: string): Promise<void> {
+    try {
+      const key = this.secretKey
+      if (!key || !billingEnabled(this.config)) return
+      const org = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { subscriptionStatus: true, stripeSubscriptionId: true, _count: { select: { sites: true } } },
+      })
+      if (!org?.stripeSubscriptionId) return
+      if (org.subscriptionStatus !== 'ACTIVE' && org.subscriptionStatus !== 'TRIALING') return
+      const wanted = Math.max(1, org._count.sites)
+      const sub = await this.stripe.get<{ items?: { data?: Array<{ id: string; quantity?: number }> } }>(
+        key,
+        `/subscriptions/${encodeURIComponent(org.stripeSubscriptionId)}`,
+      )
+      const item = sub.items?.data?.[0]
+      if (!item || item.quantity === wanted) return
+      await this.stripe.post(key, `/subscription_items/${encodeURIComponent(item.id)}`, {
+        quantity: wanted,
+        proration_behavior: SITE_QUANTITY_PRORATION,
+      })
+      this.logger.log(`Quantité d'abonnement mise à jour : ${wanted} (organisation ${organizationId})`)
+    } catch (e) {
+      this.logger.error(`Synchronisation de la quantité Stripe impossible (organisation ${organizationId}) : ${e instanceof Error ? e.message : e}`)
+    }
+  }
 
   private get secretKey() {
     return this.config.get<string>('STRIPE_BILLING_SECRET_KEY')
@@ -31,6 +62,8 @@ export class BillingService {
   }
 
   async status(organizationId: string, role?: string, now = new Date()) {
+    // Rattrapage si une synchronisation précédente a échoué (sans effet si Stripe est à jour)
+    await this.syncSubscriptionQuantity(organizationId)
     const org = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
       select: {

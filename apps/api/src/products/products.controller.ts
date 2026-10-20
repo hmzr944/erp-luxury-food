@@ -6,6 +6,8 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
 import { SiteGuard } from '../common/guards/site.guard'
 import { ProductsService } from './products.service'
 import { StarterService } from './starter.service'
+import { CatalogCopyService } from './catalog-copy.service'
+import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 import { RequireSubscription } from '../common/decorators/require-subscription.decorator'
@@ -38,7 +40,23 @@ export class ProductsController {
   constructor(
     private products: ProductsService,
     private starter: StarterService,
+    private catalogCopy: CatalogCopyService,
   ) {}
+
+  // Copie le catalogue d'un autre site de l'organisation vers ce site (jamais
+  // de stock, de vente ni de client) : écriture de catalogue, donc abonnement requis
+  @Post('catalog/copy-from/:sourceSiteId')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER)
+  @RequireSubscription()
+  copyCatalog(
+    @CurrentUser() user: { organizationId: string },
+    @Param('siteId') siteId: string,
+    @Param('sourceSiteId') sourceSiteId: string,
+  ) {
+    return this.catalogCopy.copy(siteId, sourceSiteId, user.organizationId)
+  }
 
   // ── Produits ────────────────────────────────────────────────
 

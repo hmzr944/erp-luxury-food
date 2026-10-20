@@ -106,6 +106,10 @@ Page FAQ « Conformité de la caisse : attestation de l'éditeur et NF525 ». So
 7. **Procédure de contrôle** : la page se limite à la présentation des deux volets ; aucune description de la procédure n'est sourcée.
 8. Pas de mention « validé par un expert-comptable » : bandeau « Projet en cours de relecture » tant que `LEGAL_DRAFT` est actif.
 
+## Facturation par boutique
+
+- Ajout ou retrait d'une boutique en cours de mois : proratisation retenue (Stripe create_prorations) à valider avec les CGV (« le mois commencé n'est pas remboursé »). La règle est isolée dans la constante `SITE_QUANTITY_PRORATION` (`apps/api/src/billing/stripe-billing.ts`).
+
 ## Avant la mise en ligne
 
 - Renseigner toutes les variables, rebâtir l'image web, vérifier qu'aucun « [à compléter] » ne reste.

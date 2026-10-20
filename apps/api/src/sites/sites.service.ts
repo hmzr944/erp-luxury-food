@@ -1,12 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { ConfigService } from '@nestjs/config'
+import { metierByKey } from '@erp/types'
+import { CatalogCopyService } from '../products/catalog-copy.service'
+import { StarterService } from '../products/starter.service'
 
 @Injectable()
 export class SitesService {
+  private readonly logger = new Logger(SitesService.name)
+
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private catalogCopy: CatalogCopyService,
+    private starter: StarterService,
   ) {}
 
   findByOrganization(organizationId: string, onlyForUserId?: string) {
@@ -28,11 +35,42 @@ export class SitesService {
     return this.prisma.site.findUniqueOrThrow({ where: { id } })
   }
 
-  async create(organizationId: string, data: { name: string; address?: string; timezone?: string }) {
-    return this.prisma.site.create({
+  async create(
+    organizationId: string,
+    data: { name: string; address?: string; timezone?: string; copyCatalogFromSiteId?: string; starterMetier?: string },
+  ) {
+    // Avant de créer quoi que ce soit : un site source étranger ou un métier inconnu refuse tout
+    if (data.copyCatalogFromSiteId && data.starterMetier) {
+      throw new BadRequestException('Choisissez soit la copie d’un catalogue, soit celui d’un métier')
+    }
+    if (data.copyCatalogFromSiteId) {
+      const source = await this.prisma.site.findFirst({
+        where: { id: data.copyCatalogFromSiteId, organizationId },
+        select: { id: true },
+      })
+      if (!source) throw new NotFoundException('Site à copier introuvable')
+    }
+    if (data.starterMetier && !metierByKey(data.starterMetier)) throw new BadRequestException('Métier inconnu')
+
+    const site = await this.prisma.site.create({
       // organizationId en dernier : le corps de la requête ne peut pas le remplacer
       data: { name: data.name, address: data.address, timezone: data.timezone ?? 'Europe/Paris', organizationId },
     })
+    if (!data.copyCatalogFromSiteId && !data.starterMetier) return site
+
+    // Le site existe déjà : une copie ratée ne doit pas faire croire qu'il manque
+    // (un nouvel essai créerait un doublon). Le catalogue se recopie depuis le site.
+    try {
+      if (data.copyCatalogFromSiteId) {
+        const catalogCopy = await this.catalogCopy.copy(site.id, data.copyCatalogFromSiteId, organizationId)
+        return { ...site, catalogCopy }
+      }
+      const starter = await this.starter.load(site.id, data.starterMetier!)
+      return { ...site, starter }
+    } catch (e) {
+      this.logger.error(`Catalogue du site ${site.id} : ${(e as Error).message}`)
+      return { ...site, catalogError: 'Le site est créé, mais son catalogue n’a pas pu être préparé. Vous pouvez le copier depuis les réglages des sites.' }
+    }
   }
 
   async update(id: string, organizationId: string, data: { name?: string; address?: string; timezone?: string }) {
