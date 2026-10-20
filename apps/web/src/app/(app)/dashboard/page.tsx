@@ -1,10 +1,15 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { MultiSiteDashboard } from '@/components/dashboard/MultiSiteDashboard'
 
 export const metadata: Metadata = { title: 'Tableau de bord' }
 
-// Sprint 8 : dashboard consolidé multi-sites (remplace le dashboard site-unique)
-// Le dashboard site-specific (CA horaire, top produits) reste accessible via DashboardWithSite
+// Tableau de bord du réseau : tous les sites de l'organisation, sur la période
+// choisie (?periode=). Le sélecteur de période lit l'URL, d'où le Suspense.
 export default function DashboardPage() {
-  return <MultiSiteDashboard />
+  return (
+    <Suspense fallback={null}>
+      <MultiSiteDashboard />
+    </Suspense>
+  )
 }

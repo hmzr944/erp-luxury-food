@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { Decimal } from '@prisma/client/runtime/library'
+import { buildSiteSummaries, networkTotals, topProducts, totalsBySite, type SalesRow } from './dashboard-calc'
+import { DASHBOARD_TZ, resolvePeriod, type PeriodKey } from './period'
 
 @Injectable()
 export class DashboardService {
@@ -100,53 +102,78 @@ export class DashboardService {
   }
 
   // ── Dashboard multi-sites consolidé ───────────────────────────
-  async getMultiSiteSummary(organizationId: string) {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
+  // Ventes terminées (remboursements compris, en négatif), à l'heure réelle de
+  // la vente quand elle existe (vente hors ligne synchronisée plus tard)
+  private soldIn(from: Date, to: Date) {
+    return {
+      status: 'COMPLETED' as const,
+      OR: [{ soldAt: { gte: from, lt: to } }, { soldAt: null, createdAt: { gte: from, lt: to } }],
+    }
+  }
 
+  private async salesRows(siteIds: string[], from: Date, to: Date): Promise<SalesRow[]> {
+    const groups = await this.prisma.order.groupBy({
+      by: ['siteId', 'kind'],
+      where: { siteId: { in: siteIds }, ...this.soldIn(from, to) },
+      _sum: { total: true },
+      _count: { _all: true },
+    })
+    return groups.map((g) => ({ siteId: g.siteId, kind: g.kind, total: Number(g._sum.total ?? 0), count: g._count._all }))
+  }
+
+  async getMultiSiteSummary(organizationId: string, periodKey: PeriodKey = 'today', now: Date = new Date()) {
+    const period = resolvePeriod(periodKey, now)
     const sites = await this.prisma.site.findMany({
       where: { organizationId },
       select: { id: true, name: true },
+      orderBy: { name: 'asc' },
     })
+    const siteIds = sites.map((s) => s.id)
 
-    const perSite = await Promise.all(
-      sites.map(async (site) => {
-        const agg = await this.prisma.order.aggregate({
-          where: { siteId: site.id, status: 'COMPLETED', createdAt: { gte: today, lt: tomorrow } },
-          _sum: { total: true },
-          _count: true,
-          _avg: { total: true },
-        })
-        const inProgress = await this.prisma.order.count({
-          where: { siteId: site.id, status: { in: ['PENDING', 'PREPARING', 'READY'] } },
-        })
-        return {
-          siteId: site.id,
-          siteName: site.name,
-          revenue: Number(agg._sum.total ?? 0),
-          orderCount: agg._count,
-          avgBasket: Number(agg._avg.total ?? 0),
-          inProgress,
-        }
+    const [currentRows, previousRows, inProgressRows, items] = await Promise.all([
+      this.salesRows(siteIds, period.from, period.to),
+      this.salesRows(siteIds, period.previous.from, period.previous.to),
+      this.prisma.order.groupBy({
+        by: ['siteId'],
+        where: { siteId: { in: siteIds }, status: { in: ['PENDING', 'PREPARING', 'READY'] } },
+        _count: { _all: true },
       }),
-    )
+      this.prisma.orderItem.findMany({
+        where: { order: { siteId: { in: siteIds }, ...this.soldIn(period.from, period.to) } },
+        select: { productId: true, name: true, quantity: true, price: true, discount: true, order: { select: { kind: true } } },
+      }),
+    ])
 
-    const totals = perSite.reduce(
-      (acc, s) => ({
-        revenue: acc.revenue + s.revenue,
-        orderCount: acc.orderCount + s.orderCount,
-        inProgress: acc.inProgress + s.inProgress,
-      }),
-      { revenue: 0, orderCount: 0, inProgress: 0 },
+    const perSite = buildSiteSummaries(
+      sites,
+      totalsBySite(currentRows),
+      totalsBySite(previousRows),
+      new Map(inProgressRows.map((r) => [r.siteId, r._count._all])),
     )
 
     return {
-      ...totals,
-      avgBasket: totals.orderCount > 0 ? totals.revenue / totals.orderCount : 0,
+      period: {
+        key: period.key,
+        label: period.label,
+        timezone: DASHBOARD_TZ,
+        from: period.from.toISOString(),
+        to: period.to.toISOString(),
+        previousFrom: period.previous.from.toISOString(),
+        previousTo: period.previous.to.toISOString(),
+      },
+      ...networkTotals(perSite),
       perSite,
       siteCount: sites.length,
+      topProducts: topProducts(
+        items.map((i) => ({
+          productId: i.productId,
+          name: i.name,
+          quantity: i.quantity,
+          price: Number(i.price),
+          discount: Number(i.discount),
+          refund: i.order.kind === 'REFUND',
+        })),
+      ),
     }
   }
 }
