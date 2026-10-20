@@ -16,7 +16,7 @@ FLŌW est une caisse enregistreuse en ligne (PWA) qui encaisse, signe chaque tic
 
 ## Positioning
 
-Ventes hors ligne signées par chaque caisse (ECDSA) et vérifiées par le serveur, incluses dans les deux formules. API, webhooks et imports CSV sans surcoût. Prix publics sans engagement (formules Pulse et Tempo). Agent local FLŌW-Bridge pour l'impression, le tiroir et les TPE.
+Ventes hors ligne signées par chaque caisse (ECDSA) et vérifiées par le serveur, incluses dans les deux formules. Webhooks de commandes et imports CSV sans surcoût (l’API publique viendra une fois documentée). Prix publics sans engagement (formules Pulse et Tempo). Agent local FLŌW-Bridge pour l'impression, le tiroir et les TPE.
 
 ## Operating Context
 

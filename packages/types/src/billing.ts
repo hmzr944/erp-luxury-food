@@ -42,7 +42,7 @@ export const PLAN_OFFERS: PlanOffer[] = [
       'Écran atelier grand format : à produire, colisage, incidents',
       'Cessions internes au prix de cession, mois par mois',
       'Clients professionnels et factures',
-      'Accès API et webhooks',
+      'Webhooks de commandes',
     ],
   },
 ]
