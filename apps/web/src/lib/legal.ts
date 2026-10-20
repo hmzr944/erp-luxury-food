@@ -121,6 +121,7 @@ export const LEGAL_PAGES = [
   { slug: 'cgu', href: '/legal/cgu', label: "Conditions générales d'utilisation" },
   { slug: 'cgv', href: '/legal/cgv', label: 'Conditions générales de vente' },
   { slug: 'confidentialite', href: '/legal/confidentialite', label: 'Politique de confidentialité' },
+  { slug: 'conformite', href: '/legal/conformite', label: 'Conformité de la caisse' },
 ] as const
 
 export type LegalSlug = (typeof LEGAL_PAGES)[number]['slug']

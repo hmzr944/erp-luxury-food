@@ -1,6 +1,6 @@
 # Pages légales publiques : points à valider ou compléter
 
-Brouillons publiés sous `/legal/mentions-legales`, `/legal/cgu`, `/legal/cgv`, `/legal/confidentialite` (version `2026-10`, constante `LEGAL_VERSION` de `apps/web/src/lib/legal.ts`, la même que celle enregistrée à l'inscription dans `User.termsVersion`). Tant que `LEGAL_DRAFT` vaut `true`, chaque page affiche un bandeau « Projet en cours de relecture » et un repère « À valider » sur les clauses listées ci-dessous.
+Brouillons publiés sous `/legal/mentions-legales`, `/legal/cgu`, `/legal/cgv`, `/legal/confidentialite`, `/legal/conformite` (version `2026-10`, constante `LEGAL_VERSION` de `apps/web/src/lib/legal.ts`, la même que celle enregistrée à l'inscription dans `User.termsVersion`). Tant que `LEGAL_DRAFT` vaut `true`, chaque page affiche un bandeau « Projet en cours de relecture » et un repère « À valider » sur les clauses listées ci-dessous.
 
 Rien de juridique n'a été inventé : ce qui n'est pas sourcé ou pas vérifié dans le code est marqué « [à compléter] » ou « À valider ».
 
@@ -90,6 +90,21 @@ Sous-traitants trouvés dans le code : Stripe (abonnement, `apps/api/src/billing
 6. **Absence de bandeau cookies** : justifiée par l'absence de traceur non nécessaire (fiche F37351, règles CNIL) ; à revérifier à chaque ajout d'outil.
 7. **Délai de réponse d'un mois** aux demandes d'exercice des droits (RGPD art. 12) : non vérifié sur le texte officiel, à confirmer.
 8. Faut-il désigner un DPO : à décider (`NEXT_PUBLIC_EDITOR_DPO`).
+
+## Conformité de la caisse (`/legal/conformite`)
+
+Page FAQ « Conformité de la caisse : attestation de l'éditeur et NF525 ». Sourcé : BOFiP ACTU-2026-00073 (lu le 20 octobre 2026 : attestation rétablie à compter du 21/02/2026, loi 2026-103 art. 125, modèle BOI-LETTRE-000242, aucune sanction chiffrée dans la page), modèle `docs/legal/BOI-LETTRE-000242-20260325.md` (délit de fausse attestation, art. 441-1 du code pénal, trois ans et 45 000 €), périmètre COVERED / NOT_COVERED de `apps/api/src/compliance/attestation.service.ts` (recopié dans la page : à resynchroniser si l'API change).
+
+À valider ou compléter :
+
+1. **Date du 31 août 2026** : la page ne dit que « prorogation du délai laissé aux éditeurs pour obtenir le certificat » (publication BOFiP 14826-PGP du 01/10/2025). Cette publication n'a pas été relue directement : relire avant de citer plus.
+2. **Amende en cas de défaut de justificatif** : montant laissé « à compléter à partir d'une source officielle ». Les 7 500 € par logiciel (art. 1770 duodecies du CGI) ne viennent que de sources secondaires (`research_notes`), non revérifiés sur Légifrance.
+3. **Éditeur entrepreneur individuel** : le modèle du volet 1 vise le « représentant légal de la société » ; la formulation adaptée à un EI est à faire valider (l'attestation générée l'adapte déjà dans le code).
+4. **« Non certifié par un organisme accrédité »** : phrase reprise de la FAQ du site, à confirmer.
+5. **Qui est concerné** : la page ne détaille pas le champ (assujettis à la TVA, B2C, exclusions de la franchise en base, BOI-TVA-DECLA-30-10-30 §10 à 25) ; à décider avec le juriste.
+6. **Durée de six ans** (L102 B LPF) : à confirmer, comme pour les CGU.
+7. **Procédure de contrôle** : la page se limite à la présentation des deux volets ; aucune description de la procédure n'est sourcée.
+8. Pas de mention « validé par un expert-comptable » : bandeau « Projet en cours de relecture » tant que `LEGAL_DRAFT` est actif.
 
 ## Avant la mise en ligne
 

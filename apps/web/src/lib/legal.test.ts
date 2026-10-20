@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatLegalDate, isIndividualStatus, readEditor, readHost } from './legal'
+import { LEGAL_PAGES, formatLegalDate, isIndividualStatus, readEditor, readHost } from './legal'
 
 describe('readEditor', () => {
   it('ne devine rien quand les variables manquent', () => {
@@ -37,5 +37,16 @@ describe('readEditor', () => {
 describe('formatLegalDate', () => {
   it('écrit la date en français', () => {
     expect(formatLegalDate('2026-10-18')).toBe('18 octobre 2026')
+  })
+})
+
+describe('LEGAL_PAGES', () => {
+  it('liste la page de conformité, sans doublon', () => {
+    expect(LEGAL_PAGES.some((p) => p.slug === 'conformite' && p.href === '/legal/conformite')).toBe(true)
+    expect(new Set(LEGAL_PAGES.map((p) => p.href)).size).toBe(LEGAL_PAGES.length)
+  })
+
+  it('ne contient aucun tiret cadratin', () => {
+    for (const p of LEGAL_PAGES) expect(p.label).not.toMatch(/[\u2014\u2013]/)
   })
 })
