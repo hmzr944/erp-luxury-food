@@ -13,6 +13,9 @@ import { FieldError } from '@/components/ui/FieldError'
 import { EASE_DRAWER } from '@/lib/motion'
 import { usePlatformConfig } from '@/lib/api/platform'
 import { modifiersApi } from '@/lib/api/modifiers'
+import { productsAdminApi } from '@/lib/api/products-admin'
+import { dateKindOf, parseInputs, toInputs, type AttributeDef, type DateKind } from './attributes-form'
+import { TrackingSection, AttributesSection } from './TrackingAttributes'
 
 const variantSchema = z.object({
   name: z.string().min(1),
@@ -34,6 +37,10 @@ const productSchema = z.object({
   // À l'unité, au poids (prix au kilo) ou formule
   saleMode: z.enum(['UNIT', 'WEIGHT', 'MENU']),
   scaleCode: z.string().regex(/^\d{0,6}$/, '1 à 6 chiffres').optional(),
+  // Suivi du stock : sans lot, par lot, par date limite ou par numéro de série
+  tracking: z.enum(['NONE', 'LOT', 'LOT_EXPIRY', 'SERIAL']),
+  // Seuil d'alerte de stock bas : vide = pas d'alerte
+  alertAt: z.string().regex(/^(\d+([.,]\d{1,3})?)?$/, 'Un nombre positif, 3 décimales au plus').optional(),
 })
 
 export interface MenuStepForm {
@@ -46,6 +53,8 @@ export interface MenuStepForm {
 export type ProductFormValues = z.infer<typeof productSchema> & {
   modifierGroupIds: string[]
   menuSteps: MenuStepForm[]
+  // Absent : les champs de la fiche n'ont pas pu être chargés, on n'y touche pas
+  attributes?: Record<string, unknown>
 }
 
 const inputCls = 'w-full h-11 px-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors'
@@ -62,6 +71,12 @@ interface ProductDrawerProps {
   isSaving: boolean
 }
 
+// Seuil d'alerte en vigueur : celui du produit, ou de sa première variante
+const thresholdOf = (p: ApiProduct): string => {
+  const raw = p.stockItem?.alertAt ?? p.variants?.find((v) => v.stock?.alertAt != null)?.stock?.alertAt ?? null
+  return raw === null ? '' : String(Number(raw)).replace('.', ',')
+}
+
 const modeOf = (p: ApiProduct | null): ProductFormValues['saleMode'] => (p?.isMenu ? 'MENU' : p?.soldByWeight ? 'WEIGHT' : 'UNIT')
 
 export function ProductDrawer({
@@ -74,7 +89,7 @@ export function ProductDrawer({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: '', subtitle: '', sku: '', barcode: '',
-      price: 0, taxRate: 5.5, mealVoucherEligible: true, categoryId: '', variants: [], saleMode: 'UNIT', scaleCode: '',
+      price: 0, taxRate: 5.5, mealVoucherEligible: true, categoryId: '', variants: [], saleMode: 'UNIT', scaleCode: '', tracking: 'NONE', alertAt: '',
     },
   })
 
@@ -83,6 +98,20 @@ export function ProductDrawer({
   const [steps, setSteps] = useState<MenuStepForm[]>([])
   const groups = useQuery({ queryKey: ['modifier-groups', siteId], queryFn: () => modifiersApi.list(siteId) })
   const saleMode = watch('saleMode')
+  const tracking = watch('tracking')
+
+  // Champs de la fiche (millésime, origine...) selon les packs de l'organisation
+  const attrDefs = useQuery({ queryKey: ['attribute-definitions', siteId], queryFn: () => productsAdminApi.attributeDefinitions(siteId) })
+  const defs: AttributeDef[] = attrDefs.data ?? []
+  const [attrInputs, setAttrInputs] = useState<Record<string, string>>({})
+  const [attrErrors, setAttrErrors] = useState<Record<string, string>>({})
+  const [dateKind, setDateKind] = useState<DateKind>('DLC')
+  useEffect(() => {
+    setAttrInputs(toInputs(defs, product?.attributes))
+    setAttrErrors({})
+    setDateKind(dateKindOf(product?.attributes))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, attrDefs.data])
   useEffect(() => {
     setGroupIds(product?.modifierGroups?.map((g) => g.group.id) ?? [])
     setSteps(
@@ -106,6 +135,11 @@ export function ProductDrawer({
     if (!product && !dirtyFields.mealVoucherEligible) setValue('mealVoucherEligible', taxRate !== 20)
   }, [product, taxRate, dirtyFields.mealVoucherEligible, setValue])
 
+  const defaultTracking = platform?.defaultTracking
+  useEffect(() => {
+    if (!product && defaultTracking && !dirtyFields.tracking) setValue('tracking', defaultTracking)
+  }, [product, defaultTracking, dirtyFields.tracking, setValue])
+
   useEffect(() => {
     if (product) {
       reset({
@@ -125,10 +159,13 @@ export function ProductDrawer({
         })) ?? [],
         saleMode: modeOf(product),
         scaleCode: product.scaleCode ?? '',
+        tracking: product.tracking ?? 'NONE',
+        alertAt: thresholdOf(product),
       })
     } else {
-      reset({ name: '', subtitle: '', sku: '', barcode: '', price: 0, taxRate: 5.5, mealVoucherEligible: true, categoryId: '', variants: [], saleMode: 'UNIT', scaleCode: '' })
+      reset({ name: '', subtitle: '', sku: '', barcode: '', price: 0, taxRate: 5.5, mealVoucherEligible: true, categoryId: '', variants: [], saleMode: 'UNIT', scaleCode: '', tracking: platform?.defaultTracking ?? 'NONE', alertAt: '' })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product, reset])
 
   // Fenêtre modale : focus au premier champ, Échap ferme, focus rendu ensuite
@@ -158,7 +195,7 @@ export function ProductDrawer({
         animate={{ transform: 'translateX(0%)' }}
         exit={{ transform: 'translateX(100%)' }}
         transition={{ duration: 0.32, ease: EASE_DRAWER }}
-        className="fixed right-0 top-0 h-full w-[480px] bg-[var(--color-bg-elevated)] border-l border-[var(--color-border)] z-50 flex flex-col shadow-2xl"
+        className="fixed right-0 top-0 h-full w-full max-w-[480px] bg-[var(--color-bg-elevated)] border-l border-[var(--color-border)] z-50 flex flex-col shadow-2xl"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
@@ -178,7 +215,23 @@ export function ProductDrawer({
         {/* Form */}
         <form
           id="product-form"
-          onSubmit={handleSubmit((v) => onSave({ ...v, modifierGroupIds: v.saleMode === 'MENU' ? [] : groupIds, menuSteps: v.saleMode === 'MENU' ? steps : [] }))}
+          onSubmit={handleSubmit((v) => {
+            const parsed = parseInputs(defs, attrInputs)
+            setAttrErrors(parsed.errors)
+            if (Object.keys(parsed.errors).length) {
+              window.setTimeout(() => panel.current?.querySelector<HTMLElement>('[data-attr-invalid="true"]')?.focus(), 0)
+              return
+            }
+            const menu = v.saleMode === 'MENU'
+            return onSave({
+              ...v,
+              // Une formule n'a pas de stock propre : ni suivi, ni lots
+              tracking: menu ? 'NONE' : v.tracking,
+              modifierGroupIds: menu ? [] : groupIds,
+              menuSteps: menu ? steps : [],
+              attributes: attrDefs.data ? { ...parsed.values, ...(!menu && v.tracking === 'LOT_EXPIRY' ? { dateKind } : {}) } : undefined,
+            })
+          })}
           className="flex-1 overflow-y-auto px-5 py-5 space-y-5"
         >
           {/* Infos principales */}
@@ -306,6 +359,32 @@ export function ProductDrawer({
               <label htmlFor="pd-barcode" className="font-body text-xs text-[var(--color-text-secondary)]">Code-barre</label>
               <input id="pd-barcode" {...register('barcode')} className={inputCls} placeholder="3760001234567" />
             </div>
+          </div>
+
+          {saleMode !== 'MENU' && (
+            <TrackingSection
+              register={register}
+              tracking={tracking}
+              dateKind={dateKind}
+              onDateKind={setDateKind}
+              hadStock={!isNew && product?.tracking === 'NONE' && tracking !== 'NONE'}
+            />
+          )}
+
+          {defs.length > 0 && <AttributesSection defs={defs} inputs={attrInputs} errors={attrErrors} onChange={(key, value) => setAttrInputs((cur) => ({ ...cur, [key]: value }))} />}
+
+          {/* Seuil d'alerte de stock bas */}
+          <div className="space-y-1.5">
+            <label htmlFor="pd-alertAt" className="font-body text-xs text-[var(--color-text-secondary)]">Seuil d’alerte de stock</label>
+            <input
+              id="pd-alertAt" inputMode="decimal" autoComplete="off"
+              aria-invalid={!!errors.alertAt} aria-describedby={errors.alertAt ? 'pd-alertAt-err pd-alertAt-help' : 'pd-alertAt-help'}
+              {...register('alertAt')} className={inputCls} placeholder="Ex. 5"
+            />
+            {errors.alertAt && <FieldError id="pd-alertAt-err">{errors.alertAt.message}</FieldError>}
+            <p id="pd-alertAt-help" className="font-body text-xs text-[var(--color-text-muted)]">
+              Le produit est signalé « Bas » quand son stock descend à ce niveau ou en dessous. Laissez vide pour ne pas être alerté. Avec des variantes, le seuil s’applique à chacune.
+            </p>
           </div>
 
           {/* Variants */}

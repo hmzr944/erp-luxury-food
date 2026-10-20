@@ -176,6 +176,14 @@ export class CreateProductDto {
   @Type(() => MenuStepDto)
   menuSteps?: MenuStepDto[]
 
+  // Seuil d'alerte de stock bas : l'alerte se déclenche quand le stock
+  // descend à ce niveau ou en dessous. null ou absent : pas d'alerte
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 3 }, { message: "Seuil d'alerte : 3 décimales au plus" })
+  @Min(0, { message: "Le seuil d'alerte ne peut pas être négatif" })
+  @Max(1_000_000, { message: "Seuil d'alerte trop élevé" })
+  alertAt?: number | null
+
   // Vente au poids : le prix est le prix au kilo
   @IsOptional()
   @IsBoolean()

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { Decimal } from '@prisma/client/runtime/library'
 import { Prisma, type PaymentKind } from '@prisma/client'
@@ -6,6 +6,7 @@ import { PrismaService } from '../common/prisma/prisma.service'
 import { ComplianceService } from '../compliance/compliance.service'
 import { PaymentsService } from '../payments/payments.service'
 import { AuditService } from '../audit/audit.service'
+import { ManagerAuthorization, type Authorizer } from '../auth/manager-authorization'
 import { creditCode, normalizeCreditCode } from './credits'
 import { planRefund, RefundPlanError } from './refund-plan'
 import type { RefundDto } from './dto/refund.dto'
@@ -25,14 +26,90 @@ export class RefundsService {
     private events: EventEmitter2,
     private audit: AuditService,
     private customers: CustomersService,
+    private authorization: ManagerAuthorization,
   ) {}
 
-  async refund(siteId: string, orderId: string, dto: RefundDto, user: { id: string; organizationId: string; email?: string }) {
-    const sale = await this.prisma.order.findFirst({
+  async refund(siteId: string, orderId: string, dto: RefundDto, user: { id: string; organizationId: string; email?: string; role?: string }) {
+    const known = await this.prisma.order.findFirst({ where: { id: orderId, siteId }, select: { id: true } })
+    if (!known) throw new NotFoundException('Vente introuvable')
+
+    // OWNER et MANAGER remboursent seuls. Un vendeur a besoin du code d'un
+    // responsable ; qui a demandé et qui a autorisé sont journalisés.
+    const authorizer = await this.authorization.authorize(user, dto.managerPin, 'remboursement', orderId)
+
+    // Remboursement déjà fait chez le prestataire : si la suite échoue, il faut le dire
+    let providerDone: { reference: string; amount: number } | null = null
+
+    // Tout se passe sous le verrou de la vente, prestataire compris : deux
+    // clics simultanés se suivent, le second voit ce que le premier a rendu.
+    const outcome = await this.prisma
+      .$transaction((tx) => this.execute(tx, siteId, orderId, dto, user, authorizer, (d) => (providerDone = d)), { timeout: 60_000, maxWait: 10_000 })
+      .catch(async (e: unknown): Promise<never> => {
+      const done = providerDone as { reference: string; amount: number } | null
+      if (done) {
+        await this.audit.log({
+          organizationId: user.organizationId,
+          userId: user.id,
+          action: 'refund.provider_unrecorded',
+          target: orderId,
+          detail: `${done.amount.toFixed(2)} € rendus sur la carte (réf. ${done.reference}) mais non enregistrés : ${e instanceof Error ? e.message : String(e)}`,
+        })
+        throw new InternalServerErrorException(
+          `La carte du client a bien été remboursée (réf. ${done.reference}) mais le retour n'a pas pu être enregistré. Ne recommencez pas : contactez le support avec cette référence.`,
+        )
+      }
+      throw e
+    })
+
+    const { result, plan, method, replay } = outcome
+    if (!replay) {
+      this.events.emit('order.created', { siteId, order: result.refund })
+      await this.audit.log({
+        organizationId: user.organizationId,
+        userId: user.id,
+        action: 'refund.created',
+        target: orderId,
+        detail:
+          `${plan!.total.toFixed(2)} € en ${method!.label}${dto.reason ? `, ${dto.reason}` : ''}` +
+          `. Demandé par ${user.email ?? user.id}, ${authorizer ? `autorisé par ${authorizer.name} (${authorizer.role}, ${authorizer.id})` : 'responsable connecté'}`,
+      })
+    }
+    return {
+      ...result.refund,
+      credit: result.credit ? { code: result.credit.code, balance: Number(result.credit.balance), expiresAt: result.credit.expiresAt } : null,
+    }
+  }
+
+  private async execute(
+    tx: Prisma.TransactionClient,
+    siteId: string,
+    orderId: string,
+    dto: RefundDto,
+    user: { id: string; organizationId: string; email?: string },
+    authorizer: Authorizer | null,
+    onProviderDone: (d: { reference: string; amount: number }) => void,
+  ) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'refund:' + orderId}))`
+    // Lu après le verrou : ce qui vient d'être remboursé par une autre requête compte
+    const sale = await tx.order.findFirst({
       where: { id: orderId, siteId },
       include: { items: true, payments: true, refunds: { include: { items: true } } },
     })
     if (!sale) throw new NotFoundException('Vente introuvable')
+
+    // Même demande rejouée (double clic, réseau coupé) : on rend le retour déjà fait
+    if (dto.clientId) {
+      const prior = await tx.order.findUnique({
+        where: { clientId: dto.clientId },
+        include: { items: true, payments: true, receiptChain: { select: { counter: true, signedAt: true } } },
+      })
+      if (prior) {
+        if (prior.siteId !== siteId || prior.refundOfId !== sale.id) throw new ConflictException('Identifiant de retour déjà utilisé')
+        const credit = await tx.storeCredit.findFirst({ where: { issuedOrderId: prior.id } })
+        return { result: { refund: prior, credit }, plan: null, method: null, replay: true as const }
+      }
+    }
+
     if (sale.kind !== 'SALE') throw new BadRequestException("Un remboursement ne se rembourse pas : refaites une vente")
     if (sale.status === 'CANCELLED') throw new BadRequestException('Cette vente est annulée')
 
@@ -56,121 +133,114 @@ export class RefundsService {
 
     // Carte cadeau déjà entamée : refus avant tout remboursement sur la carte bancaire
     const byId = new Map(sale.items.map((i) => [i.id, i.name]))
-    await this.cancelGiftCards(this.prisma, sale.id, plan.lines.map((l) => byId.get(l.orderItemId) ?? ''), false)
+    await this.cancelGiftCards(tx, sale.id, plan.lines.map((l) => byId.get(l.orderItemId) ?? ''), false)
 
     // Carte passée sur un TPE connecté : on rembourse la carte avant
-    // d'écrire quoi que ce soit. Si le prestataire refuse, rien n'est enregistré.
+    // d'écrire quoi que ce soit, sous le verrou. Si le prestataire refuse,
+    // rien n'est enregistré et la vente reste remboursable.
     if (dto.refundTo === 'ORIGINAL' && original[0].reference && original[0].kind === 'CARD') {
-      const done = await this.payments.refundByReference(user.organizationId, original[0].reference, Math.round(plan.total * 100))
-      if (done) method.reference = done.refundRef
-    }
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Deux retours simultanés de la même vente : l'un après l'autre
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'refund:' + sale.id}))`
-      const fresh = await tx.order.findMany({ where: { refundOfId: sale.id }, include: { items: true } })
-      if (fresh.length !== sale.refunds.length) this.plan({ ...sale, refunds: fresh }, dto.lines)
-
-      const credit = toCredit
-          ? await tx.storeCredit.create({
-              data: {
-                organizationId: user.organizationId,
-                code: creditCode(),
-                initialAmount: new Decimal(plan.total),
-                balance: new Decimal(plan.total),
-                customerEmail: dto.customerEmail ?? sale.customerEmail,
-                expiresAt: dto.creditMonths ? addMonths(new Date(), dto.creditMonths) : null,
-              },
-            })
-          : null
-      if (credit) method.reference = credit.code
-
-      const receipt = await this.compliance.signReceipt(tx, siteId, {
-        total: new Decimal(-plan.total),
-        kind: 'REFUND',
-        content: stableStringify({
-          refundOf: sale.id,
-          lines: plan.lines.map((l) => ({ orderItemId: l.orderItemId, quantity: l.quantity, ttc: l.ttc.toFixed(2), taxRate: Number(l.taxRate).toFixed(2) })),
-          payment: { code: method.code, amount: (-plan.total).toFixed(2), reference: method.reference ?? null },
-        }),
-      })
-      const byItem = new Map(sale.items.map((i) => [i.id, i]))
-      const refund = await tx.order.create({
-        data: {
-          siteId,
-          kind: 'REFUND',
-          refundOfId: sale.id,
-          refundReason: dto.reason?.trim() || null,
-          channel: sale.channel,
-          status: 'COMPLETED',
-          subtotal: new Decimal(-plan.subtotal),
-          taxAmount: new Decimal(-plan.taxAmount),
-          total: new Decimal(-plan.total),
-          paymentMode: original.length === 1 && dto.refundTo === 'ORIGINAL' ? sale.paymentMode : 'MIXED',
-          customerEmail: dto.customerEmail ?? sale.customerEmail,
-          note: [user.email ? `Remboursé par ${user.email}` : null, dto.restock ? 'Remis en stock' : 'Non remis en stock']
-            .filter(Boolean)
-            .join('\n'),
-          receiptChainId: receipt.id,
-          items: {
-            create: plan.lines.map((l) => {
-              const src = byItem.get(l.orderItemId)!
-              return {
-                productId: src.productId,
-                variantId: src.variantId,
-                name: src.name,
-                variantName: src.variantName,
-                serialNumber: src.serialNumber,
-                modifiers: src.modifiers ?? Prisma.DbNull,
-                menuProductId: src.menuProductId,
-                menuName: src.menuName,
-                menuGroup: src.menuGroup,
-                weight: src.weight,
-                pricePerKg: src.pricePerKg,
-                scaleLabel: src.scaleLabel,
-                quantity: l.quantity,
-                // Montant réellement rendu par unité (remises comprises)
-                price: new Decimal(-l.ttc / l.quantity).toDecimalPlaces(2),
-                taxRate: new Decimal(l.taxRate),
-                discount: new Decimal(0),
-                refundOfItemId: l.orderItemId,
-              }
-            }),
-          },
-          payments: {
-            create: [{ code: method.code, label: method.label, kind: method.kind, amount: new Decimal(-plan.total), reference: method.reference ?? null }],
-          },
-        },
-        include: { items: true, payments: true, receiptChain: { select: { counter: true, signedAt: true } } },
-      })
-      if (credit) await tx.storeCredit.update({ where: { id: credit.id }, data: { issuedOrderId: refund.id } })
-      await this.cancelGiftCards(tx, sale.id, plan.lines.map((l) => byItem.get(l.orderItemId)!.name), true)
-      const giftValue = (items: Array<{ name: string; price: Decimal; quantity: number }>) =>
-        items.filter((i) => GIFT_CARD_CODE.test(i.name)).reduce((a, i) => a + Number(i.price) * i.quantity, 0)
-      await this.customers.reverseForRefund(tx, sale, refund.id, {
-        refunded: plan.total,
-        refundedGiftCards: giftValue(plan.lines.map((l) => ({ ...byItem.get(l.orderItemId)!, quantity: l.quantity }))),
-        saleGiftCards: giftValue(sale.items),
-      })
-
-      if (dto.restock) {
-        for (const l of plan.lines) await this.restock(tx, siteId, byItem.get(l.orderItemId)!, l.quantity, refund.id, user.id)
+      let done: { refundRef: string } | null
+      try {
+        done = await this.payments.refundByReference(user.organizationId, original[0].reference, Math.round(plan.total * 100))
+      } catch (e) {
+        const why = e instanceof Error && e.message ? ` (${e.message})` : ''
+        throw new BadRequestException(
+          `Le prestataire de paiement n'a pas confirmé le remboursement${why}. Rien n'est enregistré. Vérifiez sur le TPE ou chez le prestataire que la carte n'a pas été remboursée avant de réessayer.`,
+        )
       }
-      return { refund, credit }
+      if (done) {
+        method.reference = done.refundRef
+        onProviderDone({ reference: done.refundRef, amount: plan.total })
+      }
+    }
+
+    const credit = toCredit
+        ? await tx.storeCredit.create({
+            data: {
+              organizationId: user.organizationId,
+              code: creditCode(),
+              initialAmount: new Decimal(plan.total),
+              balance: new Decimal(plan.total),
+              customerEmail: dto.customerEmail ?? sale.customerEmail,
+              expiresAt: dto.creditMonths ? addMonths(new Date(), dto.creditMonths) : null,
+            },
+          })
+        : null
+    if (credit) method.reference = credit.code
+
+    const receipt = await this.compliance.signReceipt(tx, siteId, {
+      total: new Decimal(-plan.total),
+      kind: 'REFUND',
+      content: stableStringify({
+        refundOf: sale.id,
+        lines: plan.lines.map((l) => ({ orderItemId: l.orderItemId, quantity: l.quantity, ttc: l.ttc.toFixed(2), taxRate: Number(l.taxRate).toFixed(2) })),
+        payment: { code: method.code, amount: (-plan.total).toFixed(2), reference: method.reference ?? null },
+      }),
+    })
+    const byItem = new Map(sale.items.map((i) => [i.id, i]))
+    const refund = await tx.order.create({
+      data: {
+        siteId,
+        kind: 'REFUND',
+        refundOfId: sale.id,
+        clientId: dto.clientId ?? null,
+        refundReason: dto.reason?.trim() || null,
+        channel: sale.channel,
+        status: 'COMPLETED',
+        subtotal: new Decimal(-plan.subtotal),
+        taxAmount: new Decimal(-plan.taxAmount),
+        total: new Decimal(-plan.total),
+        paymentMode: original.length === 1 && dto.refundTo === 'ORIGINAL' ? sale.paymentMode : 'MIXED',
+        customerEmail: dto.customerEmail ?? sale.customerEmail,
+        note: [user.email ? `Remboursé par ${user.email}` : null, authorizer ? `Autorisé par ${authorizer.name}` : null, dto.restock ? 'Remis en stock' : 'Non remis en stock']
+          .filter(Boolean)
+          .join('\n'),
+        receiptChainId: receipt.id,
+        items: {
+          create: plan.lines.map((l) => {
+            const src = byItem.get(l.orderItemId)!
+            return {
+              productId: src.productId,
+              variantId: src.variantId,
+              name: src.name,
+              variantName: src.variantName,
+              serialNumber: src.serialNumber,
+              modifiers: src.modifiers ?? Prisma.DbNull,
+              menuProductId: src.menuProductId,
+              menuName: src.menuName,
+              menuGroup: src.menuGroup,
+              weight: src.weight,
+              pricePerKg: src.pricePerKg,
+              scaleLabel: src.scaleLabel,
+              quantity: l.quantity,
+              // Montant réellement rendu par unité (remises comprises)
+              price: new Decimal(-l.ttc / l.quantity).toDecimalPlaces(2),
+              taxRate: new Decimal(l.taxRate),
+              discount: new Decimal(0),
+              refundOfItemId: l.orderItemId,
+            }
+          }),
+        },
+        payments: {
+          create: [{ code: method.code, label: method.label, kind: method.kind, amount: new Decimal(-plan.total), reference: method.reference ?? null }],
+        },
+      },
+      include: { items: true, payments: true, receiptChain: { select: { counter: true, signedAt: true } } },
+    })
+    if (credit) await tx.storeCredit.update({ where: { id: credit.id }, data: { issuedOrderId: refund.id } })
+    await this.cancelGiftCards(tx, sale.id, plan.lines.map((l) => byItem.get(l.orderItemId)!.name), true)
+    const giftValue = (items: Array<{ name: string; price: Decimal; quantity: number }>) =>
+      items.filter((i) => GIFT_CARD_CODE.test(i.name)).reduce((a, i) => a + Number(i.price) * i.quantity, 0)
+    await this.customers.reverseForRefund(tx, sale, refund.id, {
+      refunded: plan.total,
+      refundedGiftCards: giftValue(plan.lines.map((l) => ({ ...byItem.get(l.orderItemId)!, quantity: l.quantity }))),
+      saleGiftCards: giftValue(sale.items),
     })
 
-    this.events.emit('order.created', { siteId, order: result.refund })
-    await this.audit.log({
-      organizationId: user.organizationId,
-      userId: user.id,
-      action: 'refund.created',
-      target: sale.id,
-      detail: `${plan.total.toFixed(2)} € en ${method.label}${dto.reason ? `, ${dto.reason}` : ''}`,
-    })
-    return {
-      ...result.refund,
-      credit: result.credit ? { code: result.credit.code, balance: Number(result.credit.balance), expiresAt: result.credit.expiresAt } : null,
+    if (dto.restock) {
+      for (const l of plan.lines) await this.restock(tx, siteId, byItem.get(l.orderItemId)!, l.quantity, refund.id, user.id)
     }
+    return { result: { refund, credit }, plan, method, replay: false as const }
   }
 
   // Ce qu'il reste à rembourser, ligne par ligne (pour l'écran de retour)

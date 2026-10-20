@@ -67,3 +67,18 @@ export const paymentsApi = {
   removeAccount: (provider: PaymentProvider) =>
     apiClient(`/organizations/me/payment-accounts/${provider.toLowerCase()}`, { method: 'DELETE' }),
 }
+
+// Le serveur ne passe un paiement à « annulé » que si le prestataire le confirme
+export const CANCEL_UNCONFIRMED_MESSAGE = "L'annulation n'a pas été confirmée par le terminal : vérifiez sur le TPE"
+
+// Annule un paiement TPE ou QR. done : le paiement est bien clos, la caisse peut
+// quitter l'attente. Sinon (message présent ou non), le paiement reste en cours :
+// la caisse garde son interrogation, car le client a pu payer entre-temps.
+export async function cancelPayment(siteId: string, id: string): Promise<{ done: boolean; message?: string }> {
+  try {
+    const p = await paymentsApi.cancel(siteId, id)
+    return { done: p.status === 'CANCELED' || p.status === 'FAILED' }
+  } catch {
+    return { done: false, message: CANCEL_UNCONFIRMED_MESSAGE }
+  }
+}

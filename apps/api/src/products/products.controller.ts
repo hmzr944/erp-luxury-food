@@ -78,6 +78,12 @@ export class ProductsController {
     return this.products.customProduct(siteId)
   }
 
+  // Champs de la fiche produit (millésime, origine...) selon les packs de l'organisation
+  @Get('products/attribute-definitions')
+  attributeDefinitions(@Param('siteId') siteId: string) {
+    return this.products.attributeDefinitions(siteId)
+  }
+
   @Get('products/gift-card')
   giftCardProduct(@Param('siteId') siteId: string) {
     return this.products.giftCardProduct(siteId)

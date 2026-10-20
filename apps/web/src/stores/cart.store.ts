@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { formatPrice, modifiersLabel, priceMenu, priceOrder, splitDiscount, weightLabel, type ModifierChoice, type SignedSaleItem, type SoldItemView } from '@erp/utils'
+import { discountCents, discountReasonLabel, formatPrice, modifiersLabel, priceMenu, priceOrder, sellerDiscountExcess, splitDiscount, splitDiscountCents, weightLabel, isDiscountManager, type DiscountSpec, type ModifierChoice, type SignedSaleItem, type SoldItemView } from '@erp/utils'
 
 export interface CartProduct {
   id: string
@@ -40,6 +40,9 @@ export interface CartLine {
   customName?: string // article libre
   quantity: number
   discount: number // remise en euros sur la ligne
+  // Saisie de la remise manuelle (pourcentage ou montant, motif) : le montant
+  // en euros reste la seule valeur signée
+  discountSpec?: DiscountSpec
   // Options choisies, prix compris dans product.price
   modifiers?: ModifierChoice[]
   // Formule : prix de base et composants
@@ -80,6 +83,8 @@ interface CartState {
   savedAt: number
   lines: CartLine[]
   orderDiscount: number
+  // Remise sur le ticket entier : répartie sur les lignes éligibles au calcul
+  ticketDiscount: DiscountSpec | null
   customer: CartCustomer | null
   // Récompense fidélité utilisée : points dépensés et remise accordée
   loyalty: { points: number; amount: number } | null
@@ -93,6 +98,9 @@ interface CartState {
   setQuantity: (key: string, quantity: number) => void
   setLineDiscount: (key: string, discount: number) => void
   setOrderDiscount: (discount: number) => void
+  // Remise manuelle d'une ligne ; null la supprime
+  setLineDiscountSpec: (key: string, spec: DiscountSpec | null) => void
+  setTicketDiscount: (spec: DiscountSpec | null) => void
   setCustomer: (customer: CartCustomer | null) => void
   setLoyalty: (loyalty: { points: number; amount: number } | null) => void
   clearCart: () => void
@@ -115,6 +123,17 @@ function lineKey(productId: string, options: AddOptions = {}, price?: number) {
   return [productId, options.variantId ?? '', options.serialNumber ?? '', custom, mods, menu, weighed].join(':')
 }
 
+// Prix de la ligne avant remise, en centimes
+export const lineGrossCents = (l: Pick<CartLine, 'product' | 'quantity'>) => Math.round(l.product.price * l.quantity * 100)
+
+// Applique (ou retire) la saisie d'une remise : le montant en euros est
+// recalculé sur le prix actuel de la ligne, jamais au-delà de ce prix
+function withLineDiscount(line: CartLine, spec?: DiscountSpec): CartLine {
+  const cents = spec ? discountCents(spec, lineGrossCents(line)) : 0
+  if (!spec || cents === 0) return { ...line, discount: 0, discountSpec: undefined }
+  return { ...line, discount: cents / 100, discountSpec: spec }
+}
+
 export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
@@ -122,6 +141,7 @@ export const useCartStore = create<CartState>()(
   savedAt: 0,
   lines: [],
   orderDiscount: 0,
+  ticketDiscount: null,
   customer: null,
   loyalty: null,
   lastAddedKey: null,
@@ -155,23 +175,31 @@ export const useCartStore = create<CartState>()(
       lines:
         quantity <= 0
           ? state.lines.filter((l) => l.key !== key)
-          : state.lines.map((l) => (l.key === key && !isFixedLine(l) ? { ...l, quantity } : l)),
+          : state.lines.map((l) => (l.key === key && !isFixedLine(l) ? withLineDiscount({ ...l, quantity }, l.discountSpec) : l)),
     })),
 
   setLineDiscount: (key, discount) =>
     set((state) => ({
-      lines: state.lines.map((l) => (l.key === key ? { ...l, discount: Math.max(0, discount) } : l)),
+      lines: state.lines.map((l) => (l.key === key ? { ...l, discount: Math.max(0, discount), discountSpec: undefined } : l)),
     })),
+
+  setLineDiscountSpec: (key, spec) =>
+    set((state) => ({
+      // Une carte cadeau ne se remise jamais (son montant est celui crédité)
+      lines: state.lines.map((l) => (l.key === key && !l.product.giftCard ? withLineDiscount(l, spec ?? undefined) : l)),
+    })),
+
+  setTicketDiscount: (ticketDiscount) => set({ ticketDiscount }),
 
   setOrderDiscount: (discount) => set({ orderDiscount: Math.max(0, discount) }),
   setCustomer: (customer) => set({ customer, loyalty: null }),
   setLoyalty: (loyalty) => set({ loyalty }),
-  clearCart: () => set({ lines: [], orderDiscount: 0, customer: null, loyalty: null, lastAddedKey: null }),
+  clearCart: () => set({ lines: [], orderDiscount: 0, ticketDiscount: null, customer: null, loyalty: null, lastAddedKey: null }),
   bindSite: (siteId) =>
     set((state) =>
       state.siteId === siteId && Date.now() - state.savedAt < CART_MAX_AGE_MS
         ? {}
-        : { siteId, lines: [], orderDiscount: 0, customer: null, loyalty: null, lastAddedKey: null },
+        : { siteId, lines: [], orderDiscount: 0, ticketDiscount: null, customer: null, loyalty: null, lastAddedKey: null },
     ),
     }),
     {
@@ -179,7 +207,7 @@ export const useCartStore = create<CartState>()(
       storage: createJSONStorage(() => localStorage),
       // Relue par la caisse au montage (pas pendant le rendu serveur)
       skipHydration: true,
-      partialize: (s) => ({ siteId: s.siteId, savedAt: Date.now(), lines: s.lines, orderDiscount: s.orderDiscount, customer: s.customer, loyalty: s.loyalty }),
+      partialize: (s) => ({ siteId: s.siteId, savedAt: Date.now(), lines: s.lines, orderDiscount: s.orderDiscount, ticketDiscount: s.ticketDiscount, customer: s.customer, loyalty: s.loyalty }),
     },
   ),
 )
@@ -260,17 +288,59 @@ export function signedItem(i: SaleItem): SignedSaleItem {
 }
 
 // Ligne vendue pour le ticket imprimé
-export const soldView = (i: SaleItem): SoldItemView => ({ ...i, modifiers: i.modifierChoices })
+export const soldView = (i: SaleItem): SoldItemView => ({ ...i, modifiers: i.modifierChoices, lineUnitPrice: i.unitPrice, lineDiscount: i.discount })
 
 // Totaux calculés avec la même fonction que le serveur : le montant affiché
 // est exactement celui qui sera signé sur le ticket
-export function computeCartTotals(lines: CartLine[], orderDiscount: number, priceIncludesTax: boolean, loyaltyAmount = 0) {
-  const items = saleItems(withLoyalty(lines, loyaltyAmount))
+export function computeCartTotals(lines: CartLine[], orderDiscount: number, priceIncludesTax: boolean, loyaltyAmount = 0, ticketDiscount: DiscountSpec | null = null) {
+  const items = saleItems(withLoyalty(withTicketDiscount(lines, ticketDiscount), loyaltyAmount))
   const pricing = priceOrder(
     items.map((i) => ({ unitPrice: i.unitPrice, quantity: i.quantity, discount: i.discount, taxRate: i.taxRate })),
     { priceIncludesTax, orderDiscount },
   )
   return { ...pricing, items, itemCount: lines.reduce((sum, l) => sum + (l.weight !== undefined || l.label ? 1 : l.quantity), 0) }
+}
+
+// Reste à remiser par ligne, en centimes : jamais une carte cadeau
+const discountRoomCents = (l: CartLine) => (l.product.giftCard ? 0 : Math.max(0, lineGrossCents(l) - Math.round(l.discount * 100)))
+
+// Ce sur quoi porte une remise de ticket : lignes éligibles (hors cartes cadeaux)
+export const ticketDiscountRoom = (lines: CartLine[]) => lines.reduce((a, l) => a + discountRoomCents(l), 0) / 100
+
+// Remise sur le ticket entier : répartie au prorata sur les lignes éligibles,
+// reliquat d'arrondi sur la dernière ; la TVA de chaque taux suit les lignes.
+// Enregistrée article par article comme une remise de ligne.
+export function withTicketDiscount(lines: CartLine[], spec: DiscountSpec | null): CartLine[] {
+  if (!spec) return lines
+  const bases = lines.map(discountRoomCents)
+  const shares = splitDiscountCents(discountCents(spec, bases.reduce((a, b) => a + b, 0)), bases)
+  return lines.map((l, i) => (shares[i] ? { ...l, discount: Math.round(l.discount * 100 + shares[i]) / 100 } : l))
+}
+
+// Remise manuelle en cours : la récompense fidélité ne s'y ajoute pas
+export const hasManualDiscount = (lines: CartLine[], ticketDiscount: DiscountSpec | null) =>
+  !!ticketDiscount || lines.some((l) => l.discount > 0 && !l.product.giftCard)
+
+// Lignes qu'un vendeur n'a pas le droit de remiser seul (remises de ligne et
+// de ticket cumulées). Propriétaire et gérant : jamais de limite.
+export function discountExcess(lines: CartLine[], ticketDiscount: DiscountSpec | null, role?: string | null) {
+  if (isDiscountManager(role)) return []
+  const sold = withTicketDiscount(lines, ticketDiscount)
+  return sellerDiscountExcess(sold.map((l) => ({ name: l.customName ?? l.product.name, unitPrice: l.product.price, quantity: l.quantity, discount: l.discount })))
+}
+
+// Motifs des remises, pour la note de la vente (hors ticket signé)
+export function discountNote(lines: CartLine[], ticketDiscount: DiscountSpec | null): string | undefined {
+  const describe = (spec: DiscountSpec) => {
+    const value = spec.mode === 'percent' ? `${String(spec.value).replace('.', ',')} %` : formatPrice(spec.value)
+    const reason = discountReasonLabel(spec.reason)
+    return `${value}${reason ? `, ${reason}` : ''}`
+  }
+  const notes = [
+    ...(ticketDiscount ? [`Remise sur le ticket : ${describe(ticketDiscount)}`] : []),
+    ...lines.filter((l) => l.discountSpec && l.discount > 0).map((l) => `Remise ${l.customName ?? l.product.name} : ${describe(l.discountSpec!)}`),
+  ]
+  return notes.length ? notes.join('\n') : undefined
 }
 
 // Récompense fidélité : remise répartie sur les lignes, jamais sur une carte

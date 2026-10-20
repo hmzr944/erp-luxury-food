@@ -30,6 +30,8 @@ export interface TicketLine {
   taxRate: number
   // Formule : composants avec leur part du prix et leur taux de TVA
   parts?: Array<{ name: string; total: number; taxRate: number }>
+  // Ligne remisée (manuelle, de ticket ou fidélité) : part retirée du prix, en %
+  discountPercent?: number
 }
 
 // Ligne vendue telle qu'enregistrée (OrderItem, ou ligne signée en caisse)
@@ -44,6 +46,9 @@ export interface SoldItemView {
   menuName?: string | null
   weight?: number | null
   pricePerKg?: number | null
+  // Prix unitaire et remise de la ligne : pour afficher la remise sur le ticket
+  lineUnitPrice?: number
+  lineDiscount?: number
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -60,6 +65,8 @@ export function soldItemView(i: {
   menuName?: string | null
   weight?: unknown
   pricePerKg?: unknown
+  price?: unknown
+  discount?: unknown
 }): SoldItemView {
   const mods = Array.isArray(i.modifiers) ? (i.modifiers as Array<{ name: string; price: unknown }>).map((m) => ({ name: String(m.name), price: Number(m.price) })) : null
   return {
@@ -73,6 +80,8 @@ export function soldItemView(i: {
     menuName: i.menuName ?? null,
     weight: i.weight != null ? Number(i.weight) : null,
     pricePerKg: i.pricePerKg != null ? Number(i.pricePerKg) : null,
+    ...(i.price != null ? { lineUnitPrice: Math.abs(Number(i.price)) } : {}),
+    ...(i.discount != null ? { lineDiscount: Number(i.discount) } : {}),
   }
 }
 
@@ -91,6 +100,14 @@ export function soldItemDetail(i: SoldItemView): string | undefined {
 export function ticketLinesFromItems(items: SoldItemView[], ttc: number[], sign = 1): TicketLine[] {
   const out: TicketLine[] = []
   const menus = new Map<number, TicketLine>()
+  // Remise d'une ligne (ou de tous les composants d'une formule), en % du prix
+  const gross = new Map<TicketLine, { price: number; discount: number }>()
+  const track = (line: TicketLine, i: SoldItemView) => {
+    const g = gross.get(line) ?? { price: 0, discount: 0 }
+    g.price += (i.lineUnitPrice ?? 0) * i.quantity
+    g.discount += i.lineDiscount ?? 0
+    gross.set(line, g)
+  }
   items.forEach((i, k) => {
     const total = sign * (ttc[k] ?? 0)
     if (i.menuGroup != null) {
@@ -101,14 +118,22 @@ export function ticketLinesFromItems(items: SoldItemView[], ttc: number[], sign 
         line.parts!.push(part)
         line.total = round2(line.total + total)
         line.unit = round2(line.total / line.quantity)
+        track(line, i)
         return
       }
       const created: TicketLine = { quantity: i.quantity, name: i.menuName ?? 'Formule', unit: round2(total / i.quantity), total, taxRate: i.taxRate, parts: [part] }
       menus.set(i.menuGroup, created)
       out.push(created)
+      track(created, i)
       return
     }
-    out.push({ quantity: i.quantity, name: i.name, detail: soldItemDetail(i), unit: round2(total / i.quantity), total, taxRate: i.taxRate })
+    const single: TicketLine = { quantity: i.quantity, name: i.name, detail: soldItemDetail(i), unit: round2(total / i.quantity), total, taxRate: i.taxRate }
+    track(single, i)
+    out.push(single)
+  })
+  // Champ ajouté seulement quand une remise existe : les autres lignes restent identiques
+  gross.forEach((g, line) => {
+    if (g.discount > 0 && g.price > 0) line.discountPercent = Math.round((Math.min(g.discount, g.price) / g.price) * 1000) / 10
   })
   return out
 }
@@ -259,6 +284,7 @@ export function layoutTicket(t: TicketModel, width: number): Array<{ text: strin
     // Formule : le taux de TVA est porté par chaque composant
     out.push({ text: pair(name, l.parts ? money(l.total) : `${money(l.total)} ${codes.get(l.taxRate) ?? ''}`.trim()) })
     if (l.quantity !== 1) out.push({ text: `   ${money(l.unit)} l'unité` })
+    if (l.discountPercent) out.push({ text: `   dont remise ${String(l.discountPercent).replace('.', ',')} %` })
     if (l.detail) wrap(l.detail, width - 3).forEach((d) => out.push({ text: `   ${d}` }))
     for (const p of l.parts ?? []) out.push({ text: pair(`   ${p.name}`, `${money(p.total)} ${codes.get(p.taxRate) ?? ''}`.trim()) })
   }

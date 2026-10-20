@@ -148,4 +148,11 @@ export class CheckoutDto {
   @IsOptional()
   @IsNumber()
   printerId?: number
+
+  // Code à 4 chiffres d'un responsable : demandé à un vendeur qui remise
+  // au-delà de la limite (SELLER_DISCOUNT_MAX_PERCENT)
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  managerPin?: string
 }

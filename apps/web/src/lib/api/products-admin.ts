@@ -16,8 +16,14 @@ export interface CreateProductPayload {
   isMenu?: boolean
   soldByWeight?: boolean
   scaleCode?: string | null
+  // Seuil d'alerte de stock bas ; null (modification) l'efface
+  alertAt?: number | null
   modifierGroupIds?: string[]
   menuSteps?: Array<{ name: string; minSelect: number; maxSelect: number; choices: Array<{ productId: string; supplement: number }> }>
+  // Suivi du stock : sans lot, par lot, par date limite ou par numéro de série
+  tracking?: 'NONE' | 'LOT' | 'LOT_EXPIRY' | 'SERIAL'
+  // Valeurs des champs de la fiche (millésime, origine...), validées par l'API
+  attributes?: Record<string, unknown>
 }
 
 export interface CreateCategoryPayload {
@@ -25,7 +31,20 @@ export interface CreateCategoryPayload {
   color?: string
 }
 
+export interface AttributeDefinitionApi {
+  id: string
+  key: string
+  label: string
+  type: string
+  options: string[]
+  pack: string | null
+  required: boolean
+}
+
 export const productsAdminApi = {
+  attributeDefinitions: (siteId: string) =>
+    apiClient<AttributeDefinitionApi[]>(`/sites/${siteId}/products/attribute-definitions`),
+
   getAll: (siteId: string) =>
     apiClient<ApiProduct[]>(`/sites/${siteId}/products?all=true`),
 

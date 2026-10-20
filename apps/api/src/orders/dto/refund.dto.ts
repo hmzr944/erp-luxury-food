@@ -41,4 +41,16 @@ export class RefundDto {
   @Min(1)
   @Max(60)
   creditMonths?: number
+
+  // Identifiant de ce retour, fourni par l'écran : le rejouer ne rembourse pas deux fois
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  clientId?: string
+
+  // Code à 4 chiffres d'un responsable (OWNER ou MANAGER) : demandé à un vendeur
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  managerPin?: string
 }

@@ -14,12 +14,22 @@ import { PrintingService } from '../printing/printing.service'
 import { StockService } from '../stock/stock.service'
 import type { CheckoutDto } from './dto/checkout.dto'
 import { Prisma, type Channel, type PaymentKind, type PaymentMode } from '@prisma/client'
-import { RECEIPT_GENESIS_HASH, businessDate, canonicalSaleContent, checkPayments, scaleRulesFrom } from '@erp/utils'
+import { RECEIPT_GENESIS_HASH, SELLER_DISCOUNT_MAX_PERCENT, businessDate, canonicalSaleContent, checkPayments, isDiscountManager, scaleRulesFrom, sellerDiscountExcess } from '@erp/utils'
 import { verifyTerminalReceipt } from '../compliance/terminal-receipt'
 import type { SyncSaleDto } from './dto/sync-sale.dto'
 import { buildOrderDraft, draftContent, OrderDraftError, type DraftInput, type OrderDraft } from './order-draft'
 import { redeemCredit } from './credits'
 import { CustomersService, giftCardsOf } from '../customers/customers.service'
+import { AuditService } from '../audit/audit.service'
+import { ManagerAuthorization, type Requester } from '../auth/manager-authorization'
+
+// Remises au-delà de la limite d'un vendeur, pour la note de la vente et le journal
+export function discountExcessNotes(draft: OrderDraft, orderDiscount?: number): string[] {
+  return sellerDiscountExcess(
+    draft.items.map((i) => ({ name: i.name, unitPrice: i.price, quantity: i.quantity, discount: i.discount })),
+    orderDiscount,
+  ).map((e) => `${e.name ?? 'Article'} : ${String(e.percent).replace('.', ',')} %`)
+}
 
 const ORDER_INCLUDE = {
   items: { include: { product: { select: { name: true } } } },
@@ -39,10 +49,14 @@ export class OrdersService {
     private stock: StockService,
     private eventEmitter: EventEmitter2,
     private customers: CustomersService,
+    private audit: AuditService,
+    private authorization: ManagerAuthorization,
   ) {}
 
   // Vente encaissée par le serveur (API, B2B, intégrations)
-  async checkout(siteId: string, dto: CheckoutDto) {
+  // `actor` : l'utilisateur qui encaisse. Un vendeur ne remise pas au-delà de
+  // SELLER_DISCOUNT_MAX_PERCENT sans le code d'un responsable (managerPin).
+  async checkout(siteId: string, dto: CheckoutDto, actor?: Requester) {
     const order = await this.prisma.$transaction(async (tx) => {
       const ref = await this.loadReference(tx, siteId, referencedProducts(dto.items), true)
       const draft = this.draft({
@@ -59,14 +73,21 @@ export class OrdersService {
       const issues = this.paymentIssues(draft, ref, dto.nonResident)
       if (issues.length) throw new BadRequestException(issues.join(' '))
 
+      // Vente encaissée par le serveur : la limite du vendeur s'applique avant d'enregistrer
+      const excess = actor && !isDiscountManager(actor.role) ? discountExcessNotes(draft, dto.orderDiscount) : []
+      const authorizer = excess.length ? await this.authorization.authorize(actor!, dto.managerPin, 'remise hors limite') : null
+
       const total = new Decimal(draft.pricing.total)
       const receipt = await this.compliance.signReceipt(tx, siteId, { total, kind: 'SALE', content: draftContent(draft) })
       const order = await this.persistOrder(tx, siteId, draft, {
         channel: dto.channel ?? 'IN_STORE',
         customerEmail: dto.customerEmail,
-        note: dto.note,
+        note: [dto.note, ...(authorizer ? [`Remise au-delà de ${SELLER_DISCOUNT_MAX_PERCENT} % autorisée par ${authorizer.name} : ${excess.join(', ')}`] : [])].filter(Boolean).join('\n') || undefined,
         receiptChainId: receipt.id,
       })
+      if (authorizer && actor) {
+        await this.audit.log({ organizationId: actor.organizationId, userId: actor.id, action: 'sale.discount_authorized', target: order.id, detail: `Autorisée par ${authorizer.name} (${authorizer.id}) : ${excess.join(', ')}` })
+      }
       await this.redeemCredits(tx, ref.organizationId, draft, order.id, true)
       await this.customers.applyToSale(tx, this.loyaltyInput(ref, draft, order.id, dto, true))
       return order
@@ -79,7 +100,7 @@ export class OrdersService {
   // Vente signée par une caisse (en ligne ou au retour du réseau).
   // Le ticket a déjà été remis au client : on vérifie qu'il est authentique
   // et intact, puis on l'enregistre. Renvoyer la même vente ne crée rien.
-  async syncSignedSale(siteId: string, dto: SyncSaleDto) {
+  async syncSignedSale(siteId: string, dto: SyncSaleDto, actor?: Requester) {
     const existing = await this.prisma.order.findUnique({
       where: { clientId: dto.clientId },
       include: ORDER_INCLUDE,
@@ -113,6 +134,7 @@ export class OrdersService {
     })
     if (!check.ok) throw new UnprocessableEntityException(check.reason)
 
+    let overLimit: string[] = []
     const order = await this.prisma.$transaction(async (tx) => {
       // Continuité de la chaîne de la caisse : ni trou, ni retour en arrière.
       // Verrou par caisse : deux envois simultanés sont traités l'un après l'autre
@@ -171,8 +193,12 @@ export class OrdersService {
 
       // La vente a déjà eu lieu : une règle d'encaissement non respectée est signalée
       const paymentIssues = this.paymentIssues(draft, ref, dto.nonResident)
+      // Règle fiscale : une vente signée n'est jamais refusée pour un motif de gestion.
+      // Remise au-delà de la limite d'un vendeur : acceptée, signalée sur la vente et au journal
+      const discountExcess = actor && !isDiscountManager(actor.role) ? discountExcessNotes(draft, dto.orderDiscount) : []
       const notes = [
         dto.note,
+        ...(discountExcess.length ? [`Remise hors limite (vendeur, au-delà de ${SELLER_DISCOUNT_MAX_PERCENT} %) : ${discountExcess.join(', ')}`] : []),
         ...(dto.nonResident ? ['Client non résident déclaré (plafond espèces 15 000 €)'] : []),
         ...paymentIssues.map((i) => `Règle d’encaissement : ${i}`),
         ...draft.priceDifferences.map((d) => `Prix signé différent du catalogue — ${d}`),
@@ -201,6 +227,7 @@ export class OrdersService {
         soldAt: signedAt,
         createdAt: await this.bookingDate(tx, siteId, signedAt),
       })
+      overLimit = discountExcess
       // Vente déjà faite hors ligne : un avoir insuffisant est signalé, pas refusé
       const shortfalls = [
         ...(await this.redeemCredits(tx, ref.organizationId, draft, order.id, false)),
@@ -223,6 +250,16 @@ export class OrdersService {
       throw e
     })
 
+    if (actor && overLimit.length) {
+      await this.audit.log({
+        organizationId: actor.organizationId,
+        userId: actor.id,
+        action: 'sale.discount_over_limit',
+        target: order.id,
+        terminalId: dto.terminalId,
+        detail: `Remise hors limite (vendeur, au-delà de ${SELLER_DISCOUNT_MAX_PERCENT} %) : ${overLimit.join(', ')}`,
+      })
+    }
     this.afterOrder(siteId, order)
     return order
   }

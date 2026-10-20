@@ -1,8 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import type { PaymentProvider, TerminalPayment } from '@prisma/client'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { decryptSecret, encryptSecret, maskSecret } from '../common/crypto/secrets'
+import { AuditService } from '../audit/audit.service'
+import { isManagerRole } from '../auth/manager-authorization'
 import { CONNECTORS, ConnectorError, type ConnectorContext, type Http } from './connectors'
 
 // Au-delà, une demande restée sans réponse est abandonnée (le client est parti,
@@ -11,6 +13,8 @@ const PAYMENT_TIMEOUT_MS = 3 * 60_000
 // Paiement par QR : le client a le temps de sortir son téléphone. Stripe
 // impose au moins 30 minutes de validité à une session de paiement.
 const QR_VALIDITY_MS = 31 * 60_000
+
+export const CANCEL_UNCONFIRMED = "L'annulation n'a pas été confirmée par le terminal : vérifiez sur le TPE"
 
 type PaymentView = Pick<
   TerminalPayment,
@@ -26,6 +30,7 @@ export class PaymentsService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private audit: AuditService,
   ) {}
 
   // ── Comptes prestataires ────────────────────────────────────
@@ -250,25 +255,62 @@ export class PaymentsService {
     if (latest.status !== 'PENDING') return this.view(latest)
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { organizationId: true } })
     if (payment.providerRef) {
-      const ctx = await this.context(site.organizationId, payment.provider)
-      const connector = this.connector(payment.provider)
-      if (payment.device) await connector.cancel(ctx, { readerId: payment.device.externalId, providerRef: payment.providerRef }).catch(() => {})
-      else await connector.cancelLink?.(ctx, { providerRef: payment.providerRef }).catch(() => {})
+      // Le paiement ne passe à « annulé » que si le prestataire confirme : sinon
+      // la carte peut encore être débitée sans vente.
+      try {
+        const ctx = await this.context(site.organizationId, payment.provider)
+        const connector = this.connector(payment.provider)
+        if (payment.device) await connector.cancel(ctx, { readerId: payment.device.externalId, providerRef: payment.providerRef })
+        else await connector.cancelLink?.(ctx, { providerRef: payment.providerRef })
+      } catch (e) {
+        this.logger.warn(`Annulation du paiement ${payment.id} non confirmée : ${(e as Error).message}`)
+        // Le client a peut-être payé entre-temps, ou l'annulation a abouti malgré l'erreur
+        const after = await this.refreshOne(payment)
+        if (after.status !== 'PENDING') return this.view(after)
+        throw new ConflictException({ message: CANCEL_UNCONFIRMED, code: 'CANCEL_UNCONFIRMED', payment: this.view(after) })
+      }
     }
     return this.view(await this.settle(payment.id, 'CANCELED', 'Annulé depuis la caisse'))
   }
 
-  // TPE virtuel, ou lecteur simulé Stripe en mode test
-  async simulate(siteId: string, id: string, approve: boolean) {
+  // TPE virtuel, ou lecteur simulé Stripe en mode test. Réservé aux responsables,
+  // journalisé, et refusé dès que l'organisation encaisse pour de vrai : un
+  // vendeur ne doit jamais pouvoir « accepter » une carte qui n'existe pas.
+  async simulate(siteId: string, id: string, approve: boolean, user: { id: string; organizationId: string; role?: string }) {
+    const refuse = async (reason: string, message: string, payment?: string): Promise<never> => {
+      await this.audit.log({ organizationId: user.organizationId, userId: user.id, action: 'payment.simulate_refused', target: payment ?? id, detail: reason })
+      throw new ForbiddenException(message)
+    }
+    if (!isManagerRole(user.role)) return refuse(`rôle ${user.role ?? 'inconnu'}`, 'La simulation de paiement est réservée aux responsables')
+
     const payment = await this.prisma.terminalPayment.findFirst({ where: { id, siteId, status: 'PENDING' }, include: { device: true } })
     if (!payment) throw new NotFoundException('Aucun paiement en attente')
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { organizationId: true } })
+    const accounts = await this.prisma.paymentAccount.findMany({ where: { organizationId: site.organizationId }, select: { provider: true, testMode: true } })
+    const log = (detail: string) =>
+      this.audit.log({ organizationId: user.organizationId, userId: user.id, action: 'payment.simulated', target: payment.id, detail })
+
     if (payment.provider === 'SIMULATOR') {
+      // Compte explicitement en mode test : la démonstration reste possible.
+      // Sinon : refus dès qu'un compte réel est relié ou qu'une vente réelle a eu lieu.
+      const explicitTest = accounts.length > 0 && accounts.every((a) => a.testMode)
+      if (!explicitTest) {
+        if (accounts.some((a) => !a.testMode)) return refuse('compte de paiement réel relié', 'TPE virtuel indisponible : un compte de paiement réel est relié à cette organisation', payment.id)
+        const real = await this.prisma.order.findFirst({
+          where: {
+            kind: 'SALE',
+            status: { not: 'CANCELLED' },
+            site: { organizationId: site.organizationId },
+            payments: { some: { kind: 'CARD', reference: { not: null }, NOT: { reference: { startsWith: 'sim' } } } },
+          },
+          select: { id: true },
+        })
+        if (real) return refuse('ventes réelles par carte', 'TPE virtuel indisponible : cette organisation a déjà encaissé des ventes réelles par carte', payment.id)
+      }
+      await log(`TPE virtuel, ${approve ? 'carte acceptée' : 'carte refusée'}`)
       return this.view(await this.settle(id, approve ? 'SUCCEEDED' : 'FAILED', approve ? undefined : 'Carte refusée'))
     }
-    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { organizationId: true } })
-    const account = await this.prisma.paymentAccount.findUnique({
-      where: { organizationId_provider: { organizationId: site.organizationId, provider: payment.provider } },
-    })
+    const account = accounts.find((a) => a.provider === payment.provider)
     const simulate = this.connector(payment.provider).simulate
     if (!account?.testMode || !simulate || !payment.providerRef || !payment.device) throw new BadRequestException('Simulation possible uniquement en mode test')
     await simulate(await this.context(site.organizationId, payment.provider), {
@@ -276,6 +318,7 @@ export class PaymentsService {
       providerRef: payment.providerRef,
       approve,
     }).catch(this.toHttp)
+    await log(`${payment.provider} en mode test, ${approve ? 'carte acceptée' : 'carte refusée'}`)
     return this.get(siteId, id)
   }
 
@@ -326,7 +369,8 @@ export class PaymentsService {
       const remote = await connector.status(ctx, { readerId: device.externalId, providerRef: payment.providerRef })
       if (remote.status !== 'PENDING') return this.settle(payment.id, remote.status, remote.failureReason)
       if (expired) {
-        await connector.cancel(ctx, { readerId: device.externalId, providerRef: payment.providerRef }).catch(() => {})
+        // Sans confirmation du prestataire, le paiement reste en attente (carte peut-être débitée)
+        await connector.cancel(ctx, { readerId: device.externalId, providerRef: payment.providerRef })
         return this.settle(payment.id, 'FAILED', 'Pas de réponse du TPE')
       }
     } catch (e) {

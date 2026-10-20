@@ -148,6 +148,10 @@ export interface RefundPayload {
   reason?: string
   customerEmail?: string
   creditMonths?: number
+  // Identifiant de ce retour : le rejouer (double clic) ne rembourse pas deux fois
+  clientId?: string
+  // Code à 4 chiffres d'un responsable, demandé à un vendeur
+  managerPin?: string
 }
 
 export interface StoreCreditView {

@@ -1,11 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Minus, Plus, Trash, UserCircle, X } from '@phosphor-icons/react'
-import { formatPrice, rewardsAvailable } from '@erp/utils'
-import { isFixedLine, lineDetail, loyaltyRoom, useCartStore, type CartLine } from '@/stores/cart.store'
+import { Minus, Plus, Tag, Trash, UserCircle, X } from '@phosphor-icons/react'
+import { discountPercent, discountReasonLabel, formatPrice, rewardsAvailable } from '@erp/utils'
+import { hasManualDiscount, isFixedLine, lineDetail, loyaltyRoom, ticketDiscountRoom, useCartStore, withTicketDiscount, type CartLine } from '@/stores/cart.store'
 import type { LoyaltySettings } from '@/lib/api/customers'
 import { EASE } from './Sheet'
+import { DiscountSheet, type DiscountTarget } from './DiscountSheet'
 
 interface TicketProps {
   totals: { subtotal: number; taxAmount: number; total: number; itemCount: number }
@@ -19,8 +21,11 @@ interface TicketProps {
 }
 
 export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState, loyalty, onCustomer }: TicketProps) {
-  const { lines, clearCart, loyalty: used } = useCartStore()
+  const { lines, clearCart, loyalty: used, ticketDiscount } = useCartStore()
   const empty = lines.length === 0
+  const [discounting, setDiscounting] = useState<DiscountTarget | null>(null)
+  // Remise du ticket : part retirée sur l'ensemble des lignes éligibles
+  const ticketAmount = ticketDiscount ? withTicketDiscount(lines, ticketDiscount).reduce((a, l, i) => a + Math.round((l.discount - lines[i].discount) * 100), 0) / 100 : 0
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -55,7 +60,7 @@ export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState, loyal
           <ul aria-label="Articles de la vente">
             <AnimatePresence initial={false}>
               {lines.map((line) => (
-                <TicketLine key={line.key} line={line} />
+                <TicketLine key={line.key} line={line} onDiscount={() => setDiscounting({ kind: 'line', key: line.key })} />
               ))}
             </AnimatePresence>
           </ul>
@@ -64,7 +69,25 @@ export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState, loyal
 
       <div className="border-t border-[var(--color-border)] px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {loyalty?.enabled && onCustomer && <CustomerRow rules={loyalty} onCustomer={onCustomer} />}
+        {!empty && ticketDiscountRoom(lines) > 0 && (
+          <button
+            type="button"
+            onClick={() => setDiscounting({ kind: 'ticket' })}
+            className="mb-3 flex h-11 w-full items-center gap-2 rounded-[var(--radius-pill)] border border-dashed border-[var(--color-border-strong)] px-4 text-sm font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]"
+          >
+            <Tag size={20} aria-hidden /> {ticketDiscount ? 'Modifier la remise sur le ticket' : 'Remise sur le ticket'}
+          </button>
+        )}
         <dl className="space-y-1 text-sm text-[var(--color-text-secondary)]">
+          {ticketDiscount && ticketAmount > 0 && (
+            <div className="flex justify-between">
+              <dt>
+                Remise sur le ticket ({ticketDiscount.mode === 'percent' ? `${String(ticketDiscount.value).replace('.', ',')} %` : formatPrice(ticketDiscount.value)}
+                {ticketDiscount.reason ? `, ${discountReasonLabel(ticketDiscount.reason)}` : ''})
+              </dt>
+              <dd className="tabular">-{formatPrice(ticketAmount)}</dd>
+            </div>
+          )}
           {used && (
             <div className="flex justify-between">
               <dt>Fidélité ({used.points} points)</dt>
@@ -91,13 +114,16 @@ export function Ticket({ totals, priceIncludesTax, onCheckout, emptyState, loyal
           Encaisser
         </button>
       </div>
+      <DiscountSheet target={discounting} onClose={() => setDiscounting(null)} />
     </div>
   )
 }
 
 // Client de la vente : points, récompense à utiliser, détacher
 function CustomerRow({ rules, onCustomer }: { rules: LoyaltySettings; onCustomer: () => void }) {
-  const { lines, customer, setCustomer, loyalty, setLoyalty } = useCartStore()
+  const { lines, customer, setCustomer, loyalty, setLoyalty, ticketDiscount } = useCartStore()
+  // Récompense fidélité et remise manuelle ne se cumulent pas
+  const manual = hasManualDiscount(lines, ticketDiscount)
   if (!customer) {
     return (
       <button
@@ -136,11 +162,11 @@ function CustomerRow({ rules, onCustomer }: { rules: LoyaltySettings; onCustomer
       ) : available.count > 0 ? (
         <button
           type="button"
-          disabled={fits === 0}
+          disabled={fits === 0 || manual}
           onClick={() => setLoyalty({ points: fits * rules.threshold, amount: Math.round(fits * rules.reward * 100) / 100 })}
           className="mt-2 h-11 w-full rounded-[var(--radius-pill)] bg-[var(--color-bg-inverse)] text-sm font-semibold text-[var(--color-text-inverse)] disabled:opacity-50"
         >
-          {fits === 0 ? `${formatPrice(rules.reward)} offerts dès ${formatPrice(rules.reward)} d’achat` : `Utiliser ${formatPrice(fits * rules.reward)} offerts`}
+          {manual ? 'Remise manuelle en cours : pas de récompense' : fits === 0 ? `${formatPrice(rules.reward)} offerts dès ${formatPrice(rules.reward)} d’achat` : `Utiliser ${formatPrice(fits * rules.reward)} offerts`}
         </button>
       ) : (
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
@@ -151,9 +177,12 @@ function CustomerRow({ rules, onCustomer }: { rules: LoyaltySettings; onCustomer
   )
 }
 
-function TicketLine({ line }: { line: CartLine }) {
+function TicketLine({ line, onDiscount }: { line: CartLine; onDiscount: () => void }) {
   const { setQuantity, removeLine } = useCartStore()
-  const lineTotal = line.product.price * line.quantity - line.discount
+  const gross = line.product.price * line.quantity
+  const lineTotal = gross - line.discount
+  const name = line.product.giftCard ? 'Carte cadeau' : line.product.name
+  const reason = discountReasonLabel(line.discountSpec?.reason)
 
   return (
     <motion.li
@@ -167,6 +196,17 @@ function TicketLine({ line }: { line: CartLine }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-medium">{line.product.giftCard ? 'Carte cadeau' : line.product.name}</p>
         <p className="line-clamp-2 text-sm text-[var(--color-text-secondary)]">{lineDetail(line) || formatPrice(line.product.price)}</p>
+        {line.product.giftCard ? null : (
+          <button
+            type="button"
+            onClick={onDiscount}
+            aria-label={line.discount > 0 ? `Modifier la remise sur ${name}` : `Remise sur ${name}`}
+            className="-ml-2 mt-0.5 flex min-h-11 items-center gap-1.5 rounded-[var(--radius-md)] px-2 py-1 text-left text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]"
+          >
+            <Tag size={18} aria-hidden className="shrink-0" />
+            <span>{line.discount > 0 ? `Remise ${String(discountPercent(line.discount, gross)).replace('.', ',')} %${reason ? `, ${reason}` : ''}` : 'Remise'}</span>
+          </button>
+        )}
       </div>
 
       {isFixedLine(line) ? (
@@ -202,7 +242,14 @@ function TicketLine({ line }: { line: CartLine }) {
         </div>
       )}
 
-      <span className="tabular w-20 text-right text-[15px] font-medium">{formatPrice(lineTotal)}</span>
+      <span className="tabular w-20 text-right text-[15px] font-medium">
+        {line.discount > 0 && (
+          <s className="block text-sm font-normal text-[var(--color-text-secondary)]" aria-label={`Prix avant remise ${formatPrice(gross)}`}>
+            {formatPrice(gross)}
+          </s>
+        )}
+        {formatPrice(lineTotal)}
+      </span>
     </motion.li>
   )
 }

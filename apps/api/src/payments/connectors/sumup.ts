@@ -107,6 +107,6 @@ export const sumupConnector: PaymentConnector = {
   },
 
   async cancel(ctx, input) {
-    await call(ctx, 'POST', `/v0.1/merchants/${merchant(ctx)}/readers/${encodeURIComponent(input.readerId)}/terminate`).catch(() => {})
+    await call(ctx, 'POST', `/v0.1/merchants/${merchant(ctx)}/readers/${encodeURIComponent(input.readerId)}/terminate`)
   },
 }

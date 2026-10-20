@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { WarningCircle } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
-import { paymentsApi, type TerminalPayment } from '@/lib/api/payments'
+import { cancelPayment, paymentsApi, type TerminalPayment } from '@/lib/api/payments'
+import { useAuthStore } from '@/stores/auth.store'
 
 type View = { kind: 'creating' } | { kind: 'waiting'; payment: TerminalPayment } | { kind: 'failed'; message: string }
 
@@ -26,6 +27,9 @@ export function QrPayWait({
 }) {
   const [view, setView] = useState<View>({ kind: 'creating' })
   const [attempt, setAttempt] = useState(0)
+  const role = useAuthStore((st) => st.user?.role)
+  const canSimulate = role === 'OWNER' || role === 'MANAGER'
+  const [cancelIssue, setCancelIssue] = useState<string | null>(null)
   const [svg, setSvg] = useState('')
   const clientSaleId = useRef(crypto.randomUUID())
   const done = useRef(false)
@@ -80,8 +84,12 @@ export function QrPayWait({
       .catch(() => setSvg(''))
   }, [payment?.checkoutUrl])
 
+  // On ne quitte l'attente que si le QR code est bien clos chez le prestataire
   const cancel = async () => {
-    if (payment) await paymentsApi.cancel(siteId, payment.id).catch(() => {})
+    if (payment) {
+      const r = await cancelPayment(siteId, payment.id)
+      if (!r.done) return setCancelIssue(r.message ?? null)
+    }
     onBack()
   }
 
@@ -116,18 +124,26 @@ export function QrPayWait({
 
       {payment?.provider === 'SIMULATOR' && (
         <div className="space-y-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-border-strong)] p-3">
-          <p className="text-sm text-[var(--color-text-secondary)]">Paiement de test : donnez la réponse de la banque.</p>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            {canSimulate ? 'Paiement de test : donnez la réponse de la banque.' : 'Paiement de test : seul un responsable peut répondre à la place de la banque.'}
+          </p>
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => paymentsApi.simulate(siteId, payment.id, true)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium">
+            <button type="button" disabled={!canSimulate} onClick={() => paymentsApi.simulate(siteId, payment.id, true)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium disabled:opacity-40">
               Paiement accepté
             </button>
-            <button type="button" onClick={() => paymentsApi.simulate(siteId, payment.id, false)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium">
+            <button type="button" disabled={!canSimulate} onClick={() => paymentsApi.simulate(siteId, payment.id, false)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium disabled:opacity-40">
               Paiement refusé
             </button>
           </div>
         </div>
       )}
 
+      {cancelIssue && (
+        <p role="alert" className="flex items-start gap-3 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-4 text-[15px] font-medium">
+          <WarningCircle size={22} weight="fill" aria-hidden className="mt-px shrink-0" />
+          {cancelIssue}
+        </p>
+      )}
       <button type="button" onClick={() => void cancel()} className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium">
         Annuler le QR code
       </button>

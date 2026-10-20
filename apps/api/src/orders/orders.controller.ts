@@ -23,7 +23,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { RefundsService } from './refunds.service'
 import { RefundDto } from './dto/refund.dto'
 
-type AuthUser = { id: string; email?: string; organizationId: string }
+type AuthUser = { id: string; email?: string; organizationId: string; role?: string }
 
 // Retours et annulations passent par le remboursement signé, pas par le statut
 class UpdateStatusDto {
@@ -65,8 +65,8 @@ export class OrdersController {
 
   @Post('checkout')
   @HttpCode(HttpStatus.CREATED)
-  checkout(@Param('siteId') siteId: string, @Body() dto: CheckoutDto) {
-    return this.orders.checkout(siteId, dto)
+  checkout(@Param('siteId') siteId: string, @Body() dto: CheckoutDto, @CurrentUser() user: AuthUser) {
+    return this.orders.checkout(siteId, dto, user)
   }
 
   // Vente signée par une caisse ; idempotent sur clientId. Accessible à un
@@ -75,8 +75,8 @@ export class OrdersController {
   @Post('sync')
   @OrgScopedSite()
   @HttpCode(HttpStatus.OK)
-  sync(@Param('siteId') siteId: string, @Body() dto: SyncSaleDto) {
-    return this.orders.syncSignedSale(siteId, dto)
+  sync(@Param('siteId') siteId: string, @Body() dto: SyncSaleDto, @CurrentUser() user: AuthUser) {
+    return this.orders.syncSignedSale(siteId, dto, user)
   }
 
   @Get()
@@ -101,7 +101,8 @@ export class OrdersController {
     })
   }
 
-  // Retour : ticket négatif signé, carte remboursée sur le TPE connecté ou avoir
+  // Retour : ticket négatif signé, carte remboursée sur le TPE connecté ou avoir.
+  // Responsable : seul. Vendeur : avec le code d'un responsable (managerPin).
   @Post(':id/refund')
   @HttpCode(HttpStatus.CREATED)
   refund(@Param('siteId') siteId: string, @Param('id') id: string, @Body() dto: RefundDto, @CurrentUser() user: AuthUser) {

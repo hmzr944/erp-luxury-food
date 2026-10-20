@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { formatPrice, giftCardLineName, priceForWeight, priceMenu, priceOrder, priceWithModifiers, type ModifierChoice, type ScaleBarcode } from '@erp/utils'
+import { useExpiredWarning } from '@/components/stock/lots/useExpiredWarning'
+import { discountPercent, formatPrice, giftCardLineName, priceForWeight, priceMenu, priceOrder, priceWithModifiers, type ModifierChoice, type ScaleBarcode } from '@erp/utils'
 import { productsApi, type ApiProduct, type ApiVariant } from '@/lib/api/products'
 import { sitesApi } from '@/lib/api/sites'
 import { paymentsApi, type PaymentDevice } from '@/lib/api/payments'
 import { usePlatformConfig } from '@/lib/api/platform'
 import { ensureTerminal, recordSale, type TerminalNotRegisteredError } from '@/lib/terminal/terminal'
-import { useCartStore, computeCartTotals, isFixedLine, lineDetail, loyaltyRoom, saleItems, signedItem, withLoyalty, type CartMenuPart } from '@/stores/cart.store'
+import { useCartStore, computeCartTotals, discountNote, isFixedLine, lineDetail, loyaltyRoom, saleItems, signedItem, withLoyalty, withTicketDiscount, type CartMenuPart } from '@/stores/cart.store'
 import { customerName, customersApi } from '@/lib/api/customers'
 import { CustomerSheet, GiftCardSheet } from './LoyaltySheets'
 import { useDisplayPublisher } from '@/lib/display/publisher'
@@ -25,6 +26,7 @@ import { MenuComposer, ModifierSheet, WeightSheet, groupsOf } from './Compositio
 import { PaymentSheet, type PayOptions, type ReceiptView } from './PaymentSheet'
 import { Sheet, EASE } from './Sheet'
 import { useSaleQueue } from './useSaleQueue'
+import { StorageAlert } from './StorageAlert'
 import { CustomItemSheet, QuickProductSheet } from './QuickSheets'
 import type { PayLine } from './CreditPayment'
 import { ReturnFinder } from './ReturnFinder'
@@ -54,7 +56,7 @@ interface POSClientProps {
 // Caisse : choisir les articles, encaisser, ticket signé. Trois gestes pour
 // une vente simple, sans dépendre du réseau.
 export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps) {
-  const { lines, orderDiscount, addProduct, clearCart, customer, loyalty, setCustomer, setLoyalty } = useCartStore()
+  const { lines, orderDiscount, ticketDiscount, addProduct, clearCart, customer, loyalty, setCustomer, setLoyalty } = useCartStore()
   const { data: config } = usePlatformConfig()
   const queue = useSaleQueue(siteId)
   const [terminalName, setTerminalName] = useState<string>()
@@ -281,7 +283,8 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
   }, [siteId])
 
   const priceIncludesTax = config?.priceIncludesTax ?? true
-  const totals = computeCartTotals(lines, orderDiscount, priceIncludesTax, loyalty?.amount)
+  const totals = computeCartTotals(lines, orderDiscount, priceIncludesTax, loyalty?.amount, ticketDiscount)
+  const ticketDiscountAmount = ticketDiscount ? withTicketDiscount(lines, ticketDiscount).reduce((a, l, i) => a + l.discount - lines[i].discount, 0) : 0
   // Articles retirés après la récompense : elle ne peut plus dépasser la vente
   useEffect(() => {
     if (!loyalty) return
@@ -312,9 +315,12 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
             name: l.customName ?? l.product.name,
             detail: lineDetail(l) || undefined,
             total: Math.round((l.product.price * l.quantity - l.discount) * 100) / 100,
+            // Remise de la ligne : prix d'origine et part retirée, visibles du client
+            ...(l.discount > 0 ? { before: Math.round(l.product.price * l.quantity * 100) / 100, percent: discountPercent(l.discount, l.product.price * l.quantity) } : {}),
           })),
           lastKey: lastAddedKey,
-          discount: totals.discount,
+          // Remise du ticket entier (déjà répartie dans le total) et remise globale
+          discount: Math.round((totals.discount + ticketDiscountAmount) * 100) / 100,
           total: totals.total,
           taxAmount: totals.taxAmount,
           priceIncludesTax,
@@ -339,6 +345,7 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
     mealVoucher: !!product.mealVoucherEligible,
   })
 
+  const warnExpired = useExpiredWarning(siteId)
   const add = useCallback(
     (product: ApiProduct, variant?: ApiVariant, serialNumber?: string, modifiers: ModifierChoice[] = []) => {
       addProduct(cartProduct(product, priceWithModifiers(Number(variant?.price ?? product.price), modifiers)), {
@@ -347,10 +354,11 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
         serialNumber,
         ...(modifiers.length ? { modifiers } : {}),
       })
+      warnExpired(product)
       setPicking(null)
       setModifying(null)
     },
-    [addProduct],
+    [addProduct, warnExpired],
   )
 
   // Variante et n° de série choisis : reste les options, s'il y en a
@@ -395,7 +403,7 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
     setBusy(true)
     setPayError(null)
     // Récompense fidélité : remises de ligne, imprimées et signées avec la vente
-    const sold = withLoyalty([...lines], loyalty?.amount)
+    const sold = withLoyalty(withTicketDiscount([...lines], ticketDiscount), loyalty?.amount)
     const items = saleItems(sold)
     const labels = new Map(methods.map((m) => [m.code, m.label]))
     const cashCodes = new Set(methods.filter((m) => m.kind === 'CASH').map((m) => m.code))
@@ -446,6 +454,7 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
         items: items.map(signedItem),
         payments,
         orderDiscount: orderDiscount || undefined,
+        note: discountNote(lines, ticketDiscount),
         customerEmail: email,
         customerId: customer?.id,
         loyaltyPointsUsed: loyalty?.points,
@@ -504,6 +513,7 @@ export function POSClient({ siteId, discovery: startDiscovery }: POSClientProps)
         />
         <RoutineBanner status={routine.data} onOpen={() => setChecklist('manual')} />
         <AccessNotice canSubscribe={manager} />
+        <StorageAlert siteId={siteId} online={queue.online} onFlush={queue.flush} canRestore={manager} />
         {training && (
           <div role="status" className="flex items-center justify-between gap-3 bg-[var(--color-bg-inverse)] px-4 py-2 text-sm font-semibold text-[var(--color-text-inverse)]">
             <span>Mode formation : ventes fictives, ni comptées, ni déstockées. Tickets marqués « fictif ».</span>

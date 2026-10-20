@@ -9,11 +9,12 @@ import { ComplianceModule } from '../compliance/compliance.module'
 import { PrintingModule } from '../printing/printing.module'
 import { StockModule } from '../stock/stock.module'
 import { CustomersModule } from '../customers/customers.module'
+import { ManagerAuthorization } from '../auth/manager-authorization'
 
 @Module({
   imports: [ComplianceModule, PrintingModule, StockModule, PaymentsModule, CustomersModule, JwtModule.register({})],
   controllers: [OrdersController, PickupController, CreditsController],
-  providers: [OrdersService, RefundsService, OrdersGateway],
+  providers: [OrdersService, RefundsService, OrdersGateway, ManagerAuthorization],
   exports: [OrdersService],
 })
 export class OrdersModule {}

@@ -104,7 +104,15 @@ function Sale({ state }: { state: SaleState }) {
                 <span className="block break-words text-[clamp(1.3rem,2.3vw,1.9rem)] font-semibold leading-tight">{l.name}</span>
                 {l.detail && <span className="mt-1 block text-[clamp(1rem,1.5vw,1.25rem)] leading-snug text-[var(--color-text-secondary)]">{l.detail}</span>}
               </span>
-              <span className="tabular shrink-0 text-[clamp(1.3rem,2.3vw,1.9rem)] font-medium">{formatPrice(l.total)}</span>
+              <span className="shrink-0 text-right">
+                {l.before !== undefined && (
+                  <span className="tabular block text-[clamp(1rem,1.5vw,1.25rem)] text-[var(--color-text-secondary)]">
+                    <s aria-label={`Prix avant remise ${formatPrice(l.before)}`}>{formatPrice(l.before)}</s>
+                    {l.percent ? <span className="ml-2">Remise {String(l.percent).replace('.', ',')} %</span> : null}
+                  </span>
+                )}
+                <span className="tabular block text-[clamp(1.3rem,2.3vw,1.9rem)] font-medium">{formatPrice(l.total)}</span>
+              </span>
             </motion.li>
           ))}
         </AnimatePresence>

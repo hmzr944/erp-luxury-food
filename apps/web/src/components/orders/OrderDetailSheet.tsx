@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle, Copy, Minus, Plus, Printer } from '@phosphor-icons/react'
@@ -269,6 +269,12 @@ function RefundForm({
   const [refundTo, setRefundTo] = useState<RefundTo>(single ? 'ORIGINAL' : 'CREDIT')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Un vendeur ne rembourse qu'avec le code d'un responsable ; un responsable n'a rien à saisir
+  const role = useAuthStore((st) => st.user?.role)
+  const needsManager = role !== 'OWNER' && role !== 'MANAGER'
+  const [managerPin, setManagerPin] = useState('')
+  // Même identifiant tant que ce retour n'est pas enregistré : un double clic ne rembourse pas deux fois
+  const clientId = useRef(crypto.randomUUID())
 
   const lines = Object.entries(qty)
     .filter(([, q]) => q > 0)
@@ -315,7 +321,7 @@ function RefundForm({
   const chosen = options.find((x) => x.value === refundTo) ?? options[0]
 
   const submit = async () => {
-    if (!plan) return
+    if (!plan || saving || (needsManager && managerPin.length !== 4)) return
     setSaving(true)
     setError(null)
     try {
@@ -324,12 +330,16 @@ function RefundForm({
         refundTo: chosen.value,
         restock,
         reason: reason ?? undefined,
+        clientId: clientId.current,
+        ...(needsManager ? { managerPin } : {}),
         ...(chosen.value === 'CREDIT' ? { creditMonths: 12 } : {}),
       })
       await Promise.all([qc.invalidateQueries({ queryKey: ['orders', siteId] }), qc.invalidateQueries({ queryKey: ['order', siteId, o.id] })])
       onDone({ total: plan.total, label: chosen.label, credit: res.credit })
     } catch (e) {
       setError((e as Error).message)
+      // Code refusé : on le ressaisit, sans laisser un faux code affiché
+      if (needsManager) setManagerPin('')
     } finally {
       setSaving(false)
     }
@@ -454,6 +464,26 @@ function RefundForm({
         <p className="text-sm text-[var(--color-text-secondary)]">{chosen.help}</p>
       </fieldset>
 
+      {needsManager && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold">Autorisation d&apos;un responsable</legend>
+          <p id="manager-pin-help" className="text-sm text-[var(--color-text-secondary)]">
+            Un responsable saisit son code à 4 chiffres pour autoriser ce remboursement.
+          </p>
+          <input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            value={managerPin}
+            onChange={(e) => setManagerPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            aria-label="Code du responsable"
+            aria-describedby="manager-pin-help"
+            className="tabular h-12 w-32 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-transparent px-4 text-center text-xl tracking-[0.4em]"
+          />
+        </fieldset>
+      )}
+
       {error && (
         <p role="alert" className="alert-box">
           {error}
@@ -466,10 +496,10 @@ function RefundForm({
         </button>
         <button
           type="submit"
-          disabled={!plan || saving}
+          disabled={!plan || saving || (needsManager && managerPin.length !== 4)}
           className="h-14 flex-1 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-lg font-semibold text-[var(--color-on-accent)] disabled:bg-[var(--color-bg-hover)] disabled:text-[var(--color-text-muted)] press"
         >
-          {saving ? 'Remboursement...' : plan ? `Rembourser ${formatPrice(plan.total)}` : 'Choisissez les articles'}
+          {saving ? 'Remboursement...' : !plan ? 'Choisissez les articles' : needsManager && managerPin.length !== 4 ? 'Code du responsable requis' : `Rembourser ${formatPrice(plan.total)}`}
         </button>
       </div>
     </form>

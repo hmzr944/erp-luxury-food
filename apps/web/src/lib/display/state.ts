@@ -7,6 +7,9 @@ export interface DisplayLine {
   name: string
   detail?: string
   total: number
+  // Ligne remisée : prix avant remise et part retirée (en %)
+  before?: number
+  percent?: number
 }
 
 export type DisplayState =
@@ -17,6 +20,7 @@ export type DisplayState =
       lines: DisplayLine[]
       // Dernière ligne ajoutée ou modifiée : mise en avant
       lastKey: string | null
+      // Remise sur le ticket entier ou globale, en euros
       discount: number
       total: number
       taxAmount: number

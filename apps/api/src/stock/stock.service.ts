@@ -1,9 +1,12 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { InjectQueue } from '@nestjs/bull'
 import type { Queue } from 'bull'
 import { Decimal } from '@prisma/client/runtime/library'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { AuditService } from '../audit/audit.service'
+import { applyStockDelta, consumeLotsFefo, readStock, type StockTarget } from './stock-adjust'
+import { CORRECTION_REASONS, reasonText, type CorrectionReason, type ManualMovementType } from './stock-rules'
 
 export interface StockDecrementPayload {
   siteId: string
@@ -35,6 +38,8 @@ export class StockService {
   constructor(
     private prisma: PrismaService,
     @InjectQueue('stock') private stockQueue: Queue,
+    // Le journal est global ; absent, les corrections s'enregistrent sans trace d'audit
+    @Optional() private audit?: AuditService,
   ) {}
 
   // Appelé depuis OrdersService (post-transaction, fire & forget)
@@ -58,7 +63,7 @@ export class StockService {
         // Lots : on sort d'abord ceux dont la date limite est la plus proche
         let lotId: string | null = null
         if (!item.serialNumber) {
-          lotId = await this.consumeLots(tx, payload.siteId, item.productId, item.variantId ?? null, qty)
+          lotId = await consumeLotsFefo(tx, { siteId: payload.siteId, productId: item.productId, variantId: item.variantId ?? null }, qty)
         }
 
         await tx.stockMovement.create({
@@ -96,30 +101,6 @@ export class StockService {
     const quantity = Decimal.max(stock.quantity.sub(qty), 0)
     await tx.variantStock.update({ where: { variantId }, data: { quantity } })
     return { quantity, alertAt: stock.alertAt }
-  }
-
-  // Renvoie le premier lot entamé (pour la traçabilité du mouvement)
-  private async consumeLots(
-    tx: Prisma.TransactionClient,
-    siteId: string,
-    productId: string,
-    variantId: string | null,
-    qty: Decimal,
-  ): Promise<string | null> {
-    const lots = await tx.stockLot.findMany({
-      where: { siteId, productId, variantId, serialNumber: null, quantity: { gt: 0 } },
-      orderBy: [{ expiresAt: { sort: 'asc', nulls: 'last' } }, { receivedAt: 'asc' }],
-    })
-    let left = qty
-    let first: string | null = null
-    for (const lot of lots) {
-      if (left.lte(0)) break
-      const take = Decimal.min(lot.quantity, left)
-      await tx.stockLot.update({ where: { id: lot.id }, data: { quantity: lot.quantity.sub(take) } })
-      first ??= lot.id
-      left = left.sub(take)
-    }
-    return first
   }
 
   // Réception de marchandise : crée les lots ou pièces numérotées et
@@ -220,73 +201,189 @@ export class StockService {
     })
   }
 
-  getInventory(siteId: string) {
-    return this.prisma.stockItem.findMany({
-      where: { siteId },
-      include: {
-        product: { select: { id: true, name: true, subtitle: true, sku: true } },
-      },
-      orderBy: { product: { name: 'asc' } },
-    })
+  // Une ligne par produit sans variante et par variante : le stock réel
+  // se compte à la variante près
+  async getInventory(siteId: string) {
+    const [items, variants] = await Promise.all([
+      this.prisma.stockItem.findMany({
+        where: { siteId, product: { isActive: true } },
+        include: { product: { select: { id: true, name: true, subtitle: true, sku: true, barcode: true, tracking: true } } },
+      }),
+      this.prisma.variantStock.findMany({
+        where: { siteId, variant: { isActive: true, product: { isActive: true } } },
+        include: {
+          variant: {
+            select: {
+              id: true, name: true, sku: true, barcode: true,
+              product: { select: { id: true, name: true, subtitle: true, sku: true, barcode: true, tracking: true } },
+            },
+          },
+        },
+      }),
+    ])
+    const rows = [
+      ...items.map((i) => ({
+        id: i.id, productId: i.productId, variantId: null as string | null, variantName: null as string | null,
+        siteId: i.siteId, quantity: i.quantity, unit: i.unit, alertAt: i.alertAt, updatedAt: i.updatedAt,
+        product: i.product,
+      })),
+      ...variants.map((v) => ({
+        id: v.id, productId: v.variant.product.id, variantId: v.variantId as string | null, variantName: v.variant.name as string | null,
+        siteId: v.siteId, quantity: v.quantity, unit: 'unité', alertAt: v.alertAt, updatedAt: v.updatedAt,
+        product: { ...v.variant.product, sku: v.variant.sku ?? v.variant.product.sku, barcode: v.variant.barcode ?? v.variant.product.barcode },
+      })),
+    ]
+    return rows.sort((a, b) => a.product.name.localeCompare(b.product.name, 'fr') || (a.variantName ?? '').localeCompare(b.variantName ?? '', 'fr'))
   }
 
+  // Produits et variantes dont le stock est au seuil d'alerte ou en dessous
   async getLowStockAlerts(siteId: string) {
-    const items = await this.prisma.stockItem.findMany({
-      where: { siteId, alertAt: { not: null } },
-      include: { product: { select: { id: true, name: true } } },
-    })
-    return items.filter((s) => s.alertAt && s.quantity.lte(s.alertAt))
+    const rows = await this.getInventory(siteId)
+    return rows.filter((s) => s.alertAt !== null && s.quantity.lte(s.alertAt))
   }
 
   getMovements(siteId: string, productId?: string, limit = 50) {
     return this.prisma.stockMovement.findMany({
       where: { siteId, ...(productId ? { productId } : {}) },
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: Math.min(Math.max(limit || 50, 1), 200),
     })
   }
 
+  // Produit du site et variante demandée : un produit à variantes se compte
+  // par variante, jamais au total
+  private async resolveTarget(siteId: string, productId: string, variantId?: string | null) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, siteId },
+      select: { id: true, name: true, tracking: true, variants: { where: { isActive: true }, select: { id: true, name: true } } },
+    })
+    if (!product) throw new NotFoundException('Produit introuvable sur ce site')
+    if (variantId && !product.variants.some((v) => v.id === variantId)) {
+      throw new BadRequestException('Variante inconnue pour ce produit')
+    }
+    if (!variantId && product.variants.length) throw new BadRequestException('Précisez la variante concernée')
+    const variant = product.variants.find((v) => v.id === variantId)
+    const target: StockTarget = { siteId, productId, variantId: variantId ?? null }
+    return { product, target, label: variant ? `${product.name} (${variant.name})` : product.name }
+  }
+
+  // Réception (entrée) ou perte (sortie) : mouvement et quantité dans une
+  // seule transaction. Un échec n'écrit rien.
   async addMovement(data: {
     siteId: string
     productId: string
-    type: string
+    variantId?: string
+    type: ManualMovementType
     quantity: number
     reason?: string
     userId?: string
   }) {
-    const product = await this.prisma.product.findFirst({
-      where: { id: data.productId, siteId: data.siteId },
-      select: { id: true },
+    if (!(data.quantity > 0)) throw new BadRequestException('La quantité doit être supérieure à zéro')
+    const { product, target } = await this.resolveTarget(data.siteId, data.productId, data.variantId)
+    if (data.type === 'RESTOCK' && product.tracking !== 'NONE') {
+      throw new BadRequestException('Ce produit est suivi par lot ou numéro de série : réceptionnez-le depuis « Lots et dates »')
+    }
+    const qty = new Decimal(data.quantity)
+
+    return this.prisma.$transaction(async (tx) => {
+      let lotId: string | null = null
+      if (data.type === 'LOSS') {
+        const current = await readStock(tx, target)
+        if (!current || current.quantity.lt(qty)) {
+          throw new BadRequestException(
+            `Perte de ${data.quantity} supérieure au stock (${current ? current.quantity.toString() : '0'}). Corrigez d'abord le stock.`,
+          )
+        }
+        lotId = await consumeLotsFefo(tx, target, qty)
+      }
+      await applyStockDelta(tx, target, data.type === 'LOSS' ? qty.neg() : qty)
+      return tx.stockMovement.create({
+        data: {
+          siteId: data.siteId,
+          productId: data.productId,
+          variantId: target.variantId,
+          lotId,
+          type: data.type,
+          quantity: qty,
+          reason: data.reason?.trim() || null,
+          userId: data.userId,
+        },
+      })
     })
-    if (!product) throw new NotFoundException('Produit introuvable sur ce site')
+  }
 
-    const movement = await this.prisma.stockMovement.create({
-      data: {
-        siteId: data.siteId,
-        productId: data.productId,
-        type: data.type as any,
-        quantity: new Decimal(data.quantity),
-        reason: data.reason,
-        userId: data.userId,
-      },
+  // « Corriger le stock » : on donne la quantité réellement comptée, l'écart
+  // est calculé ici. Le mouvement ADJUSTMENT est signé (négatif si le stock baisse).
+  async correct(data: {
+    siteId: string
+    organizationId: string | null
+    productId: string
+    variantId?: string
+    countedQuantity: number
+    reasonCode: CorrectionReason
+    note?: string
+    userId?: string
+  }) {
+    if (!(data.countedQuantity >= 0)) throw new BadRequestException('La quantité comptée ne peut pas être négative')
+    if (!(data.reasonCode in CORRECTION_REASONS)) throw new BadRequestException('Motif de correction inconnu')
+    if (data.reasonCode === 'AUTRE' && !data.note?.trim()) throw new BadRequestException('Précisez le motif de la correction')
+    const { target, label } = await this.resolveTarget(data.siteId, data.productId, data.variantId)
+    const counted = new Decimal(data.countedQuantity)
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const current = await readStock(tx, target)
+      const before = current?.quantity ?? new Decimal(0)
+      const delta = counted.sub(before)
+      if (delta.isZero()) throw new BadRequestException('La quantité comptée est déjà celle du stock : rien à corriger')
+      const lotId = delta.isNeg() ? await consumeLotsFefo(tx, target, delta.abs()) : null
+      await applyStockDelta(tx, target, delta)
+      const movement = await tx.stockMovement.create({
+        data: {
+          siteId: data.siteId,
+          productId: data.productId,
+          variantId: target.variantId,
+          lotId,
+          type: 'ADJUSTMENT',
+          quantity: delta,
+          reason: `Correction : ${reasonText(data.reasonCode, data.note)}`,
+          reasonCode: data.reasonCode,
+          userId: data.userId,
+        },
+      })
+      return { movement, before, delta }
     })
 
-    // Mise à jour du stock
-    const delta = ['SALE', 'LOSS', 'TRANSFER'].includes(data.type)
-      ? -Math.abs(data.quantity)
-      : Math.abs(data.quantity)
-
-    await this.prisma.stockItem.upsert({
-      where: { productId: data.productId },
-      update: { quantity: { increment: delta } },
-      create: {
-        productId: data.productId,
-        siteId: data.siteId,
-        quantity: new Decimal(Math.max(0, delta)),
-        unit: 'unité',
-      },
+    // Le journal ne bloque jamais la correction, déjà enregistrée
+    await this.audit?.log({
+      organizationId: data.organizationId,
+      userId: data.userId,
+      action: 'stock.correction',
+      target: data.productId,
+      detail: `${label} : ${result.before.toString()} vers ${counted.toString()} (${result.delta.isNeg() ? '' : '+'}${result.delta.toString()}), ${reasonText(data.reasonCode, data.note)}`,
     })
+    return { ...result.movement, previousQuantity: result.before, countedQuantity: counted, delta: result.delta }
+  }
 
-    return movement
+  // Seuil d'alerte et unité d'une ligne de stock (créée à zéro si elle n'existe pas encore)
+  async updateItemSettings(
+    siteId: string,
+    productId: string,
+    data: { variantId?: string; alertAt?: number | null; unit?: string },
+  ) {
+    const { target } = await this.resolveTarget(siteId, productId, data.variantId)
+    const alertAt = data.alertAt === undefined ? undefined : data.alertAt === null ? null : new Decimal(data.alertAt)
+    if (target.variantId) {
+      return this.prisma.variantStock.upsert({
+        where: { variantId: target.variantId },
+        update: { ...(alertAt !== undefined ? { alertAt } : {}) },
+        create: { variantId: target.variantId, siteId, quantity: new Decimal(0), alertAt: alertAt ?? null },
+      })
+    }
+    const unit = data.unit?.trim()
+    return this.prisma.stockItem.upsert({
+      where: { productId },
+      update: { ...(alertAt !== undefined ? { alertAt } : {}), ...(unit ? { unit } : {}) },
+      create: { productId, siteId, quantity: new Decimal(0), unit: unit || 'unité', alertAt: alertAt ?? null },
+    })
   }
 }

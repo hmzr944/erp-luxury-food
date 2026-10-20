@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { FlowPulse } from '@/components/brand/FlowLogo'
 import { DeviceMobile, WarningCircle } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
-import { paymentsApi, type PaymentDevice, type TerminalPayment } from '@/lib/api/payments'
+import { useAuthStore } from '@/stores/auth.store'
+import { cancelPayment, paymentsApi, type PaymentDevice, type TerminalPayment } from '@/lib/api/payments'
 
 interface TerminalWaitProps {
   siteId: string
@@ -28,6 +29,11 @@ type View =
 export function TerminalWait({ siteId, device, amount, clientSaleId: saleId, onApproved, onPaidElsewhere, onBack }: TerminalWaitProps) {
   const [view, setView] = useState<View>({ kind: 'sending' })
   const [attempt, setAttempt] = useState({ n: 0, force: false })
+  // Annulation que le terminal n'a pas confirmée : le paiement reste en cours
+  // La simulation d'un paiement est réservée aux responsables (refusée par le serveur sinon)
+  const role = useAuthStore((st) => st.user?.role)
+  const canSimulate = role === 'OWNER' || role === 'MANAGER'
+  const [cancelIssue, setCancelIssue] = useState<string | null>(null)
   const clientSaleId = useRef(saleId ?? crypto.randomUUID())
   const done = useRef(false)
 
@@ -36,6 +42,7 @@ export function TerminalWait({ siteId, device, amount, clientSaleId: saleId, onA
     let timer: number | undefined
     done.current = false
     setView({ kind: 'sending' })
+    setCancelIssue(null)
 
     const poll = async (id: string) => {
       if (stop) return
@@ -76,10 +83,36 @@ export function TerminalWait({ siteId, device, amount, clientSaleId: saleId, onA
 
   const payment = view.kind === 'waiting' ? view.payment : null
 
-  const cancel = useCallback(async () => {
-    if (payment) await paymentsApi.cancel(siteId, payment.id).catch(() => {})
-    onBack()
-  }, [payment, siteId, onBack])
+  // Quitte l'attente seulement si le paiement est bien clos. Sinon la caisse
+  // reste ici et continue d'interroger : le client a pu payer entre-temps.
+  const closePayment = useCallback(
+    async (leave: () => void) => {
+      if (!payment) return leave()
+      const r = await cancelPayment(siteId, payment.id)
+      if (r.done) return leave()
+      setCancelIssue(r.message ?? null)
+    },
+    [payment, siteId],
+  )
+  const cancel = useCallback(() => closePayment(onBack), [closePayment, onBack])
+
+  const check = useCallback(async () => {
+    if (!payment) return
+    try {
+      const p = await paymentsApi.get(siteId, payment.id)
+      if (p.status === 'SUCCEEDED' && !done.current) {
+        done.current = true
+        onApproved(clientSaleId.current)
+      } else if (p.status === 'FAILED' || p.status === 'CANCELED') {
+        setCancelIssue(null)
+        setView({ kind: 'failed', message: p.status === 'CANCELED' ? 'Paiement annulé.' : (p.failureReason ?? 'Paiement refusé.') })
+      } else {
+        setCancelIssue('Le paiement est toujours en attente sur le TPE. Regardez son écran avant de réessayer.')
+      }
+    } catch {
+      setCancelIssue('Impossible de lire l’état du paiement pour le moment : vérifiez sur le TPE.')
+    }
+  }, [payment, siteId, onApproved])
 
   if (view.kind === 'failed') {
     return (
@@ -126,26 +159,40 @@ export function TerminalWait({ siteId, device, amount, clientSaleId: saleId, onA
             </Link>
             .
           </p>
+          {!canSimulate && <p className="text-sm font-medium">Seul un responsable peut répondre à la place du TPE virtuel.</p>}
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => paymentsApi.simulate(siteId, payment.id, true)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium">
+            <button type="button" disabled={!canSimulate} onClick={() => paymentsApi.simulate(siteId, payment.id, true)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium disabled:opacity-40">
               Carte acceptée
             </button>
-            <button type="button" onClick={() => paymentsApi.simulate(siteId, payment.id, false)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium">
+            <button type="button" disabled={!canSimulate} onClick={() => paymentsApi.simulate(siteId, payment.id, false)} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium disabled:opacity-40">
               Carte refusée
             </button>
           </div>
         </div>
       )}
 
-      <button type="button" onClick={cancel} className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium">
+      {cancelIssue && (
+        <div role="alert" className="space-y-3 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-4">
+          <p className="flex items-start gap-3 text-[15px] font-medium">
+            <WarningCircle size={22} weight="fill" aria-hidden className="mt-px shrink-0" />
+            {cancelIssue}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => void check()} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium">
+              Vérifier le paiement
+            </button>
+            <button type="button" onClick={() => void cancel()} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium">
+              Réessayer l’annulation
+            </button>
+          </div>
+        </div>
+      )}
+      <button type="button" onClick={() => void cancel()} className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium">
         Annuler
       </button>
       <button
         type="button"
-        onClick={async () => {
-          if (payment) await paymentsApi.cancel(siteId, payment.id).catch(() => {})
-          onPaidElsewhere()
-        }}
+        onClick={() => void closePayment(onPaidElsewhere)}
         className="h-11 w-full text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline">
         Le client a payé sur un autre TPE
       </button>

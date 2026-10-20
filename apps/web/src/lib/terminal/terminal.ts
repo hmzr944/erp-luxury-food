@@ -3,6 +3,7 @@
 import { ECDSA_PARAMS, RECEIPT_GENESIS_HASH, priceOrder, type SignedSaleContent } from '@erp/utils'
 import { authorizedFetch } from '@/lib/api/client'
 import { db, type SaleRecord, type TerminalRecord } from '@/lib/offline/db'
+import { classifyStorageError, SaleStorageError } from '@/lib/offline/storage'
 import { signSale, type TerminalReceipt } from './signer'
 import { applyOfflineRoster, type OfflineRoster } from './offline-pin'
 
@@ -30,6 +31,24 @@ export async function getTerminal(siteId: string): Promise<TerminalRecord | unde
 }
 
 // Enregistre cet appareil comme caisse du site (une seule fois)
+//
+// Clé perdue (stockage vidé, appareil remplacé) : la clé privée n'existe qu'ici
+// et n'est pas exportable, rien ne peut la reconstituer. Conséquences, sans
+// changer l'API ni la logique fiscale :
+// - Ventes déjà envoyées : rien à faire, le serveur les a vérifiées avec la clé
+//   publique de l'ancienne caisse, qu'il garde.
+// - Ventes en attente restées dans le navigateur : si la base est intacte, elles
+//   partent normalement (le serveur accepte les ventes d'une caisse désactivée).
+//   Si la base est vidée, elles sont perdues, sauf fichier « Sauvegarder les
+//   ventes en attente » (lib/offline/backup.ts) : il contient les ventes déjà
+//   signées, qu'on réimporte telles quelles, sans clé.
+// - Nouvelle vente : impossible avec l'ancienne identité. Marche à suivre :
+//   un responsable désactive l'ancienne caisse (réglages, caisses), puis cet
+//   appareil en enregistre une nouvelle (autre terminalId, compteur à 1, chaîne
+//   neuve). Ne jamais réutiliser l'ancien compteur : le serveur refuserait
+//   (409) tout ticket qui ne prolonge pas la chaîne de la caisse.
+// - Ventes signées par l'ancienne clé mais jamais retrouvées : trou dans la
+//   chaîne de l'ancienne caisse, à signaler et expliquer par le responsable.
 export async function ensureTerminal(siteId: string): Promise<TerminalRecord> {
   return withLock(`terminal:${siteId}`, async () => {
     const existing = await db.terminals.get(siteId)
@@ -109,7 +128,9 @@ export async function recordSale(siteId: string, input: SaleInput): Promise<Reco
   const clientId = input.clientId ?? crypto.randomUUID()
 
   const recorded = await withLock(`terminal:${siteId}`, async () => {
-    const current = (await db.terminals.get(siteId))!
+    const current = await db.terminals.get(siteId)
+    // Clé disparue entre-temps (stockage vidé) : on ne signe rien avec une autre
+    if (!current) throw new TerminalNotRegisteredError()
     const { receipt, next } = await signSale(current.privateKey, current, {
       clientId,
       content,
@@ -137,11 +158,20 @@ export async function recordSale(siteId: string, input: SaleInput): Promise<Reco
         receipt,
       },
     }
-    // Compteur de la caisse et vente enregistrés ensemble, ou pas du tout
-    await db.transaction('rw', db.terminals, db.sales, async () => {
-      await db.terminals.update(siteId, { counter: next.counter, lastHash: next.lastHash })
-      await db.sales.add(sale)
-    })
+    // Compteur de la caisse et vente enregistrés ensemble, ou pas du tout.
+    // Si l'écriture échoue (stockage plein, base fermée), la transaction est
+    // annulée : le compteur n'avance pas, aucun trou dans la chaîne des
+    // tickets, et le vendeur voit l'échec au lieu d'un ticket qui n'existe pas.
+    try {
+      await db.transaction('rw', db.terminals, db.sales, async () => {
+        await db.terminals.update(siteId, { counter: next.counter, lastHash: next.lastHash })
+        await db.sales.add(sale)
+      })
+      // Relecture : on ne remet un ticket qu'une fois la vente retrouvée sur l'appareil
+      if (!(await db.sales.where('clientId').equals(clientId).first())) throw new Error('vente introuvable après écriture')
+    } catch (e) {
+      throw new SaleStorageError(classifyStorageError(e), e)
+    }
     return { clientId, terminalName: current.name, receipt, pricing }
   })
 
@@ -160,9 +190,14 @@ export interface FlushResult {
 export async function flushSales(siteId: string): Promise<FlushResult> {
   return withLock(`sync:${siteId}`, async () => {
     const result: FlushResult = { synced: 0, rejected: 0, remaining: 0 }
-    const pending = await db.sales.where('[siteId+status]').equals([siteId, 'pending']).sortBy('counter')
+    const all = await db.sales.where('[siteId+status]').equals([siteId, 'pending']).sortBy('counter')
+    // Chaque caisse a sa propre chaîne : on envoie caisse par caisse, dans l'ordre
+    // des tickets (cas d'une ancienne caisse réimportée à côté de la nouvelle)
+    const pending = all.sort((a, b) => (a.terminalId < b.terminalId ? -1 : a.terminalId > b.terminalId ? 1 : a.counter - b.counter))
+    const stuck = new Set<string>() // caisses dont la chaîne attend un ticket manquant
 
     for (const sale of pending) {
+      if (stuck.has(sale.terminalId)) continue
       let res: Response
       try {
         res = await authorizedFetch(`/sites/${siteId}/orders/sync`, {
@@ -190,6 +225,10 @@ export async function flushSales(siteId: string): Promise<FlushResult> {
       }
       // 409 (ordre des tickets), 401, 5xx : on garde la vente et on réessaiera
       await db.sales.update(sale.id!, { error: message, attempts: sale.attempts + 1 })
+      if (res.status === 409) {
+        stuck.add(sale.terminalId) // seule cette caisse attend, les autres continuent
+        continue
+      }
       break
     }
 
@@ -203,6 +242,12 @@ export function countSales(siteId: string) {
     db.sales.where('[siteId+status]').equals([siteId, 'pending']).count(),
     db.sales.where('[siteId+status]').equals([siteId, 'rejected']).count(),
   ]).then(([pending, rejected]) => ({ pending, rejected }))
+}
+
+// Ventes en attente : combien, et depuis quand (alerte de stockage)
+export async function pendingOverview(siteId: string): Promise<{ count: number; oldestAt: number | null }> {
+  const pending = await db.sales.where('[siteId+status]').equals([siteId, 'pending']).toArray()
+  return { count: pending.length, oldestAt: pending.length ? Math.min(...pending.map((s) => s.createdAt)) : null }
 }
 
 // Connexion par code vendeur : la caisse signe la demande avec sa clé,

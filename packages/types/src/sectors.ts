@@ -75,7 +75,9 @@ const BASE_PAYMENTS: PaymentMethodPreset[] = [
 export const PACK_ATTRIBUTES: Record<Pack, AttributePreset[]> = {
   [Pack.FOOD]: [
     { key: 'origin', label: 'Origine', type: AttributeType.TEXT, pack: Pack.FOOD },
+    { key: 'producer', label: 'Producteur', type: AttributeType.TEXT, pack: Pack.FOOD },
     { key: 'netWeight', label: 'Poids net (g)', type: AttributeType.NUMBER, pack: Pack.FOOD },
+    { key: 'packaging', label: 'Conditionnement', type: AttributeType.TEXT, pack: Pack.FOOD },
     { key: 'storage', label: 'Conservation', type: AttributeType.TEXT, pack: Pack.FOOD },
   ],
   [Pack.FASHION]: [
@@ -104,7 +106,17 @@ export const PACK_ATTRIBUTES: Record<Pack, AttributePreset[]> = {
   [Pack.WINE]: [
     { key: 'vintage', label: 'Millésime', type: AttributeType.NUMBER, pack: Pack.WINE },
     { key: 'appellation', label: 'Appellation', type: AttributeType.TEXT, pack: Pack.WINE },
+    { key: 'region', label: 'Région', type: AttributeType.TEXT, pack: Pack.WINE },
+    { key: 'grape', label: 'Cépage', type: AttributeType.TEXT, pack: Pack.WINE },
+    {
+      key: 'wineType',
+      label: 'Couleur ou type',
+      type: AttributeType.SELECT,
+      options: ['Rouge', 'Blanc', 'Rosé', 'Effervescent', 'Liquoreux', 'Spiritueux', 'Autre'],
+      pack: Pack.WINE,
+    },
     { key: 'abv', label: 'Degré (% vol.)', type: AttributeType.NUMBER, pack: Pack.WINE },
+    { key: 'volumeCl', label: 'Contenance (cl)', type: AttributeType.NUMBER, pack: Pack.WINE },
   ],
   [Pack.SERVICES]: [
     { key: 'durationMinutes', label: 'Durée (min)', type: AttributeType.NUMBER, pack: Pack.SERVICES },

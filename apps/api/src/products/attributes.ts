@@ -8,6 +8,16 @@ export interface AttributeDefinitionLike {
   required: boolean
 }
 
+// Champs propres au suivi des lots, présents pour toutes les organisations : le type
+// de date limite d'un produit (DLC : à consommer jusqu'au, DDM : de préférence avant)
+export const SYSTEM_ATTRIBUTES: AttributeDefinitionLike[] = [
+  { key: 'dateKind', label: 'Type de date limite', type: 'SELECT', options: ['DLC', 'DDM'], required: false },
+]
+
+export function withSystemAttributes(defs: AttributeDefinitionLike[]): AttributeDefinitionLike[] {
+  return [...defs, ...SYSTEM_ATTRIBUTES.filter((s) => !defs.some((d) => d.key === s.key))]
+}
+
 // Vérifie les valeurs d'un produit contre les champs définis par l'organisation.
 // Renvoie les valeurs nettoyées (champs vides retirés) ou la liste des erreurs.
 export function validateAttributes(

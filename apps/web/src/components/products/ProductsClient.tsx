@@ -9,10 +9,17 @@ import { formatPrice } from '@erp/utils'
 import { productsAdminApi, type CreateProductPayload } from '@/lib/api/products-admin'
 import { productsApi, type ApiProduct } from '@/lib/api/products'
 import { ProductDrawer, type ProductFormValues } from './ProductDrawer'
+import { attributeSummary, attributesMatch } from './attributes-form'
 import { rayonShapes } from '@/lib/brand'
 import { RayonGlyph } from '@/components/brand/RayonGlyph'
 
 interface ProductsClientProps { siteId: string }
+
+// « 2,5 » ou « 2.5 » : nombre, ou null si le champ est vide
+const parseThreshold = (raw?: string): number | null => {
+  const t = (raw ?? '').trim().replace(',', '.')
+  return t === '' ? null : Number(t)
+}
 
 export function ProductsClient({ siteId }: ProductsClientProps) {
   const qc = useQueryClient()
@@ -30,6 +37,12 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
     queryFn: () => productsApi.getCategories(siteId),
   })
   const shapeOf = rayonShapes(categories)
+
+  // Champs de la fiche : sert au résumé affiché sous le nom
+  const { data: attrDefs = [] } = useQuery({
+    queryKey: ['attribute-definitions', siteId],
+    queryFn: () => productsAdminApi.attributeDefinitions(siteId),
+  })
 
   const createProduct = useMutation({
     mutationFn: (data: CreateProductPayload) => productsAdminApi.create(siteId, data),
@@ -79,7 +92,11 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
       isMenu: data.saleMode === 'MENU',
       soldByWeight: data.saleMode === 'WEIGHT',
       scaleCode: data.saleMode === 'WEIGHT' && data.scaleCode ? data.scaleCode : null,
+      // Création : seulement si renseigné. Modification : vide efface le seuil.
+      alertAt: parseThreshold(data.alertAt) ?? (drawerProduct === 'new' ? undefined : null),
       modifierGroupIds: data.modifierGroupIds,
+      tracking: data.tracking,
+      attributes: data.attributes,
       menuSteps: data.menuSteps.filter((st) => st.name.trim() && st.choices.length).map((st) => ({ ...st, name: st.name.trim() })),
     }
 
@@ -91,7 +108,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
   }
 
   const filtered = products.filter((p) => {
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.toLowerCase().includes(search.toLowerCase()) || attributesMatch(p.attributes, search)
     const matchCat = !categoryFilter || p.categoryId === categoryFilter
     return matchSearch && matchCat
   })
@@ -126,7 +143,7 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Rechercher un produit"
-            placeholder="Nom, SKU..."
+            placeholder="Nom, SKU, origine..."
             className="w-full h-8 pl-7 pr-3 bg-[var(--color-bg-elevated)] border border-[var(--color-border-strong)] rounded-[var(--radius-md)] font-body text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] transition-colors"
           />
         </div>
@@ -212,6 +229,10 @@ export function ProductsClient({ siteId }: ProductsClientProps) {
                       {product.subtitle}
                     </p>
                   )}
+                  {(() => {
+                    const summary = attributeSummary(attrDefs, product.attributes)
+                    return summary ? <p className="font-body text-xs text-[var(--color-text-secondary)] truncate">{summary}</p> : null
+                  })()}
                 </div>
 
                 {/* Category */}

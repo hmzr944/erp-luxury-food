@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CreditCard, WarningCircle } from '@phosphor-icons/react'
 import { formatPrice } from '@erp/utils'
 import { FlowPulse } from '@/components/brand/FlowLogo'
+import { CANCEL_UNCONFIRMED_MESSAGE } from '@/lib/api/payments'
 import { BridgeCallError, getBridge, type BridgeTpeConfig, type PaymentResult } from '@/lib/bridge'
 
 interface BridgeTerminalWaitProps {
@@ -16,7 +17,7 @@ interface BridgeTerminalWaitProps {
 }
 
 type View =
-  | { kind: 'waiting'; step?: string; cancelling?: boolean }
+  | { kind: 'waiting'; step?: string; cancelling?: boolean; issue?: string }
   | { kind: 'failed'; message: string; uncertain?: boolean }
 
 // Paiement envoyé au TPE et pas encore conclu : gardé sur l'appareil pour
@@ -137,17 +138,40 @@ export function BridgeTerminalWait({ config, amount, onApproved, onPaidElsewhere
   }, [attempt])
 
   // Le TPE Caisse-AP ne s'annule pas à distance : on le dit, et on attend
-  // sa réponse (le client a pu payer quand même)
+  // sa réponse (le client a pu payer quand même). Si le pont ne répond pas,
+  // l'annulation n'est pas confirmée : le paiement reste en cours, on le dit
+  // et on propose de vérifier ou de réessayer.
+  const tryCancel = async (): Promise<'accepted' | 'refused' | 'unconfirmed'> => {
+    const id = paymentId.current
+    try {
+      const r = await getBridge().call('payment.cancel', { paymentId: id })
+      return r.accepted ? 'accepted' : 'refused'
+    } catch {
+      if (mounted.current && paymentId.current === id) setView({ kind: 'waiting', issue: CANCEL_UNCONFIRMED_MESSAGE })
+      return 'unconfirmed'
+    }
+  }
+
   const cancel = async () => {
     const id = paymentId.current
-    const r = await getBridge()
-      .call('payment.cancel', { paymentId: id })
-      .catch(() => ({ accepted: false, message: '' }))
-    if (r.accepted) {
+    const r = await tryCancel()
+    if (r === 'accepted') {
       writePending(null)
       return onBack()
     }
-    if (paymentId.current === id) setView({ kind: 'waiting', cancelling: true, step: 'Annulez sur le TPE (touche rouge). La caisse attend sa réponse.' })
+    if (r === 'refused' && paymentId.current === id) setView({ kind: 'waiting', cancelling: true, step: 'Annulez sur le TPE (touche rouge). La caisse attend sa réponse.' })
+  }
+
+  // Une seule lecture de l'état chez le pont, sans attendre : le TPE a pu accepter la carte
+  const check = async () => {
+    const id = paymentId.current
+    try {
+      const st = await getBridge().call('payment.status', { paymentId: id })
+      if (st.state === 'done' && st.result) return settle(id, st.result)
+      setView({ kind: 'waiting', issue: 'Le paiement est toujours en cours sur le TPE. Regardez son écran avant de réessayer.' })
+    } catch {
+      setView({ kind: 'waiting', issue: 'Liaison avec FLŌW-Bridge impossible pour le moment : vérifiez sur le TPE.' })
+    }
   }
 
   const paidOnTerminal = () => {
@@ -205,6 +229,22 @@ export function BridgeTerminalWait({ config, amount, onApproved, onPaidElsewhere
         <p className="tabular text-4xl font-semibold tracking-tight">{formatPrice(amount)}</p>
         <p className="text-[15px] text-[var(--color-text-secondary)]">{view.step ?? 'Le client paie sur le TPE.'}</p>
       </div>
+      {view.issue && (
+        <div role="alert" className="space-y-3 rounded-[var(--radius-md)] bg-[var(--color-accent-muted)] p-4">
+          <p className="flex items-start gap-3 text-[15px] font-medium">
+            <WarningCircle size={22} weight="fill" aria-hidden className="mt-px shrink-0" />
+            {view.issue}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => void check()} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium press">
+              Vérifier le paiement
+            </button>
+            <button type="button" onClick={() => void cancel()} className="h-11 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-sm font-medium press">
+              Réessayer l’annulation
+            </button>
+          </div>
+        </div>
+      )}
       {!view.cancelling && (
         <button type="button" onClick={cancel} className="h-12 w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[15px] font-medium press">
           Annuler
@@ -213,10 +253,8 @@ export function BridgeTerminalWait({ config, amount, onApproved, onPaidElsewhere
       <button
         type="button"
         onClick={async () => {
-          await getBridge()
-            .call('payment.cancel', { paymentId: paymentId.current })
-            .catch(() => {})
-          paidOnTerminal()
+          // Sans confirmation d'annulation, le TPE peut encore débiter : on ne conclut pas
+          if ((await tryCancel()) !== 'unconfirmed') paidOnTerminal()
         }}
         className="h-11 w-full text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline"
       >

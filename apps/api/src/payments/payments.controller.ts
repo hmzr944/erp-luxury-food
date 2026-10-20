@@ -143,7 +143,7 @@ export class PaymentDevicesController {
 }
 
 @Controller('sites/:siteId/terminal-payments')
-@UseGuards(JwtAuthGuard, SiteGuard)
+@UseGuards(JwtAuthGuard, SiteGuard, RolesGuard)
 export class TerminalPaymentsController {
   constructor(private payments: PaymentsService) {}
 
@@ -174,10 +174,12 @@ export class TerminalPaymentsController {
     return this.payments.cancel(siteId, id)
   }
 
+  // Réservé aux responsables : un vendeur ne peut pas « accepter » une carte
   @Post(':id/simulate')
+  @Roles(Role.OWNER, Role.MANAGER)
   @HttpCode(HttpStatus.OK)
-  simulate(@Param('siteId') siteId: string, @Param('id') id: string, @Body() dto: SimulateDto) {
-    return this.payments.simulate(siteId, id, dto.approve)
+  simulate(@Param('siteId') siteId: string, @Param('id') id: string, @Body() dto: SimulateDto, @CurrentUser() user: { id: string; organizationId: string; role?: string }) {
+    return this.payments.simulate(siteId, id, dto.approve, user)
   }
 }
 

@@ -1,10 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { Decimal } from '@prisma/client/runtime/library'
-import { SECTOR_PRESETS, type Sector } from '@erp/types'
+import { PACK_ATTRIBUTES, SECTOR_PRESETS, type Pack, type Sector } from '@erp/types'
 import { buildVariantMatrix, variantLabel } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
-import { validateAttributes } from './attributes'
+import { validateAttributes, withSystemAttributes } from './attributes'
 import { isBarcode, lookupBarcode } from './lookup'
 import type {
   CategoryDto,
@@ -102,6 +102,8 @@ export class ProductsService {
     const options = this.normalizeOptions(dto.options)
     const variants = dto.variants ?? this.generateVariants(options, dto.price)
     await this.checkComposition(siteId, dto)
+    // Seuil d'alerte : la ligne de stock naît à zéro avec son seuil
+    const alertAt = dto.alertAt == null ? null : new Decimal(dto.alertAt)
 
     return this.prisma.product.create({
       data: {
@@ -124,7 +126,15 @@ export class ProductsService {
         modifierGroups: { create: (dto.modifierGroupIds ?? []).map((groupId, position) => ({ groupId, position })) },
         menuSteps: { create: (dto.menuSteps ?? []).map((st, position) => this.stepData(st, position)) },
         options: { create: options.map((o, position) => ({ ...o, position })) },
-        variants: { create: variants.map((v, position) => this.variantData(v, position)) },
+        variants: {
+          create: variants.map((v, position) => ({
+            ...this.variantData(v, position),
+            ...(alertAt ? { stock: { create: { siteId, quantity: new Decimal(0), alertAt } } } : {}),
+          })),
+        },
+        ...(alertAt && !variants.length
+          ? { stockItem: { create: { siteId, quantity: new Decimal(0), unit: dto.soldByWeight ? 'kg' : 'unité', alertAt } } }
+          : {}),
       },
       include: PRODUCT_INCLUDE,
     })
@@ -133,7 +143,7 @@ export class ProductsService {
   async update(id: string, siteId: string, dto: UpdateProductDto) {
     const current = await this.findById(id, siteId)
     const org = await this.organizationOf(siteId)
-    const { variants, options, attributes, price, taxRate, modifierGroupIds, menuSteps, scaleCode, ...rest } = dto
+    const { variants, options, attributes, price, taxRate, modifierGroupIds, menuSteps, scaleCode, alertAt, ...rest } = dto
     await this.checkComposition(siteId, dto, id)
     const checkedAttributes =
       attributes !== undefined ? await this.checkAttributes(org.id, attributes) : undefined
@@ -190,9 +200,45 @@ export class ProductsService {
           else await tx.variant.create({ data: { ...data, productId: id } })
         }
       }
+
+      // Après les variantes : le seuil s'applique à celles qui restent actives
+      if (alertAt !== undefined) await this.saveAlertThreshold(tx, siteId, id, alertAt, rest.soldByWeight ?? current.soldByWeight)
     })
 
     return this.findById(id, siteId)
+  }
+
+  // Écrit le seuil d'alerte dans le stock : celui du produit, ou de chacune
+  // de ses variantes s'il en a. Sans seuil (null), on efface sans créer de ligne.
+  private async saveAlertThreshold(
+    tx: Prisma.TransactionClient,
+    siteId: string,
+    productId: string,
+    alertAt: number | null,
+    soldByWeight: boolean,
+  ) {
+    const value = alertAt === null ? null : new Decimal(alertAt)
+    const variants = await tx.variant.findMany({ where: { productId, isActive: true }, select: { id: true } })
+    if (value === null) {
+      await tx.stockItem.updateMany({ where: { productId }, data: { alertAt: null } })
+      await tx.variantStock.updateMany({ where: { variant: { productId } }, data: { alertAt: null } })
+      return
+    }
+    if (variants.length) {
+      for (const v of variants) {
+        await tx.variantStock.upsert({
+          where: { variantId: v.id },
+          update: { alertAt: value },
+          create: { variantId: v.id, siteId, quantity: new Decimal(0), alertAt: value },
+        })
+      }
+      return
+    }
+    await tx.stockItem.upsert({
+      where: { productId },
+      update: { alertAt: value },
+      create: { productId, siteId, quantity: new Decimal(0), unit: soldByWeight ? 'kg' : 'unité', alertAt: value },
+    })
   }
 
   async remove(id: string, siteId: string) {
@@ -402,9 +448,34 @@ export class ProductsService {
     return { id: org.id, sector: org.sector, defaultTaxRate: Number(org.taxRates[0]?.rate ?? 20) }
   }
 
+  // Champs de la fiche produit de l'organisation. Les champs ajoutés depuis à ses packs
+  // (région, cépage, producteur...) sont créés au passage, sans toucher à ceux déjà personnalisés
+  async attributeDefinitions(siteId: string) {
+    const org = await this.organizationOf(siteId)
+    await this.ensurePackAttributes(org.id)
+    return this.prisma.attributeDefinition.findMany({
+      where: { organizationId: org.id },
+      orderBy: [{ position: 'asc' }, { label: 'asc' }],
+      select: { id: true, key: true, label: true, type: true, options: true, pack: true, required: true },
+    })
+  }
+
+  private async ensurePackAttributes(organizationId: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { packs: true } })
+    const attrs = ((org?.packs ?? []) as Pack[]).flatMap((p) => PACK_ATTRIBUTES[p] ?? [])
+    if (!attrs.length) return
+    await this.prisma.attributeDefinition.createMany({
+      data: attrs.map((a, i) => ({
+        organizationId, key: a.key, label: a.label, type: a.type, options: a.options ?? [], pack: a.pack, position: i,
+      })),
+      skipDuplicates: true,
+    })
+  }
+
   private async checkAttributes(organizationId: string, values: Record<string, unknown>) {
+    await this.ensurePackAttributes(organizationId)
     const defs = await this.prisma.attributeDefinition.findMany({ where: { organizationId } })
-    const result = validateAttributes(defs, values)
+    const result = validateAttributes(withSystemAttributes(defs), values)
     if (result.errors.length) throw new BadRequestException(result.errors)
     return result.values
   }

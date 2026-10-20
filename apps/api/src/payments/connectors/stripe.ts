@@ -98,8 +98,10 @@ export const stripeConnector: PaymentConnector = {
   },
 
   async cancel(ctx, input) {
+    // Le lecteur peut n'avoir aucune action en cours : seule l'annulation de
+    // l'intention de paiement fait foi, et son échec remonte à la caisse
     await call(ctx, 'POST', `/terminal/readers/${input.readerId}/cancel_action`, {}).catch(() => {})
-    await call(ctx, 'POST', `/payment_intents/${input.providerRef}/cancel`, {}).catch(() => {})
+    await call(ctx, 'POST', `/payment_intents/${input.providerRef}/cancel`, {})
   },
 
   async refund(ctx, input) {
