@@ -17,7 +17,7 @@ const COVERED = [
   'Clôtures journalières, mensuelles et annuelles cumulatives, scellées et chaînées.',
   'Archives périodiques au format ouvert (JSON), datées, scellées et signées par l’éditeur.',
   'Journal des événements techniques chaîné, duplicatas numérotés, mode formation identifié.',
-  'Conservation des données détaillées ligne par ligne, tables protégées en ajout seul.',
+  'Conservation des données détaillées ligne par ligne ; tables fiscales (chaîne des tickets, clôtures, journal des événements, duplicata, archives) protégées en ajout seul au niveau de la base.',
 ]
 
 const NOT_COVERED = [
