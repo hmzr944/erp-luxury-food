@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsEmail, IsEnum, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsEnum, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
 import { Role } from '@erp/types'
 
 export class CreateUserDto {
@@ -12,6 +12,10 @@ export class CreateUserDto {
 
 export class UpdateRoleDto {
   @IsEnum(Role) role!: Role
+}
+
+export class UpdateSitesDto {
+  @IsArray() @ArrayMinSize(1, { message: 'Au moins une boutique' }) @ArrayMaxSize(200) @IsString({ each: true }) siteIds!: string[]
 }
 
 export class UpdateProfileDto {

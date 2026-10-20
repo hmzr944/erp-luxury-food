@@ -4,13 +4,19 @@ import {
   ExecutionContext,
   NotFoundException,
   ForbiddenException,
+  Optional,
 } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
+import { ORG_SCOPED_SITE } from '../decorators/org-scoped-site.decorator'
 import { PrismaService } from '../prisma/prisma.service'
 import { Role } from '@erp/types'
 
 @Injectable()
 export class SiteGuard implements CanActivate {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private reflector?: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest()
@@ -34,6 +40,9 @@ export class SiteGuard implements CanActivate {
 
     // OWNER et MANAGER ont accès à tous les sites de leur org
     if (user.role === Role.OWNER || user.role === Role.MANAGER) return true
+
+    // Synchronisation d'une vente déjà signée : l'organisation suffit
+    if (this.reflector?.getAllAndOverride<boolean>(ORG_SCOPED_SITE, [context.getHandler(), context.getClass()])) return true
 
     // SELLER : doit être explicitement rattaché au site
     const userSite = await this.prisma.userSite.findUnique({

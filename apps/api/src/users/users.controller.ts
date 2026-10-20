@@ -7,7 +7,7 @@ import { Roles } from '../common/decorators/roles.decorator'
 import { RequireSubscription } from '../common/decorators/require-subscription.decorator'
 import { UsersService, type Actor } from './users.service'
 import { Role } from '@erp/types'
-import { BadgeDto, CreateUserDto, UpdatePasswordDto, UpdateProfileDto, UpdateRoleDto } from './users.dto'
+import { BadgeDto, CreateUserDto, UpdatePasswordDto, UpdateProfileDto, UpdateRoleDto, UpdateSitesDto } from './users.dto'
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, ThrottlerGuard)
@@ -89,6 +89,15 @@ export class UsersController {
   @Roles(Role.OWNER, Role.MANAGER)
   updateRole(@CurrentUser() user: Actor, @Param('id') id: string, @Body() dto: UpdateRoleDto) {
     return this.users.updateRole(user, id, dto.role)
+  }
+
+  // Boutiques d'un vendeur ou d'un membre de la production : titulaire seul
+  // (un gérant crée des comptes mais ne se donne ni ne donne d'accès après coup)
+  @Put(':id/sites')
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER)
+  setSites(@CurrentUser() user: Actor, @Param('id') id: string, @Body() dto: UpdateSitesDto) {
+    return this.users.setSites(user, id, dto.siteIds)
   }
 
   @Delete(':id')

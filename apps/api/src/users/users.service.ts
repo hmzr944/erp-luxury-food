@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common'
+import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { AuthService } from '../auth/auth.service'
 import { AuditService } from '../audit/audit.service'
@@ -106,6 +106,36 @@ export class UsersService {
     })
     await this.audit.log({ organizationId: actor.organizationId, userId: actor.id, action: 'user.role_changed', target: id, detail: `${before.role} → ${role}` })
     return user
+  }
+
+  // Remplace l'ensemble des boutiques d'un vendeur ou d'un membre de la production.
+  // Le garde de site relit UserSite à chaque requête (le jeton ne porte aucun site) :
+  // le retrait prend effet immédiatement, sans fermer la session.
+  async setSites(actor: Actor, id: string, requested: string[]) {
+    if (actor.role !== 'OWNER') throw new ForbiddenException('Réservé au titulaire du compte')
+    const siteIds = [...new Set(requested)]
+    if (!siteIds.length) throw new BadRequestException('Au moins une boutique')
+    const user = await this.target(actor, id)
+    if (user.role !== 'SELLER' && user.role !== 'PRODUCTION') {
+      throw new BadRequestException('Ce rôle a accès à toutes les boutiques : rien à régler')
+    }
+    const known = await this.prisma.site.findMany({ where: { id: { in: siteIds }, organizationId: actor.organizationId }, select: { id: true } })
+    if (known.length !== siteIds.length) throw new ForbiddenException('Site inconnu')
+
+    const before = await this.prisma.$transaction(async (tx) => {
+      const current = (await tx.userSite.findMany({ where: { userId: id }, select: { siteId: true } })).map((s) => s.siteId)
+      await tx.userSite.deleteMany({ where: { userId: id, siteId: { notIn: siteIds } } })
+      await tx.userSite.createMany({ data: siteIds.filter((s) => !current.includes(s)).map((siteId) => ({ userId: id, siteId })), skipDuplicates: true })
+      return current
+    })
+    await this.audit.log({
+      organizationId: actor.organizationId,
+      userId: actor.id,
+      action: 'user.sites_changed',
+      target: id,
+      detail: `avant : ${before.join(', ') || 'aucun'} ; après : ${siteIds.join(', ')}`,
+    })
+    return { id, siteIds }
   }
 
   async updateProfile(actor: Actor, data: { firstName?: string; lastName?: string; email?: string; currentPassword?: string }) {

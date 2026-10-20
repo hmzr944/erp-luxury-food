@@ -9,6 +9,7 @@ import { sitesApi } from '@/lib/api/sites'
 import { useAuthStore } from '@/stores/auth.store'
 import { ROLE_LABEL, type AppRole } from '@/lib/workspace'
 import { BadgeSheet } from './BadgeSheet'
+import { MemberSites } from './MemberSites'
 
 interface TeamMember {
   id: string
@@ -237,6 +238,12 @@ export function UsersSettings() {
                     <Trash size={18} />
                   </button>
                 )}
+                <MemberSites
+                  member={u}
+                  sites={sites.data ?? []}
+                  canEdit={me?.role === 'OWNER'}
+                  onSaved={() => void refresh()}
+                />
               </li>
             ))}
       </ul>
