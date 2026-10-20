@@ -5,6 +5,7 @@ import { Decimal } from '@prisma/client/runtime/library'
 import type { SignedReceipt } from '@erp/types'
 import { RECEIPT_GENESIS_HASH, ledgerEntryInput, ledgerEntryInputV1 } from '@erp/utils'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { checkSaleDigest } from './sale-content'
 
 export interface TerminalSeal {
   terminalId: string
@@ -23,6 +24,9 @@ export interface SignReceiptInput {
   content: string
   terminal?: TerminalSeal
 }
+
+// Ventes lues par paquet pendant la vérification du grand livre
+const SALES_CHUNK = 500
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 
@@ -154,7 +158,17 @@ export class ComplianceService {
       perpetualAbs = new Decimal(0)
     }
 
-    for (const r of receipts) {
+    // Ventes des tickets vérifiés, lues par paquets : le contenu stocké est
+    // comparé à l'empreinte scellée dans le ticket
+    const sales = new Map<string, Awaited<ReturnType<ComplianceService['loadSales']>>[number]>()
+    let contentChecked = 0
+    let contentNotChecked = 0
+
+    for (const [index, r] of receipts.entries()) {
+      if (r.version >= 2 && r.contentDigest && !sales.has(r.id)) {
+        const chunk = receipts.slice(index, index + SALES_CHUNK).filter((x) => x.version >= 2 && x.contentDigest).map((x) => x.id)
+        for (const sale of await this.loadSales(chunk)) sales.set(sale.receiptChainId!, sale)
+      }
       if (r.counter !== previousCounter + 1) errors.push(`Trou dans la numérotation : ${previousCounter} puis ${r.counter}`)
       if (r.previousHash !== previousHash) errors.push(`Chaîne rompue au ticket n° ${r.counter}`)
 
@@ -185,6 +199,24 @@ export class ComplianceService {
       }
       if (expected !== r.hash) errors.push(`Empreinte incorrecte au ticket n° ${r.counter}`)
 
+      // Contenu : recalcul de l'empreinte depuis les lignes et paiements stockés.
+      // Les anciens tickets (v1) n'ont pas d'empreinte de contenu : non vérifiable.
+      if (r.version >= 2 && r.contentDigest) {
+        const sale = sales.get(r.id)
+        if (!sale) {
+          errors.push(`Vente introuvable pour le ticket n° ${r.counter}`)
+        } else {
+          const kind = r.kind === 'REFUND' ? 'REFUND' : 'SALE'
+          const check = checkSaleDigest({ terminalId: r.terminalId, total: r.total }, kind, sale, r.contentDigest)
+          if (check === 'altered') errors.push(`Contenu altéré au ticket n° ${r.counter}`)
+          else if (check === 'unverifiable') contentNotChecked++
+          else contentChecked++
+          if (!sale.total.equals(r.total)) errors.push(`Contenu altéré au ticket n° ${r.counter} (montant de la vente différent du ticket)`)
+        }
+      } else {
+        contentNotChecked++
+      }
+
       perpetual = perpetual!.add(r.total)
       perpetualAbs = perpetualAbs!.add(r.total.abs())
       previousHash = r.hash
@@ -198,7 +230,32 @@ export class ComplianceService {
       lastCounter: receipts[receipts.length - 1].counter,
       perpetualTotal: perpetual!.toFixed(2),
       perpetualAbsTotal: perpetualAbs!.toFixed(2),
+      contentChecked,
+      contentNotChecked,
       errors: errors.slice(0, 50),
     }
+  }
+
+  // Vente de chaque ticket, avec de quoi recalculer l'empreinte de son contenu
+  private loadSales(receiptChainIds: string[]) {
+    return this.prisma.order.findMany({
+      where: { receiptChainId: { in: receiptChainIds } },
+      select: {
+        receiptChainId: true,
+        kind: true,
+        refundOfId: true,
+        total: true,
+        discount: true,
+        items: {
+          select: {
+            id: true, refundOfItemId: true, productId: true, variantId: true, name: true, variantName: true, serialNumber: true,
+            price: true, taxRate: true, quantity: true, discount: true, modifiers: true, menuProductId: true, menuName: true,
+            menuGroup: true, weight: true, scaleLabel: true,
+            product: { select: { isCustom: true } },
+          },
+        },
+        payments: { select: { id: true, code: true, kind: true, amount: true, reference: true } },
+      },
+    })
   }
 }

@@ -60,7 +60,7 @@ export const COVERED = [
   'Clôtures journalières, mensuelles et annuelles cumulatives, scellées et chaînées',
   'Archives périodiques au format ouvert (JSON), datées, scellées et signées par l’éditeur',
   'Journal des événements techniques chaîné, duplicatas numérotés, mode formation identifié',
-  'Conservation des données détaillées ligne par ligne ; tables fiscales (chaîne des tickets, clôtures, journal des événements, duplicata, archives) protégées en ajout seul au niveau de la base',
+  'Conservation des données détaillées ligne par ligne ; tables fiscales (chaîne des tickets, clôtures, journal des événements, duplicata, archives) protégées en ajout seul au niveau de la base ; détail des ventes (commandes, lignes, paiements) protégé en ajout seul une fois le ticket signé, et recalculé par la vérification du grand livre',
 ]
 
 export const NOT_COVERED = [

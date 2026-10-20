@@ -83,7 +83,7 @@ describe('Grand livre v2', () => {
         perpetualAbsTotal: abs,
         signedAt: new Date(`2026-10-14T10:0${i}:00.000Z`),
         previousHash: prev,
-        contentDigest: 'd',
+        contentDigest: '',
         terminalId: null,
         terminalSignature: null,
         hash: '',
@@ -98,7 +98,7 @@ describe('Grand livre v2', () => {
           total: total.toFixed(2),
           perpetualTotal: perp.toFixed(2),
           perpetualAbsTotal: abs.toFixed(2),
-          contentDigest: 'd',
+          contentDigest: '',
         }),
       )
       prev = row.hash
