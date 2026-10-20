@@ -3,6 +3,7 @@ import { readSecret } from '../common/crypto/secrets'
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { FacturxService } from './facturx.service'
+import { nextInvoiceNumber } from './invoice-number'
 
 export type InvoiceStatus = 'DRAFT' | 'SENT' | 'ACKNOWLEDGED' | 'PAID' | 'REFUSED'
 
@@ -16,21 +17,9 @@ export class InvoicesService {
   ) {}
 
   // ── Numérotation séquentielle sans gap ───────────────────────
-  async generateInvoiceNumber(organizationId: string): Promise<string> {
-    const year = new Date().getFullYear()
-
-    // Atomique via upsert + increment — jamais de gap même sous concurrence
-    const seq = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.invoiceSequence.upsert({
-        where: { organizationId_year: { organizationId, year } },
-        create: { organizationId, year, lastNumber: 1, prefix: 'FA' },
-        update: { lastNumber: { increment: 1 } },
-      })
-      return current
-    })
-
-    const padded = String(seq.lastNumber).padStart(4, '0')
-    return `${seq.prefix}-${year}-${padded}`
+  // Hors transaction de facturation, ce numéro peut se perdre si l'écriture suivante échoue : invoiceOrder passe par nextInvoiceNumber dans sa propre transaction.
+  generateInvoiceNumber(organizationId: string): Promise<string> {
+    return this.prisma.$transaction((tx) => nextInvoiceNumber(tx, organizationId))
   }
 
   // ── Facturer une commande B2B ─────────────────────────────────
@@ -48,21 +37,24 @@ export class InvoicesService {
     if (!order) throw new NotFoundException('Commande B2B introuvable')
     if (order.invoiceNumber) throw new BadRequestException('Facture déjà générée')
 
-    const invoiceNumber = await this.generateInvoiceNumber(organizationId)
-
-    const invoiced = await this.prisma.order.update({
-      where: { id: orderId },
-      data: {
-        invoiceNumber,
-        invoicedAt: new Date(),
-        status: 'COMPLETED',
-      },
-      include: {
-        b2bClient: true,
-        items: { include: { product: { select: { name: true, subtitle: true } } } },
-        receiptChain: { select: { counter: true } },
-        site: { include: { organization: { include: { settings: true } } } },
-      },
+    // Numéro et facture dans la même transaction : pas de numéro consommé si l'écriture échoue
+    const { invoiceNumber, invoiced } = await this.prisma.$transaction(async (tx) => {
+      const invoiceNumber = await nextInvoiceNumber(tx, organizationId)
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, invoiceNumber: null },
+        data: { invoiceNumber, invoicedAt: new Date(), status: 'COMPLETED' },
+      })
+      if (claimed.count !== 1) throw new BadRequestException('Facture déjà générée')
+      const invoiced = await tx.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: {
+          b2bClient: true,
+          items: { include: { product: { select: { name: true, subtitle: true } } } },
+          receiptChain: { select: { counter: true } },
+          site: { include: { organization: { include: { settings: true } } } },
+        },
+      })
+      return { invoiceNumber, invoiced }
     })
 
     // Si PDP configuré, envoie en arrière-plan

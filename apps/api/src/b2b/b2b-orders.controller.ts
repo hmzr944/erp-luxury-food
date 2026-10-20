@@ -12,7 +12,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { OrdersService } from '../orders/orders.service'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { Decimal } from '@prisma/client/runtime/library'
-import { randomInt } from 'node:crypto'
+import { nextInvoiceNumber } from '../invoices/invoice-number'
 
 @Controller('sites/:siteId/b2b-orders')
 @UseGuards(JwtAuthGuard, SiteGuard, RolesGuard)
@@ -95,23 +95,28 @@ export class B2BOrdersController {
   ) {
     const order = await this.prisma.order.findFirst({
       where: { id, siteId, channel: 'B2B' },
+      select: { id: true, invoiceNumber: true, site: { select: { organizationId: true } } },
     })
     if (!order) throw new Error('Commande B2B introuvable')
     if (order.invoiceNumber) throw new Error('Facture déjà générée')
 
-    const year = new Date().getFullYear()
-    const seq = String(randomInt(1000, 9999))
-    const invoiceNumber = `FA-${year}-${seq}`
-
-    return this.prisma.order.update({
-      where: { id },
-      data: { invoiceNumber, invoicedAt: new Date(), status: 'COMPLETED' },
-      include: {
-        items: true,
-        b2bClient: true,
-        receiptChain: { select: { counter: true } },
-        site: { include: { organization: true } },
-      },
+    // Même séquence atomique que les autres chemins de facturation (FA-AAAA-NNNN), dans la transaction qui enregistre la facture
+    return this.prisma.$transaction(async (tx) => {
+      const invoiceNumber = await nextInvoiceNumber(tx, order.site.organizationId)
+      const claimed = await tx.order.updateMany({
+        where: { id, invoiceNumber: null },
+        data: { invoiceNumber, invoicedAt: new Date(), status: 'COMPLETED' },
+      })
+      if (claimed.count !== 1) throw new Error('Facture déjà générée')
+      return tx.order.findUniqueOrThrow({
+        where: { id },
+        include: {
+          items: true,
+          b2bClient: true,
+          receiptChain: { select: { counter: true } },
+          site: { include: { organization: true } },
+        },
+      })
     })
   }
 

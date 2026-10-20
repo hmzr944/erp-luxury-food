@@ -143,7 +143,8 @@ export class InvoiceFromReceiptService {
       date: order.invoicedAt ?? new Date(),
       timeZone: tz,
       seller: {
-        name: org.name,
+        // Entrepreneur individuel : « EI » avant ou après le nom (fiche service-public F31808)
+        name: /entrepreneur individuel|^\s*EI\b/i.test(s?.legalForm ?? '') && !/\bEI\b|entrepreneur individuel/i.test(org.name) ? `${org.name} EI` : org.name,
         lines: [
           [s?.legalForm, s?.capital ? `au capital de ${eur(Number(s.capital))}` : null].filter(Boolean).join(' '),
           s?.legalAddress ?? '',

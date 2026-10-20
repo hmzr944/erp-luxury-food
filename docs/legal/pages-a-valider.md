@@ -110,6 +110,17 @@ Page FAQ « Conformité de la caisse : attestation de l'éditeur et NF525 ». So
 
 - Ajout ou retrait d'une boutique en cours de mois : proratisation retenue (Stripe create_prorations) à valider avec les CGV (« le mois commencé n'est pas remboursé »). La règle est isolée dans la constante `SITE_QUANTITY_PRORATION` (`apps/api/src/billing/stripe-billing.ts`).
 
+## Numérotation des factures (A3, 20 octobre 2026)
+
+- **Numérotation des factures : continuité et remise à zéro annuelle, à valider par l'expert-comptable.** Règle codée : un compteur par organisation et par année civile, format `FA-AAAA-NNNN`, attribué dans la transaction qui enregistre la facture (`apps/api/src/invoices/invoice-number.ts`), donc sans trou en cas d'échec ni doublon en cas de concurrence. La fiche service-public F31808 (lue le 20 octobre 2026, vérifiée par le site le 11 août 2026) demande un numéro unique suivant une séquence chronologique continue ; elle ne dit rien de la remise à zéro au 1er janvier (le préfixe porte l'année, le compteur repart de 0001). Non vérifié sur un texte officiel : à faire confirmer.
+- Les trois chemins de facturation (facture d'une vente en caisse `receipts/invoice.service.ts`, facture B2B `invoices/invoices.service.ts`, route `POST /sites/:siteId/b2b-orders/:id/invoice`) partagent désormais la même séquence `InvoiceSequence`. Seul le premier garde sa propre écriture de la séquence (même effet) : à unifier plus tard.
+- **Mention d'entrepreneur individuel sur la facture** : la fiche F31808 demande, pour un entrepreneur individuel, le nom et prénom avec « EI » ou « Entrepreneur individuel » avant ou après, l'adresse et le SIREN. Le PDF ajoute « EI » après le nom du vendeur lorsque la forme juridique des réglages contient « entrepreneur individuel » ou commence par « EI » (`receipts/invoice.service.ts`). Si la forme juridique n'est pas renseignée, rien n'est ajouté : à vérifier à la configuration du compte de chaque commerçant EI. Le nom saisi doit être le nom et prénom de l'entrepreneur.
+
+## Documents préparés pour relecture par des professionnels
+
+- `docs/legal/accord-sous-traitance-brouillon.md` : brouillon d'accord article 28 du RGPD, à faire relire par un avocat.
+- `docs/legal/dossier-rendez-vous-professionnels.md` : questions à poser à l'expert-comptable et à l'avocat, à imprimer.
+
 ## Avant la mise en ligne
 
 - Renseigner toutes les variables, rebâtir l'image web, vérifier qu'aucun « [à compléter] » ne reste.
